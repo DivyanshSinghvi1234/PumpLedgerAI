@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 40 python -c \"import app.main; print\\('IMPORT OK'\\)\")",
+      "Bash(python -m compileall -q app/)",
+      "Bash(python -c \"import app.main\")",
+      "Bash(npx tsc *)",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(grep -i 'tailwind\\\\|css\\\\|\"\\\\./\\\\*\"\\\\|default')",
+      "Bash(python -m json.tool)",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(timeout 40 python -c \"import app.main; print\\('BACKEND IMPORT OK'\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); o=d['ocr']; print\\('   invoice:', o['invoice_number'], '| fuel:', o['fuel_type'], '| qty:', o['quantity_liters'], '| total:', o['total_amount'], '| ready:', d['ready_to_save']\\)\")",
+      "Bash(python -c \"import google.genai as g; print\\(getattr\\(g,'__version__','?'\\)\\)\")",
+      "Bash(pip show *)",
+      "Bash(python -c \"import app.main; print\\('BACKEND IMPORT OK'\\)\")",
+      "Bash(npm run *)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from app.core.config import settings; print\\('DATABASE_URL:', settings.DATABASE_URL\\)\")",
+      "Bash(alembic revision *)",
+      "Bash(alembic stamp *)",
+      "Bash(alembic current *)",
+      "Bash(alembic upgrade *)"
+    ]
+  }
+}

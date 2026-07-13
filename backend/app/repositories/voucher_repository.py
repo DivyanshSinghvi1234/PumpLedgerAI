@@ -1,0 +1,216 @@
+from __future__ import annotations
+
+from datetime import date
+
+from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy.orm import Session, joinedload
+
+from app.models.voucher import Voucher
+from app.models.customer import Customer
+from app.repositories.base_repository import BaseRepository
+
+
+class VoucherRepository(BaseRepository[Voucher]):
+    SORT_FIELDS = {
+        "invoice_date": Voucher.invoice_date,
+        "invoice_number": Voucher.invoice_number,
+        "customer_name": Voucher.customer_name,
+        "vehicle_number": Voucher.vehicle_number,
+        "fuel_type": Voucher.fuel_type,
+        "payment_mode": Voucher.payment_mode,
+        "total_amount": Voucher.total_amount,
+    }
+
+    def __init__(self):
+        super().__init__(Voucher)
+
+    def get_by_uuid(
+        self,
+        db: Session,
+        voucher_uuid: str,
+    ) -> Voucher | None:
+
+        statement = (
+            select(Voucher)
+            .where(Voucher.uuid == voucher_uuid)
+            .options(joinedload(Voucher.customer))
+        )
+
+        return db.scalar(statement)
+
+    def get_by_invoice(
+        self,
+        db: Session,
+        invoice_number: str,
+    ) -> Voucher | None:
+
+        statement = (
+            select(Voucher)
+            .where(
+                Voucher.invoice_number == invoice_number
+            )
+        )
+
+        return db.scalar(statement)
+
+    def list_for_customer(
+        self,
+        db: Session,
+        customer_id: int,
+        *,
+        payment_statuses: list[str] | None = None,
+    ) -> list[Voucher]:
+        """Return a customer's vouchers, newest first. Optionally restrict
+        to given payment statuses (e.g. UNPAID + PARTIAL for the settle
+        flow). Ordered oldest-first is done by callers that need it."""
+
+        statement = (
+            select(Voucher)
+            .where(
+                Voucher.customer_id == customer_id,
+                Voucher.is_active.is_(True),
+            )
+            .options(joinedload(Voucher.customer))
+        )
+
+        if payment_statuses:
+            statement = statement.where(
+                Voucher.payment_status.in_(payment_statuses)
+            )
+
+        statement = statement.order_by(
+            desc(Voucher.invoice_date),
+            desc(Voucher.id),
+        )
+
+        return list(db.scalars(statement).all())
+
+    def search(
+        self,
+        db: Session,
+        *,
+        search: str | None = None,
+        fuel_type: str | None = None,
+        payment_mode: str | None = None,
+        payment_status: str | None = None,
+        customer_uuid: str | None = None,
+        verification_status: str | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        sort_by: str = "invoice_date",
+        sort_order: str = "desc",
+    ) -> tuple[list[Voucher], int]:
+
+        statement = select(Voucher).options(
+            joinedload(Voucher.customer)
+        )
+
+        # -------------------------
+        # Search
+        # -------------------------
+
+        if search:
+            search_term = f"%{search}%"
+
+            statement = statement.where(
+                or_(
+                    Voucher.invoice_number.ilike(search_term),
+                    Voucher.customer_name.ilike(search_term),
+                    Voucher.vehicle_number.ilike(search_term),
+                )
+            )
+
+        # -------------------------
+        # Filters
+        # -------------------------
+
+        if fuel_type:
+            statement = statement.where(
+                Voucher.fuel_type == fuel_type
+            )
+
+        if payment_mode:
+            statement = statement.where(
+                Voucher.payment_mode == payment_mode
+            )
+
+        if payment_status:
+            statement = statement.where(
+                Voucher.payment_status == payment_status
+            )
+
+        if customer_uuid:
+            statement = statement.join(Voucher.customer).where(
+                Customer.uuid == customer_uuid
+            )
+
+        if verification_status:
+            statement = statement.where(
+                Voucher.verification_status == verification_status
+            )
+
+        if from_date:
+            statement = statement.where(
+                Voucher.invoice_date >= from_date
+            )
+
+        if to_date:
+            statement = statement.where(
+                Voucher.invoice_date <= to_date
+            )
+
+        # -------------------------
+        # Total Count
+        # -------------------------
+
+        count_statement = (
+            select(func.count())
+            .select_from(statement.subquery())
+        )
+
+        total = db.scalar(count_statement) or 0
+
+        # -------------------------
+        # Sorting
+        # -------------------------
+
+        sort_column = self.SORT_FIELDS.get(
+            sort_by,
+            Voucher.invoice_date,
+        )
+
+        if sort_order.lower() == "asc":
+            statement = statement.order_by(
+                asc(sort_column)
+            )
+        else:
+            statement = statement.order_by(
+                desc(sort_column)
+            )
+
+        # -------------------------
+        # Pagination
+        # -------------------------
+
+        statement = statement.offset(
+            (page - 1) * page_size
+        ).limit(page_size)
+
+        items = list(
+            db.scalars(statement).all()
+        )
+
+        return items, total
+
+    def update(
+        self,
+        db: Session,
+        voucher: Voucher,
+    ) -> Voucher:
+
+        db.commit()
+        db.refresh(voucher)
+
+        return voucher
