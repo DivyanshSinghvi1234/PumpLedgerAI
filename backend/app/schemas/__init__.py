@@ -1,6 +1,5 @@
 from app.schemas.upload import UploadResponse
 from app.schemas.vision import OCRResult
-from app.schemas.upload_ocr import UploadOCRResponse
 from app.schemas.voucher import (
     VoucherCreate,
     VoucherResponse,
@@ -22,7 +21,7 @@ __all__ = [
     "VoucherResponse",
     "UploadResponse",
     "OCRResult",
-    "UploadOCRResponse",
+
     "CustomerCreate",
     "CustomerUpdate",
     "CustomerResponse",

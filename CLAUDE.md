@@ -52,7 +52,7 @@ DB queries must NOT live in services.
 - **Auth:** router-level `Depends(get_current_user)` in `app/main.py` protects
   whole routers (voucher, upload, vision, customer, vehicle, dashboard, user).
   Per-route `Depends(require_roles(...))` (from `app/core/dependencies.py`) adds
-  role gates on specific mutating endpoints. `auth` and `test_vision` are public.
+  role gates on specific mutating endpoints. `auth` is public.
 - **Role matrix:** ADMIN = everything incl. user management; MANAGER = manage
   vouchers/customers/vehicles + verify/reject/delete + reports; OPERATOR =
   create/edit vouchers + upload + view only. Enforced via `require_roles`.
@@ -106,10 +106,7 @@ Being built in phases (the old `.claude/plans/lucky-brewing-dream.md` is gone;
 `docs/MVP_PLAN.md` supersedes it): completing the
 core product — real dashboard w/ charts, full voucher CRUD UI, vehicles UI,
 reports + CSV export, user-management UI, all role-gated. **Deferred until the
-core is solid:** Tally export, audit log, RAG AI-chat. The empty
-`app/modules/{analytics,audit,rag,reports,tally,vision,voucher}` folders are
-placeholders — real code lives in `app/services/`, `app/repositories/`, and
-`app/api/v1/routes/` (dashboard is the exception; it's built out under `app/modules/`).
+core is solid:** Tally export, audit log, RAG AI-chat. (dashboard is the exception; it's built out under `app/modules/dashboard`).
 
 ## House rules
 

@@ -6,7 +6,6 @@ from app.api.v1.routes.voucher import router as voucher_router
 from app.api.v1.routes.upload import router as upload_router
 from fastapi.staticfiles import StaticFiles
 from app.api.v1.routes.vision import router as vision_router
-from app.api.v1.routes.test_vision import router as test_vision_router
 from app.api.v1.routes.vehicle import router as vehicle_router
 from app.api.v1.routes.auth import (
     router as auth_router,
@@ -80,10 +79,7 @@ app.include_router(
     prefix="/api/v1",
     dependencies=protected,
 )
-app.include_router(
-    test_vision_router,
-    prefix="/api/v1",
-)
+
 app.include_router(
     customer_router,
     prefix="/api/v1",
