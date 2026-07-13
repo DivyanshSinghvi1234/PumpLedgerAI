@@ -52,11 +52,16 @@ class OCRReviewService:
                 "Calculated total differs from OCR total."
             )
 
+        if ocr.confidence < 0.85:
+            warnings.append(
+                f"Low OCR confidence ({ocr.confidence * 100:.0f}%). Please verify fields manually."
+            )
+
         return ReviewResponse(
             ocr=ocr,
             validation=ValidationResult(
                 warnings=warnings,
                 errors=errors,
             ),
-            ready_to_save=len(errors) == 0,
+            ready_to_save=len(errors) == 0 and ocr.confidence >= 0.85,
         )
