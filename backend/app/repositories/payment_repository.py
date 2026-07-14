@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -39,6 +40,7 @@ class PaymentRepository(BaseRepository[Payment]):
         *,
         customer_uuid: str | None = None,
         search: str | None = None,
+        payment_date: date | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Payment], int]:
@@ -55,6 +57,11 @@ class PaymentRepository(BaseRepository[Payment]):
         if customer_uuid:
             query = query.where(
                 Customer.uuid == customer_uuid
+            )
+
+        if payment_date:
+            query = query.where(
+                Payment.payment_date == payment_date
             )
 
         if search:

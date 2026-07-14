@@ -8,11 +8,9 @@ import type {
 
 export interface PaymentSearchParams {
   customer_uuid?: string;
-
   search?: string;
-
+  payment_date?: string;
   page?: number;
-
   page_size?: number;
 }
 
@@ -47,7 +45,7 @@ class PaymentService {
   ): Promise<Payment> {
     const response =
       await api.post<Payment>(
-        "/v1/payments",
+        "/v1/payments/allocate-fifo",
         data
       );
 

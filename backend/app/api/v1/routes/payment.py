@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -14,8 +15,10 @@ from app.schemas.payment import (
     PaymentCreate,
     PaymentListResponse,
     PaymentResponse,
+    PaymentFifoAllocateRequest,
 )
 from app.services.payment_service import PaymentService
+from app.services.voucher_payment_service import VoucherPaymentService
 
 router = APIRouter(
     prefix="/payments",
@@ -23,6 +26,7 @@ router = APIRouter(
 )
 
 service = PaymentService()
+voucher_payment_service = VoucherPaymentService()
 
 # Only managers and admins may record or reverse payments.
 manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))]
@@ -47,6 +51,38 @@ def create_payment(
         ) from exc
 
 
+@router.post(
+    "/allocate-fifo",
+    response_model=PaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=manager,
+)
+def allocate_payment_fifo(
+    data: PaymentFifoAllocateRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return voucher_payment_service.allocate_payment_fifo(
+            db,
+            customer_uuid=str(data.customer_uuid),
+            amount=data.amount,
+            payment_mode=data.payment_mode,
+            payment_date=data.payment_date,
+            reference_number=data.reference_number,
+            remarks=data.remarks,
+        )
+    except CustomerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
 @router.get(
     "",
     response_model=PaymentListResponse,
@@ -60,6 +96,10 @@ def get_payments(
         default=None,
         description="Search reference number or customer name",
     ),
+    payment_date: date | None = Query(
+        default=None,
+        description="Filter payments by exact date",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -68,6 +108,7 @@ def get_payments(
         db,
         customer_uuid=customer_uuid,
         search=search,
+        payment_date=payment_date,
         page=page,
         page_size=page_size,
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from sqlalchemy.orm import Session
 
 from app.core.enums import LedgerEntryType
@@ -81,6 +82,7 @@ class PaymentService:
         *,
         customer_uuid: str | None = None,
         search: str | None = None,
+        payment_date: date | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Payment], int]:
@@ -89,6 +91,7 @@ class PaymentService:
             db,
             customer_uuid=customer_uuid,
             search=search,
+            payment_date=payment_date,
             page=page,
             page_size=page_size,
         )
