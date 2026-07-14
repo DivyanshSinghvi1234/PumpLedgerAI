@@ -171,7 +171,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Pump Switcher Section */}
-        <div className="px-5 py-3 border-b border-hairline bg-surface-2/20 backdrop-blur-xs">
+        <div className="relative z-30 px-5 py-3 border-b border-hairline bg-surface-2/20 backdrop-blur-xs">
           <PumpSwitcher />
         </div>
 
