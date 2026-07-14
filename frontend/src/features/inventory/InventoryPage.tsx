@@ -23,14 +23,33 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "./services/inventoryService";
-import type { FuelType, FuelTankCreate, DipReadingCreate, PriceScheduleCreate } from "./types";
+import type { FuelType, FuelTankCreate, DipReadingCreate, PriceScheduleCreate, NozzleCreate, NozzleReadingCreate } from "./types";
 
 export default function InventoryPage() {
   const { hasRole } = useCurrentUser();
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"tanks" | "prices">("tanks");
+  const [activeTab, setActiveTab] = useState<"tanks" | "nozzles" | "prices">("tanks");
+
+  // Nozzle Dialog states
+  const [nozzleDialogOpen, setNozzleDialogOpen] = useState(false);
+  const [nozzleReadingDialogOpen, setNozzleReadingDialogOpen] = useState(false);
+  const [selectedNozzleUuid, setSelectedNozzleUuid] = useState<string>("");
+
+  // Create Nozzle Form states
+  const [nozzleName, setNozzleName] = useState("");
+  const [nozzlePipe1Fuel, setNozzlePipe1Fuel] = useState<FuelType>("PETROL");
+  const [nozzlePipe1Initial, setNozzlePipe1Initial] = useState("");
+  const [nozzlePipe2Fuel, setNozzlePipe2Fuel] = useState<FuelType>("SPEED_PETROL");
+  const [nozzlePipe2Initial, setNozzlePipe2Initial] = useState("");
+
+  // Log Nozzle Reading Form states
+  const [nozzleReadingDate, setNozzleReadingDate] = useState(new Date().toISOString().split("T")[0]);
+  const [nozzlePipe1Opening, setNozzlePipe1Opening] = useState<number | string>("");
+  const [nozzlePipe1Closing, setNozzlePipe1Closing] = useState("");
+  const [nozzlePipe2Opening, setNozzlePipe2Opening] = useState<number | string>("");
+  const [nozzlePipe2Closing, setNozzlePipe2Closing] = useState("");
 
   // Dialog states
   const [tankDialogOpen, setTankDialogOpen] = useState(false);
@@ -64,6 +83,16 @@ export default function InventoryPage() {
   const { data: dips } = useQuery({
     queryKey: ["dips"],
     queryFn: () => inventoryService.getDips(),
+  });
+
+  const { data: nozzles } = useQuery({
+    queryKey: ["nozzles"],
+    queryFn: () => inventoryService.getNozzles(),
+  });
+
+  const { data: nozzleReadings } = useQuery({
+    queryKey: ["nozzleReadings"],
+    queryFn: () => inventoryService.getNozzleReadings(),
   });
 
   // Mutations
@@ -114,6 +143,52 @@ export default function InventoryPage() {
     },
   });
 
+  const createNozzleMutation = useMutation({
+    mutationFn: (data: NozzleCreate) => inventoryService.createNozzle(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nozzles"] });
+      setNozzleDialogOpen(false);
+      toast.success("Nozzle created successfully!");
+      // Reset form
+      setNozzleName("");
+      setNozzlePipe1Initial("");
+      setNozzlePipe2Initial("");
+    },
+    onError: (err) => {
+      toast.error("Failed to create nozzle.");
+      console.error(err);
+    },
+  });
+
+  const postNozzleReadingMutation = useMutation({
+    mutationFn: ({ nozzleUuid, data }: { nozzleUuid: string; data: NozzleReadingCreate }) =>
+      inventoryService.postNozzleReading(nozzleUuid, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nozzles"] });
+      queryClient.invalidateQueries({ queryKey: ["nozzleReadings"] });
+      setNozzleReadingDialogOpen(false);
+      toast.success("Nozzle readings logged successfully!");
+      setNozzlePipe1Closing("");
+      setNozzlePipe2Closing("");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to log nozzle readings.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
+  const fetchOpeningReadings = async (nozzleUuid: string, dateStr: string) => {
+    try {
+      const openings = await inventoryService.getNozzleOpeningReadings(nozzleUuid, dateStr);
+      setNozzlePipe1Opening(openings.pipe_1_opening);
+      setNozzlePipe2Opening(openings.pipe_2_opening);
+    } catch (err) {
+      toast.error("Failed to load opening readings for selected date");
+      console.error(err);
+    }
+  };
+
   // Form Submissions
   const handleCreateTank = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +233,39 @@ export default function InventoryPage() {
     });
   };
 
+  const handleCreateNozzle = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nozzleName || !nozzlePipe1Initial || !nozzlePipe2Initial) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+    createNozzleMutation.mutate({
+      name: nozzleName,
+      pipe_1_fuel_type: nozzlePipe1Fuel,
+      pipe_1_last_reading: parseFloat(nozzlePipe1Initial),
+      pipe_2_fuel_type: nozzlePipe2Fuel,
+      pipe_2_last_reading: parseFloat(nozzlePipe2Initial),
+    });
+  };
+
+  const handlePostNozzleReading = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nozzlePipe1Closing || !nozzlePipe2Closing) {
+      toast.error("Please fill in closing readings for both pipes.");
+      return;
+    }
+    postNozzleReadingMutation.mutate({
+      nozzleUuid: selectedNozzleUuid,
+      data: {
+        pipe_1_opening: nozzlePipe1Opening !== "" ? parseFloat(nozzlePipe1Opening.toString()) : undefined,
+        pipe_2_opening: nozzlePipe2Opening !== "" ? parseFloat(nozzlePipe2Opening.toString()) : undefined,
+        pipe_1_closing: parseFloat(nozzlePipe1Closing),
+        pipe_2_closing: parseFloat(nozzlePipe2Closing),
+        reading_date: nozzleReadingDate || undefined,
+      },
+    });
+  };
+
   if (tanksLoading) {
     return <LoadingState />;
   }
@@ -175,12 +283,22 @@ export default function InventoryPage() {
         />
         {isAdminOrManager && (
           <div className="flex gap-2">
-            <Button
-              onClick={() => setTankDialogOpen(true)}
-              className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15"
-            >
-              <Plus size={16} className="mr-2" /> Add Fuel Tank
-            </Button>
+            {activeTab === "tanks" && (
+              <Button
+                onClick={() => setTankDialogOpen(true)}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15"
+              >
+                <Plus size={16} className="mr-2" /> Add Fuel Tank
+              </Button>
+            )}
+            {activeTab === "nozzles" && (
+              <Button
+                onClick={() => setNozzleDialogOpen(true)}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15"
+              >
+                <Plus size={16} className="mr-2" /> Add Nozzle
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -196,6 +314,16 @@ export default function InventoryPage() {
           }`}
         >
           Tanks & Dips
+        </button>
+        <button
+          onClick={() => setActiveTab("nozzles")}
+          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
+            activeTab === "nozzles"
+              ? "border-fuel-amber text-ink font-bold"
+              : "border-transparent text-ink-muted hover:text-ink"
+          }`}
+        >
+          Nozzles
         </button>
         <button
           onClick={() => setActiveTab("prices")}
@@ -375,6 +503,179 @@ export default function InventoryPage() {
                       <TableRow className="hover:bg-transparent">
                         <TableCell colSpan={6} className="h-28 text-center text-xs text-ink-subtle">
                           No physical dip logs recorded yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : activeTab === "nozzles" ? (
+        <div className="space-y-8 animate-fade-in">
+          {/* Nozzles Grid */}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {nozzles && nozzles.length > 0 ? (
+              nozzles.map((nozzle) => (
+                <Card key={nozzle.uuid} className="glass overflow-hidden relative border-hairline">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <Badge
+                        variant="secondary"
+                        className="bg-fuel-amber/10 text-fuel-amber text-[10px] uppercase font-mono font-bold"
+                      >
+                        {nozzle.status}
+                      </Badge>
+                      <Fuel size={18} className="text-ink-subtle" />
+                    </div>
+                    <CardTitle className="text-lg font-bold tracking-tight text-ink mt-2">
+                      {nozzle.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <div className="space-y-4">
+                      {/* Pipe 1 & Pipe 2 Info */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-surface-2 p-3 rounded-lg border border-hairline">
+                          <p className="text-[10px] text-ink-subtle font-semibold uppercase">Pipe 1</p>
+                          <Badge className="mt-1 text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15">
+                            {nozzle.pipe_1_fuel_type}
+                          </Badge>
+                          <p className="text-xs font-bold text-ink mt-2">
+                            {nozzle.pipe_1_last_reading.toLocaleString()} L
+                          </p>
+                        </div>
+                        <div className="bg-surface-2 p-3 rounded-lg border border-hairline">
+                          <p className="text-[10px] text-ink-subtle font-semibold uppercase">Pipe 2</p>
+                          <Badge className="mt-1 text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15">
+                            {nozzle.pipe_2_fuel_type}
+                          </Badge>
+                          <p className="text-xs font-bold text-ink mt-2">
+                            {nozzle.pipe_2_last_reading.toLocaleString()} L
+                          </p>
+                        </div>
+                      </div>
+
+                      {isAdminOrManager && (
+                        <Button
+                          onClick={() => {
+                            setSelectedNozzleUuid(nozzle.uuid);
+                            setNozzleReadingDate(new Date().toISOString().split("T")[0]);
+                            fetchOpeningReadings(nozzle.uuid, new Date().toISOString().split("T")[0]);
+                            setNozzleReadingDialogOpen(true);
+                          }}
+                          variant="outline"
+                          className="w-full justify-center border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+                        >
+                          <Calculator size={14} className="mr-2 text-fuel-amber" /> Log Readings
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="col-span-full">
+                <Card className="border-dashed border-hairline bg-transparent p-6 text-center">
+                  <Fuel className="mx-auto text-ink-subtle mb-3" size={32} />
+                  <p className="text-sm font-medium text-ink">No nozzles configured.</p>
+                  <p className="text-xs text-ink-subtle mt-1">
+                    Click "Add Nozzle" to configure dispensing nozzles.
+                  </p>
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {/* Nozzle Readings Logs Table */}
+          <Card className="glass border-hairline">
+            <CardHeader className="pb-3 border-b border-hairline">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
+                  <Activity size={15} />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold tracking-tight text-ink">
+                    Nozzle Readings Reconciliation Log
+                  </CardTitle>
+                  <CardDescription className="text-xs text-ink-subtle">
+                    Track initial/final readings and daily sales calculated in liters for both pipes.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-hairline hover:bg-transparent">
+                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Date
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Nozzle
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Pipe 1 (Open / Close)
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Pipe 1 Sales
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Pipe 2 (Open / Close)
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Pipe 2 Sales
+                      </TableHead>
+                      <TableHead className="px-5 text-right text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Total Sales
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {nozzleReadings && nozzleReadings.length > 0 ? (
+                      nozzleReadings.map((reading) => {
+                        const nz = nozzles?.find((n) => n.id === reading.nozzle_id);
+                        return (
+                          <TableRow key={reading.uuid} className="border-b border-hairline hover:bg-surface-3/35">
+                            <TableCell className="px-5 text-xs font-semibold text-ink">
+                              {new Date(reading.reading_date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-xs font-medium text-ink font-semibold">
+                              {nz ? nz.name : `Nozzle #${reading.nozzle_id}`}
+                            </TableCell>
+                            <TableCell className="text-xs text-ink-muted">
+                              {reading.pipe_1_opening.toFixed(2)} / {reading.pipe_1_closing.toFixed(2)} L
+                            </TableCell>
+                            <TableCell className="text-xs font-semibold text-ink">
+                              {reading.pipe_1_sales.toFixed(2)} L
+                            </TableCell>
+                            <TableCell className="text-xs text-ink-muted">
+                              {reading.pipe_2_opening.toFixed(2)} / {reading.pipe_2_closing.toFixed(2)} L
+                            </TableCell>
+                            <TableCell className="text-xs font-semibold text-ink">
+                              {reading.pipe_2_sales.toFixed(2)} L
+                            </TableCell>
+                            <TableCell className="px-5 text-right">
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] font-mono font-bold uppercase bg-fuel-amber/10 text-fuel-amber"
+                              >
+                                {reading.total_sales.toFixed(2)} L
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={7} className="h-28 text-center text-xs text-ink-subtle">
+                          No nozzle logs recorded yet.
                         </TableCell>
                       </TableRow>
                     )}
@@ -608,18 +909,30 @@ export default function InventoryPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePostDip} className="space-y-4 py-2">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <Label htmlFor="readingDate" className="text-xs font-semibold text-ink-muted">
                 Reading Date
               </Label>
-              <Input
-                id="readingDate"
-                type="date"
-                value={readingDate}
-                onChange={(e) => setReadingDate(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
-                required
-              />
+              <div className="relative">
+                <Calendar
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
+                  size={14}
+                  onClick={() => {
+                    const el = document.getElementById("readingDate") as HTMLInputElement | null;
+                    if (el && typeof el.showPicker === "function") {
+                      el.showPicker();
+                    }
+                  }}
+                />
+                <Input
+                  id="readingDate"
+                  type="date"
+                  value={readingDate}
+                  onChange={(e) => setReadingDate(e.target.value)}
+                  className="bg-surface-2 border-hairline outline-none text-sm text-ink pl-10"
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -668,6 +981,250 @@ export default function InventoryPage() {
                 className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
               >
                 Sync & Reconcile
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* 3. Add Nozzle Dialog */}
+      <Dialog open={nozzleDialogOpen} onOpenChange={setNozzleDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <Fuel size={18} className="text-fuel-amber" /> Configure Nozzle
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateNozzle} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="nozzleName" className="text-xs font-semibold text-ink-muted">
+                Nozzle Name
+              </Label>
+              <Input
+                id="nozzleName"
+                placeholder="e.g. Nozzle A"
+                value={nozzleName}
+                onChange={(e) => setNozzleName(e.target.value)}
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                required
+              />
+            </div>
+
+            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
+              <h4 className="text-xs font-bold text-ink">Pipe 1 Configuration</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe1Fuel" className="text-[10px] font-semibold text-ink-subtle">
+                    Fuel Type
+                  </Label>
+                  <select
+                    id="nozzlePipe1Fuel"
+                    value={nozzlePipe1Fuel}
+                    onChange={(e) => setNozzlePipe1Fuel(e.target.value as FuelType)}
+                    className="w-full rounded-md border border-hairline bg-surface-2 p-1.5 text-xs text-ink outline-none"
+                  >
+                    <option value="PETROL">PETROL</option>
+                    <option value="SPEED_PETROL">SPEED PETROL</option>
+                    <option value="DIESEL">DIESEL</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe1Initial" className="text-[10px] font-semibold text-ink-subtle">
+                    Initial Reading (L)
+                  </Label>
+                  <Input
+                    id="nozzlePipe1Initial"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.0"
+                    value={nozzlePipe1Initial}
+                    onChange={(e) => setNozzlePipe1Initial(e.target.value)}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
+              <h4 className="text-xs font-bold text-ink">Pipe 2 Configuration</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe2Fuel" className="text-[10px] font-semibold text-ink-subtle">
+                    Fuel Type
+                  </Label>
+                  <select
+                    id="nozzlePipe2Fuel"
+                    value={nozzlePipe2Fuel}
+                    onChange={(e) => setNozzlePipe2Fuel(e.target.value as FuelType)}
+                    className="w-full rounded-md border border-hairline bg-surface-2 p-1.5 text-xs text-ink outline-none"
+                  >
+                    <option value="PETROL">PETROL</option>
+                    <option value="SPEED_PETROL">SPEED PETROL</option>
+                    <option value="DIESEL">DIESEL</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe2Initial" className="text-[10px] font-semibold text-ink-subtle">
+                    Initial Reading (L)
+                  </Label>
+                  <Input
+                    id="nozzlePipe2Initial"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.0"
+                    value={nozzlePipe2Initial}
+                    onChange={(e) => setNozzlePipe2Initial(e.target.value)}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNozzleDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                Create Nozzle
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 4. Log Nozzle Readings Dialog */}
+      <Dialog open={nozzleReadingDialogOpen} onOpenChange={setNozzleReadingDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <Calculator size={18} className="text-fuel-amber" /> Log Nozzle Readings
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handlePostNozzleReading} className="space-y-4 py-2">
+            <div className="space-y-1.5 relative">
+              <Label htmlFor="nozzleReadingDate" className="text-xs font-semibold text-ink-muted">
+                Reading Date
+              </Label>
+              <div className="relative">
+                <Calendar
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
+                  size={14}
+                  onClick={() => {
+                    const el = document.getElementById("nozzleReadingDate") as HTMLInputElement | null;
+                    if (el && typeof el.showPicker === "function") {
+                      el.showPicker();
+                    }
+                  }}
+                />
+                <Input
+                  id="nozzleReadingDate"
+                  type="date"
+                  value={nozzleReadingDate}
+                  onChange={(e) => {
+                    setNozzleReadingDate(e.target.value);
+                    fetchOpeningReadings(selectedNozzleUuid, e.target.value);
+                  }}
+                  className="bg-surface-2 border-hairline outline-none text-sm text-ink pl-10"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
+              <h4 className="text-xs font-bold text-ink">Pipe 1 Readings</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe1Opening" className="text-[10px] font-semibold text-ink-subtle">
+                    Opening Reading (L)
+                  </Label>
+                  <Input
+                    id="nozzlePipe1Opening"
+                    type="number"
+                    step="0.01"
+                    placeholder="Enter opening reading"
+                    value={nozzlePipe1Opening}
+                    onChange={(e) => setNozzlePipe1Opening(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe1Closing" className="text-[10px] font-semibold text-ink-subtle">
+                    Closing Reading (L)
+                  </Label>
+                  <Input
+                    id="nozzlePipe1Closing"
+                    type="number"
+                    step="0.01"
+                    placeholder="Enter final reading"
+                    value={nozzlePipe1Closing}
+                    onChange={(e) => setNozzlePipe1Closing(e.target.value)}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
+              <h4 className="text-xs font-bold text-ink">Pipe 2 Readings</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe2Opening" className="text-[10px] font-semibold text-ink-subtle">
+                    Opening Reading (L)
+                  </Label>
+                  <Input
+                    id="nozzlePipe2Opening"
+                    type="number"
+                    step="0.01"
+                    placeholder="Enter opening reading"
+                    value={nozzlePipe2Opening}
+                    onChange={(e) => setNozzlePipe2Opening(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="nozzlePipe2Closing" className="text-[10px] font-semibold text-ink-subtle">
+                    Closing Reading (L)
+                  </Label>
+                  <Input
+                    id="nozzlePipe2Closing"
+                    type="number"
+                    step="0.01"
+                    placeholder="Enter final reading"
+                    value={nozzlePipe2Closing}
+                    onChange={(e) => setNozzlePipe2Closing(e.target.value)}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNozzleReadingDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                Save Readings
               </Button>
             </DialogFooter>
           </form>

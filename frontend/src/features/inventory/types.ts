@@ -1,4 +1,4 @@
-export type FuelType = "PETROL" | "DIESEL" | "LUBRICANT";
+export type FuelType = "PETROL" | "SPEED_PETROL" | "DIESEL" | "LUBRICANT";
 
 export interface FuelTank {
   id: number;
@@ -52,3 +52,48 @@ export interface PriceScheduleCreate {
   rate: number;
   effective_from: string;
 }
+
+export interface Nozzle {
+  id: number;
+  uuid: string;
+  name: string;
+  pipe_1_fuel_type: FuelType;
+  pipe_1_last_reading: number;
+  pipe_2_fuel_type: FuelType;
+  pipe_2_last_reading: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NozzleCreate {
+  name: string;
+  pipe_1_fuel_type: FuelType;
+  pipe_1_last_reading: number;
+  pipe_2_fuel_type: FuelType;
+  pipe_2_last_reading: number;
+}
+
+export interface NozzleReading {
+  id: number;
+  uuid: string;
+  nozzle_id: number;
+  reading_date: string;
+  pipe_1_opening: number;
+  pipe_1_closing: number;
+  pipe_1_sales: number;
+  pipe_2_opening: number;
+  pipe_2_closing: number;
+  pipe_2_sales: number;
+  total_sales: number;
+  created_at: string;
+}
+
+export interface NozzleReadingCreate {
+  pipe_1_opening?: number;
+  pipe_2_opening?: number;
+  pipe_1_closing: number;
+  pipe_2_closing: number;
+  reading_date?: string;
+}
+
