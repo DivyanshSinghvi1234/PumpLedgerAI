@@ -346,7 +346,7 @@ export default function DailySheetPage() {
                             </TableCell>
                             <TableCell className="py-1.5 text-xs text-ink-muted font-mono">
                               <div>{voucher.fuel_type}</div>
-                              <div className="text-[9px] text-ink-subtle">{voucher.quantity_liters.toFixed(2)} L</div>
+                              <div className="text-[9px] text-ink-subtle">{Number(voucher.quantity_liters).toFixed(2)} L</div>
                             </TableCell>
                             <TableCell className="py-1.5 text-xs">
                               <Badge className={`text-[8px] px-1 py-0 uppercase border-transparent font-bold print-badge ${
@@ -358,7 +358,7 @@ export default function DailySheetPage() {
                               </Badge>
                             </TableCell>
                             <TableCell className="px-3 py-1.5 text-right font-bold text-xs text-ink font-mono">
-                              ₹{voucher.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              ₹{Number(voucher.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -368,7 +368,7 @@ export default function DailySheetPage() {
                             Total Invoice Sales:
                           </TableCell>
                           <TableCell className="px-3 py-1 text-right text-xs font-black text-fuel-amber font-mono">
-                            ₹{totalInvoiceSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ₹{Number(totalInvoiceSales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </TableCell>
                         </TableRow>
                       </TableBody>
@@ -426,7 +426,7 @@ export default function DailySheetPage() {
                               <div className="text-[9px] text-ink-subtle truncate max-w-[120px] italic">{payment.remarks || ""}</div>
                             </TableCell>
                             <TableCell className="px-3 py-1.5 text-right font-bold text-xs text-ink font-mono">
-                              ₹{payment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              ₹{Number(payment.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -436,7 +436,7 @@ export default function DailySheetPage() {
                             Total Payments Collected:
                           </TableCell>
                           <TableCell className="px-3 py-1 text-right text-xs font-black text-fuel-amber font-mono">
-                            ₹{totalPaymentsCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ₹{Number(totalPaymentsCollected).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </TableCell>
                         </TableRow>
                       </TableBody>
