@@ -8,6 +8,7 @@ from app.core.dependencies import get_db, require_roles
 from app.core.enums import UserRole
 from app.schemas.nozzle import (
     NozzleCreate,
+    NozzleUpdate,
     NozzleResponse,
     FuelDispenserCreate,
     FuelDispenserUpdate,
@@ -67,6 +68,43 @@ def create_nozzle(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.put(
+    "/{nozzle_uuid}",
+    response_model=NozzleResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def update_nozzle(
+    nozzle_uuid: str,
+    data: NozzleUpdate,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.update_nozzle(db, nozzle_uuid, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.delete(
+    "/{nozzle_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def delete_nozzle(
+    nozzle_uuid: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service.delete_nozzle(db, nozzle_uuid)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
 

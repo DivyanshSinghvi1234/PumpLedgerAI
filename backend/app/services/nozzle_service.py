@@ -14,6 +14,7 @@ from app.repositories.nozzle_repository import (
 )
 from app.schemas.nozzle import (
     NozzleCreate,
+    NozzleUpdate,
     FuelDispenserCreate,
     FuelDispenserUpdate,
     BulkNozzleReadingCreate,
@@ -101,6 +102,40 @@ class NozzleService:
             last_reading=data.last_reading,
         )
         return self.nozzle_repo.create(db, nozzle)
+
+    def update_nozzle(
+        self,
+        db: Session,
+        nozzle_uuid: str,
+        data: NozzleUpdate,
+    ) -> Nozzle:
+        nozzle = self.nozzle_repo.get_by_uuid(db, nozzle_uuid)
+        if not nozzle:
+            raise ValueError("Nozzle not found")
+
+        if data.name is not None:
+            cleaned_name = data.name.strip()
+            if not cleaned_name:
+                raise ValueError("Nozzle name cannot be empty")
+            if cleaned_name != nozzle.name:
+                existing = self.nozzle_repo.get_by_name(db, cleaned_name)
+                if existing:
+                    raise ValueError(f"Nozzle with name '{cleaned_name}' already exists")
+                nozzle.name = cleaned_name
+
+        if data.fuel_type is not None:
+            nozzle.fuel_type = data.fuel_type
+
+        if data.last_reading is not None:
+            nozzle.last_reading = data.last_reading
+
+        return self.nozzle_repo.update(db, nozzle)
+
+    def delete_nozzle(self, db: Session, nozzle_uuid: str) -> None:
+        nozzle = self.nozzle_repo.get_by_uuid(db, nozzle_uuid)
+        if not nozzle:
+            raise ValueError("Nozzle not found")
+        self.nozzle_repo.delete(db, nozzle)
 
     def get_opening_readings(
         self,

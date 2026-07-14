@@ -93,6 +93,15 @@ class InventoryService {
     const response = await api.get<NozzleReading[]>("/v1/nozzles/readings");
     return response.data;
   }
+
+  async updateNozzle(nozzleUuid: string, data: NozzleCreate): Promise<Nozzle> {
+    const response = await api.put<Nozzle>(`/v1/nozzles/${nozzleUuid}`, data);
+    return response.data;
+  }
+
+  async deleteNozzle(nozzleUuid: string): Promise<void> {
+    await api.delete(`/v1/nozzles/${nozzleUuid}`);
+  }
 }
 
 const inventoryService = new InventoryService();

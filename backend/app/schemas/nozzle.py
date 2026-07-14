@@ -8,7 +8,12 @@ from app.core.enums import FuelType, NozzleStatus
 class NozzleCreate(BaseModel):
     name: str
     fuel_type: FuelType
-    last_reading: float = 0.0
+    last_reading: float
+
+class NozzleUpdate(BaseModel):
+    name: str | None = None
+    fuel_type: FuelType | None = None
+    last_reading: float | None = None
 
 class NozzleResponse(BaseModel):
     id: int

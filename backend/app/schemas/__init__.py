@@ -17,6 +17,7 @@ from app.schemas.vehicle import (
 )
 from app.schemas.nozzle import (
     NozzleCreate,
+    NozzleUpdate,
     NozzleResponse,
     NozzleReadingCreate,
     NozzleReadingResponse,
@@ -41,6 +42,7 @@ __all__ = [
     "VehicleUpdate",
     "VehicleResponse",
     "NozzleCreate",
+    "NozzleUpdate",
     "NozzleResponse",
     "NozzleReadingCreate",
     "NozzleReadingResponse",

@@ -38,9 +38,14 @@ export default function InventoryPage() {
   const [dispenserDialogOpen, setDispenserDialogOpen] = useState(false);
   const [editDispenserDialogOpen, setEditDispenserDialogOpen] = useState(false);
   const [deleteDispenserDialogOpen, setDeleteDispenserDialogOpen] = useState(false);
+  
   const [nozzleDialogOpen, setNozzleDialogOpen] = useState(false);
+  const [editNozzleDialogOpen, setEditNozzleDialogOpen] = useState(false);
+  const [deleteNozzleDialogOpen, setDeleteNozzleDialogOpen] = useState(false);
   
   const [selectedDispenserUuid, setSelectedDispenserUuid] = useState("");
+  const [selectedNozzleUuid, setSelectedNozzleUuid] = useState("");
+
   const [dispenserName, setDispenserName] = useState("");
   const [editDispenserName, setEditDispenserName] = useState("");
   const [editDispenserStatus, setEditDispenserStatus] = useState("ACTIVE");
@@ -48,6 +53,10 @@ export default function InventoryPage() {
   const [nozzleName, setNozzleName] = useState("");
   const [nozzleFuelType, setNozzleFuelType] = useState<FuelType>("PETROL");
   const [nozzleInitialReading, setNozzleInitialReading] = useState("");
+
+  const [editNozzleName, setEditNozzleName] = useState("");
+  const [editNozzleFuelType, setEditNozzleFuelType] = useState<FuelType>("PETROL");
+  const [editNozzleInitialReading, setEditNozzleInitialReading] = useState("");
 
   // Meter Readings Bulk Entry state
   const [readingsDate, setReadingsDate] = useState(new Date().toISOString().split("T")[0]);
@@ -78,7 +87,7 @@ export default function InventoryPage() {
     enabled: activeTab === "history",
   });
 
-  // Lookup map to translate nozzle ID into nozzle & dispenser names
+  // Lookup map to translate nozzle ID into nozzle & dispenser details
   const nozzleLookup = useMemo(() => {
     const map: Record<number, { nozzleName: string; dispenserName: string; fuel_type: FuelType }> = {};
     dispensers?.forEach((d) => {
@@ -167,11 +176,43 @@ export default function InventoryPage() {
     },
   });
 
+  const updateNozzleMutation = useMutation({
+    mutationFn: ({ uuid, data }: { uuid: string; data: NozzleCreate }) =>
+      inventoryService.updateNozzle(uuid, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
+      queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
+      setEditNozzleDialogOpen(false);
+      toast.success("Nozzle updated successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to update nozzle.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
+  const deleteNozzleMutation = useMutation({
+    mutationFn: (uuid: string) => inventoryService.deleteNozzle(uuid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
+      queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
+      setDeleteNozzleDialogOpen(false);
+      toast.success("Nozzle deleted successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to delete nozzle.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
   const postBulkReadingsMutation = useMutation({
     mutationFn: (data: BulkNozzleReadingCreate) => inventoryService.postBulkReadings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dispensers"] });
-      // Invalidate globally to clear caches for future/past dates that are affected by rollover updates
       queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
       queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
       toast.success("All nozzle meter readings saved successfully!");
@@ -241,30 +282,55 @@ export default function InventoryPage() {
     });
   };
 
+  const handleUpdateNozzle = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editNozzleName.trim() || !editNozzleInitialReading) {
+      toast.error("Please specify a custom name and valid initial meter reading.");
+      return;
+    }
+    updateNozzleMutation.mutate({
+      uuid: selectedNozzleUuid,
+      data: {
+        name: editNozzleName,
+        fuel_type: editNozzleFuelType,
+        last_reading: parseFloat(editNozzleInitialReading),
+      },
+    });
+  };
+
+  const handleDeleteNozzle = (e: React.FormEvent) => {
+    e.preventDefault();
+    deleteNozzleMutation.mutate(selectedNozzleUuid);
+  };
+
   const handleSaveBulkReadings = (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const readings = Object.entries(formItems).map(([uuid, vals]) => {
-        const closingStr = vals.closing.toString().trim();
-        if (!closingStr) {
-          throw new Error("Please specify closing readings for all nozzles.");
-        }
-        const closing = parseFloat(closingStr);
-        const opening = vals.opening !== "" ? parseFloat(vals.opening.toString()) : 0;
-        
-        if (closing < opening) {
-          const item = bulkForm?.items.find((i) => i.nozzle_uuid === uuid);
-          throw new Error(
-            `Closing reading (${closing}) on nozzle '${item?.nozzle_name || "Unknown"}' cannot be less than opening reading (${opening}).`
-          );
-        }
+      // Filter out empty closing values so users can selectively save entered nozzle readings
+      const readings = Object.entries(formItems)
+        .filter(([_, vals]) => vals.closing.toString().trim() !== "")
+        .map(([uuid, vals]) => {
+          const closing = parseFloat(vals.closing.toString().trim());
+          const opening = vals.opening !== "" ? parseFloat(vals.opening.toString()) : 0;
+          
+          if (closing < opening) {
+            const item = bulkForm?.items.find((i) => i.nozzle_uuid === uuid);
+            throw new Error(
+              `Closing reading (${closing}) on nozzle '${item?.nozzle_name || "Unknown"}' cannot be less than opening reading (${opening}).`
+            );
+          }
 
-        return {
-          nozzle_uuid: uuid,
-          opening_reading: vals.opening !== "" ? parseFloat(vals.opening.toString()) : undefined,
-          closing_reading: closing,
-        };
-      });
+          return {
+            nozzle_uuid: uuid,
+            opening_reading: vals.opening !== "" ? parseFloat(vals.opening.toString()) : undefined,
+            closing_reading: closing,
+          };
+        });
+
+      if (readings.length === 0) {
+        toast.error("Please enter a closing reading for at least one nozzle.");
+        return;
+      }
 
       postBulkReadingsMutation.mutate({
         reading_date: readingsDate,
@@ -423,15 +489,44 @@ export default function InventoryPage() {
                               key={nozzle.uuid}
                               className="bg-surface-2 p-2.5 rounded-lg border border-hairline flex items-center justify-between"
                             >
-                              <div>
+                              <div className="flex-grow">
                                 <p className="text-xs font-bold text-ink">{nozzle.name}</p>
                                 <p className="text-[10px] text-ink-subtle mt-0.5">
                                   Last Meter: {nozzle.last_reading.toLocaleString()} L
                                 </p>
                               </div>
-                              <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber border-transparent hover:bg-fuel-amber/15">
-                                {nozzle.fuel_type}
-                              </Badge>
+                              <div className="flex items-center gap-1.5">
+                                <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber border-transparent hover:bg-fuel-amber/15 mr-1">
+                                  {nozzle.fuel_type}
+                                </Badge>
+                                {isAdminOrManager && (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedNozzleUuid(nozzle.uuid);
+                                        setEditNozzleName(nozzle.name);
+                                        setEditNozzleFuelType(nozzle.fuel_type);
+                                        setEditNozzleInitialReading(nozzle.last_reading.toString());
+                                        setEditNozzleDialogOpen(true);
+                                      }}
+                                      className="text-ink-subtle hover:text-fuel-amber transition-colors p-0.5 rounded hover:bg-surface-3 cursor-pointer"
+                                      title="Edit Nozzle"
+                                    >
+                                      <Edit2 size={11} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedNozzleUuid(nozzle.uuid);
+                                        setDeleteNozzleDialogOpen(true);
+                                      }}
+                                      className="text-ink-subtle hover:text-destructive transition-colors p-0.5 rounded hover:bg-surface-3 cursor-pointer"
+                                      title="Delete Nozzle"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -489,25 +584,53 @@ export default function InventoryPage() {
               <Label htmlFor="bulkDateInput" className="text-xs font-semibold text-ink-muted shrink-0">
                 Logging Date:
               </Label>
-              <div className="relative">
-                <Calendar
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
-                  size={14}
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => {
-                    const el = document.getElementById("bulkDateInput") as HTMLInputElement | null;
-                    if (el && typeof el.showPicker === "function") {
-                      el.showPicker();
-                    }
+                    const d = new Date(readingsDate);
+                    d.setDate(d.getDate() - 1);
+                    setReadingsDate(d.toISOString().split("T")[0]);
                   }}
-                />
-                <Input
-                  id="bulkDateInput"
-                  type="date"
-                  value={readingsDate}
-                  onChange={(e) => setReadingsDate(e.target.value)}
-                  className="bg-surface-2 border-hairline outline-none text-xs text-ink pl-9 py-1 h-8 w-36"
-                  required
-                />
+                  className="h-8 w-8 p-0 border border-hairline hover:bg-surface-3 text-ink cursor-pointer"
+                  title="Previous Day"
+                >
+                  &larr;
+                </Button>
+                <div className="relative">
+                  <Calendar
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
+                    size={14}
+                    onClick={() => {
+                      const el = document.getElementById("bulkDateInput") as HTMLInputElement | null;
+                      if (el && typeof el.showPicker === "function") {
+                        el.showPicker();
+                      }
+                    }}
+                  />
+                  <Input
+                    id="bulkDateInput"
+                    type="date"
+                    value={readingsDate}
+                    onChange={(e) => setReadingsDate(e.target.value)}
+                    className="bg-surface-2 border-hairline outline-none text-xs text-ink pl-9 pr-2 py-1 h-8 w-32"
+                    required
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const d = new Date(readingsDate);
+                    d.setDate(d.getDate() + 1);
+                    setReadingsDate(d.toISOString().split("T")[0]);
+                  }}
+                  className="h-8 w-8 p-0 border border-hairline hover:bg-surface-3 text-ink cursor-pointer"
+                  title="Next Day"
+                >
+                  &rarr;
+                </Button>
               </div>
             </div>
           </Card>
@@ -535,10 +658,10 @@ export default function InventoryPage() {
                             Fuel Type
                           </TableHead>
                           <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-40">
-                            Initial Reading (L)
+                            Initial Reading (L) (Editable)
                           </TableHead>
                           <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-44">
-                            Final Reading (L)
+                            Final Reading (L) (Editable)
                           </TableHead>
                           <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle text-right w-36">
                             Sales (Liters)
@@ -600,7 +723,6 @@ export default function InventoryPage() {
                                     }));
                                   }}
                                   className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8"
-                                  required
                                 />
                               </TableCell>
                               <TableCell className="px-5 text-right font-semibold text-xs text-ink">
@@ -1079,6 +1201,116 @@ export default function InventoryPage() {
                 className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
               >
                 {createNozzleMutation.isPending ? "Configuring..." : "Configure Nozzle"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2b. Edit Nozzle Dialog */}
+      <Dialog open={editNozzleDialogOpen} onOpenChange={setEditNozzleDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <Edit2 size={18} className="text-fuel-amber" /> Edit Nozzle Configuration
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateNozzle} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="editNozzleName" className="text-xs font-semibold text-ink-muted">
+                Nozzle Name
+              </Label>
+              <Input
+                id="editNozzleName"
+                placeholder="e.g. Nozzle 1A"
+                value={editNozzleName}
+                onChange={(e) => setEditNozzleName(e.target.value)}
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editNozzleFuel" className="text-xs font-semibold text-ink-muted">
+                Fuel Type
+              </Label>
+              <select
+                id="editNozzleFuel"
+                value={editNozzleFuelType}
+                onChange={(e) => setEditNozzleFuelType(e.target.value as FuelType)}
+                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+              >
+                <option value="PETROL">PETROL</option>
+                <option value="SPEED">SPEED</option>
+                <option value="DIESEL">DIESEL</option>
+                <option value="LUBRICANT">LUBRICANT</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editNozzleInitial" className="text-xs font-semibold text-ink-muted">
+                Initial Meter Reading (Liters)
+              </Label>
+              <Input
+                id="editNozzleInitial"
+                type="number"
+                step="0.01"
+                placeholder="e.g. 1000.00"
+                value={editNozzleInitialReading}
+                onChange={(e) => setEditNozzleInitialReading(e.target.value)}
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditNozzleDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateNozzleMutation.isPending}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                {updateNozzleMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2c. Delete Nozzle Confirmation Dialog */}
+      <Dialog open={deleteNozzleDialogOpen} onOpenChange={setDeleteNozzleDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2 text-destructive">
+              <AlertTriangle size={18} /> Delete Nozzle
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleDeleteNozzle} className="space-y-4 py-2">
+            <p className="text-xs text-ink-muted">
+              Are you sure you want to delete this nozzle? This will permanently delete its meter readings configuration and logs. This action cannot be undone.
+            </p>
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteNozzleDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={deleteNozzleMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                {deleteNozzleMutation.isPending ? "Deleting..." : "Delete Nozzle"}
               </Button>
             </DialogFooter>
           </form>
