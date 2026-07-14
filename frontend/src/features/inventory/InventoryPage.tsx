@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -23,110 +23,106 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "./services/inventoryService";
-import type { FuelType, FuelTankCreate, DipReadingCreate, PriceScheduleCreate, NozzleCreate, NozzleReadingCreate } from "./types";
+import type { FuelType, PriceScheduleCreate, FuelDispenserCreate, NozzleCreate, BulkNozzleReadingCreate } from "./types";
 
 export default function InventoryPage() {
   const { hasRole } = useCurrentUser();
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"tanks" | "nozzles" | "prices">("tanks");
+  const [activeTab, setActiveTab] = useState<"dispensers" | "readings" | "prices">("dispensers");
 
-  // Nozzle Dialog states
+  // Dispensers and Nozzles state
+  const [dispenserDialogOpen, setDispenserDialogOpen] = useState(false);
   const [nozzleDialogOpen, setNozzleDialogOpen] = useState(false);
-  const [nozzleReadingDialogOpen, setNozzleReadingDialogOpen] = useState(false);
-  const [selectedNozzleUuid, setSelectedNozzleUuid] = useState<string>("");
+  const [selectedDispenserUuid, setSelectedDispenserUuid] = useState("");
 
-  // Create Nozzle Form states
+  const [dispenserName, setDispenserName] = useState("");
+  
   const [nozzleName, setNozzleName] = useState("");
-  const [nozzlePipe1Fuel, setNozzlePipe1Fuel] = useState<FuelType>("PETROL");
-  const [nozzlePipe1Initial, setNozzlePipe1Initial] = useState("");
-  const [nozzlePipe2Fuel, setNozzlePipe2Fuel] = useState<FuelType>("SPEED_PETROL");
-  const [nozzlePipe2Initial, setNozzlePipe2Initial] = useState("");
+  const [nozzleFuelType, setNozzleFuelType] = useState<FuelType>("PETROL");
+  const [nozzleInitialReading, setNozzleInitialReading] = useState("");
 
-  // Log Nozzle Reading Form states
-  const [nozzleReadingDate, setNozzleReadingDate] = useState(new Date().toISOString().split("T")[0]);
-  const [nozzlePipe1Opening, setNozzlePipe1Opening] = useState<number | string>("");
-  const [nozzlePipe1Closing, setNozzlePipe1Closing] = useState("");
-  const [nozzlePipe2Opening, setNozzlePipe2Opening] = useState<number | string>("");
-  const [nozzlePipe2Closing, setNozzlePipe2Closing] = useState("");
+  // Meter Readings Bulk Entry state
+  const [readingsDate, setReadingsDate] = useState(new Date().toISOString().split("T")[0]);
+  const [formItems, setFormItems] = useState<Record<string, { opening: string | number; closing: string | number }>>({});
 
-  // Dialog states
-  const [tankDialogOpen, setTankDialogOpen] = useState(false);
-  const [dipDialogOpen, setDipDialogOpen] = useState(false);
-  const [selectedTankUuid, setSelectedTankUuid] = useState<string>("");
-
-  // Create Tank Form states
-  const [tankName, setTankName] = useState("");
-  const [tankFuelType, setTankFuelType] = useState<FuelType>("PETROL");
-  const [tankCapacity, setTankCapacity] = useState("");
-  const [tankInitialStock, setTankInitialStock] = useState("");
-
-  // Log Dip Form states
-  const [openingDip, setOpeningDip] = useState("");
-  const [closingDip, setClosingDip] = useState("");
-  const [readingDate, setReadingDate] = useState(new Date().toISOString().split("T")[0]);
-
-  // Create Price Schedule Form states
+  // Price Schedule Form states
   const [priceFuelType, setPriceFuelType] = useState<FuelType>("PETROL");
   const [priceRate, setPriceRate] = useState("");
   const [priceEffectiveFrom, setPriceEffectiveFrom] = useState(
-    new Date(Date.now() + 60000).toISOString().slice(0, 16) // Default to 1 minute in the future
+    new Date(Date.now() + 60000).toISOString().slice(0, 16)
   );
 
   // Queries
-  const { data: tanks, isLoading: tanksLoading, isError: tanksError } = useQuery({
-    queryKey: ["tanks"],
-    queryFn: () => inventoryService.getTanks(),
+  const { data: dispensers, isLoading: dispensersLoading, isError: dispensersError } = useQuery({
+    queryKey: ["dispensers"],
+    queryFn: () => inventoryService.getDispensers(),
   });
 
-  const { data: dips } = useQuery({
-    queryKey: ["dips"],
-    queryFn: () => inventoryService.getDips(),
+  const { data: bulkForm, isLoading: bulkFormLoading } = useQuery({
+    queryKey: ["bulkReadings", readingsDate],
+    queryFn: () => inventoryService.getBulkReadingsForm(readingsDate),
+    enabled: activeTab === "readings",
   });
 
-  const { data: nozzles } = useQuery({
-    queryKey: ["nozzles"],
-    queryFn: () => inventoryService.getNozzles(),
-  });
-
-  const { data: nozzleReadings } = useQuery({
-    queryKey: ["nozzleReadings"],
-    queryFn: () => inventoryService.getNozzleReadings(),
-  });
+  // Sync bulk reading form items into local state when data is loaded
+  useEffect(() => {
+    if (bulkForm?.items) {
+      const initialMap: Record<string, { opening: string | number; closing: string | number }> = {};
+      bulkForm.items.forEach((item) => {
+        initialMap[item.nozzle_uuid] = {
+          opening: item.opening_reading,
+          closing: item.closing_reading !== null ? item.closing_reading : "",
+        };
+      });
+      setFormItems(initialMap);
+    }
+  }, [bulkForm]);
 
   // Mutations
-  const createTankMutation = useMutation({
-    mutationFn: (data: FuelTankCreate) => inventoryService.createTank(data),
+  const createDispenserMutation = useMutation({
+    mutationFn: (data: FuelDispenserCreate) => inventoryService.createDispenser(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tanks"] });
-      setTankDialogOpen(false);
-      toast.success("Fuel tank created successfully!");
-      // Reset form
-      setTankName("");
-      setTankCapacity("");
-      setTankInitialStock("");
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      setDispenserDialogOpen(false);
+      setDispenserName("");
+      toast.success("Fuel dispenser configured successfully!");
     },
-    onError: (err) => {
-      toast.error("Failed to create fuel tank.");
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to configure fuel dispenser.";
+      toast.error(msg);
       console.error(err);
     },
   });
 
-  const postDipMutation = useMutation({
-    mutationFn: ({ tankUuid, data }: { tankUuid: string; data: DipReadingCreate }) =>
-      inventoryService.postDipReading(tankUuid, data),
+  const createNozzleMutation = useMutation({
+    mutationFn: ({ dispenserUuid, data }: { dispenserUuid: string; data: NozzleCreate }) =>
+      inventoryService.createNozzle(dispenserUuid, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tanks"] });
-      queryClient.invalidateQueries({ queryKey: ["dips"] });
-      setDipDialogOpen(false);
-      toast.success("Dip reading and variance logged successfully!");
-      // Reset form
-      setOpeningDip("");
-      setClosingDip("");
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      setNozzleDialogOpen(false);
+      setNozzleName("");
+      setNozzleInitialReading("");
+      toast.success("Nozzle configured successfully!");
     },
-    onError: (err) => {
-      toast.error("Failed to register dip reading.");
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to configure nozzle.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
+  const postBulkReadingsMutation = useMutation({
+    mutationFn: (data: BulkNozzleReadingCreate) => inventoryService.postBulkReadings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      queryClient.invalidateQueries({ queryKey: ["bulkReadings", readingsDate] });
+      toast.success("All nozzle meter readings saved successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to save meter readings.";
+      toast.error(msg);
       console.error(err);
     },
   });
@@ -143,81 +139,64 @@ export default function InventoryPage() {
     },
   });
 
-  const createNozzleMutation = useMutation({
-    mutationFn: (data: NozzleCreate) => inventoryService.createNozzle(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["nozzles"] });
-      setNozzleDialogOpen(false);
-      toast.success("Nozzle created successfully!");
-      // Reset form
-      setNozzleName("");
-      setNozzlePipe1Initial("");
-      setNozzlePipe2Initial("");
-    },
-    onError: (err) => {
-      toast.error("Failed to create nozzle.");
-      console.error(err);
-    },
-  });
-
-  const postNozzleReadingMutation = useMutation({
-    mutationFn: ({ nozzleUuid, data }: { nozzleUuid: string; data: NozzleReadingCreate }) =>
-      inventoryService.postNozzleReading(nozzleUuid, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["nozzles"] });
-      queryClient.invalidateQueries({ queryKey: ["nozzleReadings"] });
-      setNozzleReadingDialogOpen(false);
-      toast.success("Nozzle readings logged successfully!");
-      setNozzlePipe1Closing("");
-      setNozzlePipe2Closing("");
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to log nozzle readings.";
-      toast.error(msg);
-      console.error(err);
-    },
-  });
-
-  const fetchOpeningReadings = async (nozzleUuid: string, dateStr: string) => {
-    try {
-      const openings = await inventoryService.getNozzleOpeningReadings(nozzleUuid, dateStr);
-      setNozzlePipe1Opening(openings.pipe_1_opening);
-      setNozzlePipe2Opening(openings.pipe_2_opening);
-    } catch (err) {
-      toast.error("Failed to load opening readings for selected date");
-      console.error(err);
-    }
-  };
-
   // Form Submissions
-  const handleCreateTank = (e: React.FormEvent) => {
+  const handleCreateDispenser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tankName || !tankCapacity) {
-      toast.error("Please fill in all required fields.");
+    if (!dispenserName.trim()) {
+      toast.error("Please fill in dispenser name.");
       return;
     }
-    createTankMutation.mutate({
-      name: tankName,
-      fuel_type: tankFuelType,
-      capacity_liters: parseFloat(tankCapacity),
-      current_stock_liters: parseFloat(tankInitialStock || "0"),
-    });
+    createDispenserMutation.mutate({ name: dispenserName });
   };
 
-  const handlePostDip = (e: React.FormEvent) => {
+  const handleCreateNozzle = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!openingDip || !closingDip) {
-      toast.error("Please specify both opening and closing dip levels.");
+    if (!nozzleName.trim() || !nozzleInitialReading) {
+      toast.error("Please fill in all nozzle configurations.");
       return;
     }
-    postDipMutation.mutate({
-      tankUuid: selectedTankUuid,
+    createNozzleMutation.mutate({
+      dispenserUuid: selectedDispenserUuid,
       data: {
-        opening_dip_liters: parseFloat(openingDip),
-        closing_dip_liters: parseFloat(closingDip),
-        reading_date: readingDate || undefined,
+        name: nozzleName,
+        fuel_type: nozzleFuelType,
+        last_reading: parseFloat(nozzleInitialReading),
       },
     });
+  };
+
+  const handleSaveBulkReadings = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const readings = Object.entries(formItems).map(([uuid, vals]) => {
+        const closingStr = vals.closing.toString().trim();
+        if (!closingStr) {
+          throw new Error("Please specify closing readings for all nozzles.");
+        }
+        const closing = parseFloat(closingStr);
+        const opening = vals.opening !== "" ? parseFloat(vals.opening.toString()) : 0;
+        
+        if (closing < opening) {
+          const item = bulkForm?.items.find((i) => i.nozzle_uuid === uuid);
+          throw new Error(
+            `Closing reading (${closing}) on nozzle '${item?.nozzle_name || "Unknown"}' cannot be less than opening reading (${opening}).`
+          );
+        }
+
+        return {
+          nozzle_uuid: uuid,
+          opening_reading: vals.opening !== "" ? parseFloat(vals.opening.toString()) : undefined,
+          closing_reading: closing,
+        };
+      });
+
+      postBulkReadingsMutation.mutate({
+        reading_date: readingsDate,
+        readings,
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Invalid input readings.");
+    }
   };
 
   const handleCreatePriceSchedule = (e: React.FormEvent) => {
@@ -233,45 +212,12 @@ export default function InventoryPage() {
     });
   };
 
-  const handleCreateNozzle = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nozzleName || !nozzlePipe1Initial || !nozzlePipe2Initial) {
-      toast.error("Please fill in all required fields.");
-      return;
-    }
-    createNozzleMutation.mutate({
-      name: nozzleName,
-      pipe_1_fuel_type: nozzlePipe1Fuel,
-      pipe_1_last_reading: parseFloat(nozzlePipe1Initial),
-      pipe_2_fuel_type: nozzlePipe2Fuel,
-      pipe_2_last_reading: parseFloat(nozzlePipe2Initial),
-    });
-  };
-
-  const handlePostNozzleReading = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nozzlePipe1Closing || !nozzlePipe2Closing) {
-      toast.error("Please fill in closing readings for both pipes.");
-      return;
-    }
-    postNozzleReadingMutation.mutate({
-      nozzleUuid: selectedNozzleUuid,
-      data: {
-        pipe_1_opening: nozzlePipe1Opening !== "" ? parseFloat(nozzlePipe1Opening.toString()) : undefined,
-        pipe_2_opening: nozzlePipe2Opening !== "" ? parseFloat(nozzlePipe2Opening.toString()) : undefined,
-        pipe_1_closing: parseFloat(nozzlePipe1Closing),
-        pipe_2_closing: parseFloat(nozzlePipe2Closing),
-        reading_date: nozzleReadingDate || undefined,
-      },
-    });
-  };
-
-  if (tanksLoading) {
+  if (dispensersLoading) {
     return <LoadingState />;
   }
 
-  if (tanksError) {
-    return <EmptyState message="Unable to load inventory data." />;
+  if (dispensersError) {
+    return <EmptyState message="Unable to load dispenser inventory data." />;
   }
 
   return (
@@ -279,24 +225,16 @@ export default function InventoryPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <PageHeader
           title="Inventory & Pricing"
-          description="Monitor fuel tank capacities, log daily physical dip readings, and schedule automated price changes."
+          description="Configure dispensers, perform bulk meter entries, and manage scheduled fuel rate structures."
         />
         {isAdminOrManager && (
           <div className="flex gap-2">
-            {activeTab === "tanks" && (
+            {activeTab === "dispensers" && (
               <Button
-                onClick={() => setTankDialogOpen(true)}
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15"
+                onClick={() => setDispenserDialogOpen(true)}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15 cursor-pointer"
               >
-                <Plus size={16} className="mr-2" /> Add Fuel Tank
-              </Button>
-            )}
-            {activeTab === "nozzles" && (
-              <Button
-                onClick={() => setNozzleDialogOpen(true)}
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15"
-              >
-                <Plus size={16} className="mr-2" /> Add Nozzle
+                <Plus size={16} className="mr-2" /> Add Fuel Dispenser
               </Button>
             )}
           </div>
@@ -306,24 +244,24 @@ export default function InventoryPage() {
       {/* Tabs Layout */}
       <div className="flex border-b border-hairline gap-4">
         <button
-          onClick={() => setActiveTab("tanks")}
+          onClick={() => setActiveTab("dispensers")}
           className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
-            activeTab === "tanks"
+            activeTab === "dispensers"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
-          Tanks & Dips
+          Fuel Dispensers
         </button>
         <button
-          onClick={() => setActiveTab("nozzles")}
+          onClick={() => setActiveTab("readings")}
           className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
-            activeTab === "nozzles"
+            activeTab === "readings"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
-          Nozzles
+          Meter Readings
         </button>
         <button
           onClick={() => setActiveTab("prices")}
@@ -337,241 +275,71 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {activeTab === "tanks" ? (
+      {activeTab === "dispensers" ? (
         <div className="space-y-8 animate-fade-in">
-          {/* Tanks Grid */}
+          {/* Dispensers Grid */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {tanks && tanks.length > 0 ? (
-              tanks.map((tank) => {
-                const fillPercent = Math.min(
-                  100,
-                  Math.max(0, (tank.current_stock_liters / tank.capacity_liters) * 100)
-                );
-                return (
-                  <Card key={tank.uuid} className="glass overflow-hidden relative border-hairline">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <Badge
-                          variant="secondary"
-                          className="bg-fuel-amber/10 text-fuel-amber text-[10px] uppercase font-mono font-bold"
-                        >
-                          {tank.fuel_type}
-                        </Badge>
-                        <Fuel size={18} className="text-ink-subtle" />
-                      </div>
-                      <CardTitle className="text-lg font-bold tracking-tight text-ink mt-2">
-                        {tank.name}
-                      </CardTitle>
-                      <CardDescription className="text-xs text-ink-subtle">
-                        Capacity: {tank.capacity_liters.toLocaleString()} Liters
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-2">
-                      <div className="space-y-4">
-                        {/* Progress Bar */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between text-xs font-medium">
-                            <span className="text-ink-muted">Stock Level</span>
-                            <span className="text-ink font-semibold">
-                              {tank.current_stock_liters.toLocaleString()} L ({fillPercent.toFixed(1)}%)
-                            </span>
-                          </div>
-                          <div className="h-2 w-full bg-surface-3 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-fuel-amber to-fuel-orange transition-all duration-500"
-                              style={{ width: `${fillPercent}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {isAdminOrManager && (
-                          <Button
-                            onClick={() => {
-                              setSelectedTankUuid(tank.uuid);
-                              setDipDialogOpen(true);
-                            }}
-                            variant="outline"
-                            className="w-full justify-center border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
-                          >
-                            <Calculator size={14} className="mr-2 text-fuel-amber" /> Log Dip Reading
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            ) : (
-              <div className="col-span-full">
-                <Card className="border-dashed border-hairline bg-transparent p-6 text-center">
-                  <Fuel className="mx-auto text-ink-subtle mb-3" size={32} />
-                  <p className="text-sm font-medium text-ink">No fuel tanks configured.</p>
-                  <p className="text-xs text-ink-subtle mt-1">
-                    Click "Add Fuel Tank" to initialize physical stock tracking.
-                  </p>
-                </Card>
-              </div>
-            )}
-          </div>
-
-          {/* Dips Logs Table */}
-          <Card className="glass border-hairline">
-            <CardHeader className="pb-3 border-b border-hairline">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
-                  <Activity size={15} />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-bold tracking-tight text-ink">
-                    Physical Reconciliation Log
-                  </CardTitle>
-                  <CardDescription className="text-xs text-ink-subtle">
-                    Variance between physical dip calculations and virtual sales recorded via vouchers.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-hairline hover:bg-transparent">
-                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Date
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Opening Dip
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Closing Dip
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Calc. Sales (Dips)
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Actual Sales (Vouchers)
-                      </TableHead>
-                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle text-right">
-                        Variance
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dips && dips.length > 0 ? (
-                      dips.map((reading) => {
-                        const hasVariance = Math.abs(reading.variance_liters) > 1.0;
-                        return (
-                          <TableRow key={reading.uuid} className="border-b border-hairline hover:bg-surface-3/35">
-                            <TableCell className="px-5 text-xs font-semibold text-ink">
-                              {new Date(reading.reading_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-ink-muted">
-                              {reading.opening_dip_liters.toLocaleString()} L
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-ink-muted">
-                              {reading.closing_dip_liters.toLocaleString()} L
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-ink">
-                              {reading.sales_liters_calculated.toLocaleString()} L
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-ink">
-                              {reading.actual_sales_from_vouchers.toLocaleString()} L
-                            </TableCell>
-                            <TableCell className="px-5 text-right">
-                              <Badge
-                                variant="secondary"
-                                className={`text-[10px] font-mono font-bold uppercase tracking-wider ${
-                                  reading.variance_liters === 0
-                                    ? "bg-success/10 text-success"
-                                    : hasVariance
-                                    ? "bg-destructive/10 text-destructive"
-                                    : "bg-fuel-amber/10 text-fuel-amber"
-                                }`}
-                              >
-                                {reading.variance_liters > 0 ? "+" : ""}
-                                {reading.variance_liters.toFixed(2)} L
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={6} className="h-28 text-center text-xs text-ink-subtle">
-                          No physical dip logs recorded yet.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : activeTab === "nozzles" ? (
-        <div className="space-y-8 animate-fade-in">
-          {/* Nozzles Grid */}
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {nozzles && nozzles.length > 0 ? (
-              nozzles.map((nozzle) => (
-                <Card key={nozzle.uuid} className="glass overflow-hidden relative border-hairline">
-                  <CardHeader className="pb-2">
+            {dispensers && dispensers.length > 0 ? (
+              dispensers.map((dispenser) => (
+                <Card key={dispenser.uuid} className="glass overflow-hidden relative border-hairline flex flex-col">
+                  <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <Badge
                         variant="secondary"
                         className="bg-fuel-amber/10 text-fuel-amber text-[10px] uppercase font-mono font-bold"
                       >
-                        {nozzle.status}
+                        {dispenser.status}
                       </Badge>
                       <Fuel size={18} className="text-ink-subtle" />
                     </div>
                     <CardTitle className="text-lg font-bold tracking-tight text-ink mt-2">
-                      {nozzle.name}
+                      {dispenser.name}
                     </CardTitle>
+                    <CardDescription className="text-xs text-ink-subtle">
+                      Dispenser Machine with {dispenser.nozzles?.length || 0}/4 configured nozzles
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-2">
-                    <div className="space-y-4">
-                      {/* Pipe 1 & Pipe 2 Info */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-surface-2 p-3 rounded-lg border border-hairline">
-                          <p className="text-[10px] text-ink-subtle font-semibold uppercase">Pipe 1</p>
-                          <Badge className="mt-1 text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15">
-                            {nozzle.pipe_1_fuel_type}
-                          </Badge>
-                          <p className="text-xs font-bold text-ink mt-2">
-                            {nozzle.pipe_1_last_reading.toLocaleString()} L
-                          </p>
+                  <CardContent className="pt-2 flex-grow flex flex-col justify-between space-y-4">
+                    {/* Nozzle list inside dispenser */}
+                    <div className="space-y-2">
+                      {dispenser.nozzles && dispenser.nozzles.length > 0 ? (
+                        <div className="grid gap-2">
+                          {dispenser.nozzles.map((nozzle) => (
+                            <div
+                              key={nozzle.uuid}
+                              className="bg-surface-2 p-2.5 rounded-lg border border-hairline flex items-center justify-between"
+                            >
+                              <div>
+                                <p className="text-xs font-bold text-ink">{nozzle.name}</p>
+                                <p className="text-[10px] text-ink-subtle mt-0.5">
+                                  Last Meter: {nozzle.last_reading.toLocaleString()} L
+                                </p>
+                              </div>
+                              <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber border-transparent hover:bg-fuel-amber/15">
+                                {nozzle.fuel_type}
+                              </Badge>
+                            </div>
+                          ))}
                         </div>
-                        <div className="bg-surface-2 p-3 rounded-lg border border-hairline">
-                          <p className="text-[10px] text-ink-subtle font-semibold uppercase">Pipe 2</p>
-                          <Badge className="mt-1 text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15">
-                            {nozzle.pipe_2_fuel_type}
-                          </Badge>
-                          <p className="text-xs font-bold text-ink mt-2">
-                            {nozzle.pipe_2_last_reading.toLocaleString()} L
-                          </p>
-                        </div>
-                      </div>
-
-                      {isAdminOrManager && (
-                        <Button
-                          onClick={() => {
-                            setSelectedNozzleUuid(nozzle.uuid);
-                            setNozzleReadingDate(new Date().toISOString().split("T")[0]);
-                            fetchOpeningReadings(nozzle.uuid, new Date().toISOString().split("T")[0]);
-                            setNozzleReadingDialogOpen(true);
-                          }}
-                          variant="outline"
-                          className="w-full justify-center border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
-                        >
-                          <Calculator size={14} className="mr-2 text-fuel-amber" /> Log Readings
-                        </Button>
+                      ) : (
+                        <p className="text-xs text-ink-subtle italic text-center py-2">
+                          No nozzles configured on this dispenser machine.
+                        </p>
                       )}
                     </div>
+
+                    {isAdminOrManager && (dispenser.nozzles?.length || 0) < 4 && (
+                      <Button
+                        onClick={() => {
+                          setSelectedDispenserUuid(dispenser.uuid);
+                          setNozzleDialogOpen(true);
+                        }}
+                        variant="outline"
+                        className="w-full justify-center border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+                      >
+                        <Plus size={14} className="mr-2 text-fuel-amber" /> Configure Nozzle
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))
@@ -579,111 +347,177 @@ export default function InventoryPage() {
               <div className="col-span-full">
                 <Card className="border-dashed border-hairline bg-transparent p-6 text-center">
                   <Fuel className="mx-auto text-ink-subtle mb-3" size={32} />
-                  <p className="text-sm font-medium text-ink">No nozzles configured.</p>
+                  <p className="text-sm font-medium text-ink">No fuel dispensers configured.</p>
                   <p className="text-xs text-ink-subtle mt-1">
-                    Click "Add Nozzle" to configure dispensing nozzles.
+                    Click "Add Fuel Dispenser" to initialize pump configuration.
                   </p>
                 </Card>
               </div>
             )}
           </div>
-
-          {/* Nozzle Readings Logs Table */}
-          <Card className="glass border-hairline">
-            <CardHeader className="pb-3 border-b border-hairline">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
-                  <Activity size={15} />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-bold tracking-tight text-ink">
-                    Nozzle Readings Reconciliation Log
-                  </CardTitle>
-                  <CardDescription className="text-xs text-ink-subtle">
-                    Track initial/final readings and daily sales calculated in liters for both pipes.
-                  </CardDescription>
-                </div>
+        </div>
+      ) : activeTab === "readings" ? (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header toolbar for bulk entries */}
+          <Card className="glass border-hairline p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
+                <Activity size={18} />
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-hairline hover:bg-transparent">
-                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Date
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Nozzle
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Pipe 1 (Open / Close)
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Pipe 1 Sales
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Pipe 2 (Open / Close)
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Pipe 2 Sales
-                      </TableHead>
-                      <TableHead className="px-5 text-right text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Total Sales
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {nozzleReadings && nozzleReadings.length > 0 ? (
-                      nozzleReadings.map((reading) => {
-                        const nz = nozzles?.find((n) => n.id === reading.nozzle_id);
-                        return (
-                          <TableRow key={reading.uuid} className="border-b border-hairline hover:bg-surface-3/35">
-                            <TableCell className="px-5 text-xs font-semibold text-ink">
-                              {new Date(reading.reading_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-ink font-semibold">
-                              {nz ? nz.name : `Nozzle #${reading.nozzle_id}`}
-                            </TableCell>
-                            <TableCell className="text-xs text-ink-muted">
-                              {reading.pipe_1_opening.toFixed(2)} / {reading.pipe_1_closing.toFixed(2)} L
-                            </TableCell>
-                            <TableCell className="text-xs font-semibold text-ink">
-                              {reading.pipe_1_sales.toFixed(2)} L
-                            </TableCell>
-                            <TableCell className="text-xs text-ink-muted">
-                              {reading.pipe_2_opening.toFixed(2)} / {reading.pipe_2_closing.toFixed(2)} L
-                            </TableCell>
-                            <TableCell className="text-xs font-semibold text-ink">
-                              {reading.pipe_2_sales.toFixed(2)} L
-                            </TableCell>
-                            <TableCell className="px-5 text-right">
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px] font-mono font-bold uppercase bg-fuel-amber/10 text-fuel-amber"
-                              >
-                                {reading.total_sales.toFixed(2)} L
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={7} className="h-28 text-center text-xs text-ink-subtle">
-                          No nozzle logs recorded yet.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+              <div>
+                <h3 className="text-sm font-bold text-ink">Unified Data Entry Log</h3>
+                <p className="text-xs text-ink-subtle">
+                  Batch submit initial and final readings for all active dispensers.
+                </p>
               </div>
-            </CardContent>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="bulkDateInput" className="text-xs font-semibold text-ink-muted shrink-0">
+                Logging Date:
+              </Label>
+              <div className="relative">
+                <Calendar
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
+                  size={14}
+                  onClick={() => {
+                    const el = document.getElementById("bulkDateInput") as HTMLInputElement | null;
+                    if (el && typeof el.showPicker === "function") {
+                      el.showPicker();
+                    }
+                  }}
+                />
+                <Input
+                  id="bulkDateInput"
+                  type="date"
+                  value={readingsDate}
+                  onChange={(e) => setReadingsDate(e.target.value)}
+                  className="bg-surface-2 border-hairline outline-none text-xs text-ink pl-9 py-1 h-8 w-36"
+                  required
+                />
+              </div>
+            </div>
           </Card>
+
+          {/* Bulk Spreadsheet Table */}
+          <form onSubmit={handleSaveBulkReadings}>
+            <Card className="glass border-hairline">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  {bulkFormLoading ? (
+                    <div className="p-12 text-center text-xs text-ink-subtle">
+                      Loading meter entry form...
+                    </div>
+                  ) : bulkForm && bulkForm.items.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b border-hairline hover:bg-transparent">
+                          <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Dispenser
+                          </TableHead>
+                          <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Nozzle Name
+                          </TableHead>
+                          <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Fuel Type
+                          </TableHead>
+                          <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-40">
+                            Initial Reading (L)
+                          </TableHead>
+                          <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-44">
+                            Final Reading (L)
+                          </TableHead>
+                          <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle text-right w-36">
+                            Sales (Liters)
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bulkForm.items.map((item) => {
+                          const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "" };
+                          const openVal = parseFloat(stateVals.opening.toString() || "0");
+                          const closeVal = parseFloat(stateVals.closing.toString() || "0");
+                          const salesAmt = closeVal >= openVal && stateVals.closing !== "" ? closeVal - openVal : 0;
+
+                          return (
+                            <TableRow key={item.nozzle_uuid} className="border-b border-hairline hover:bg-surface-3/35">
+                              <TableCell className="px-5 text-xs font-bold text-ink">
+                                {item.dispenser_name}
+                              </TableCell>
+                              <TableCell className="text-xs font-semibold text-ink-muted">
+                                {item.nozzle_name}
+                              </TableCell>
+                              <TableCell className="text-xs font-medium text-ink-muted">
+                                <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
+                                  {item.fuel_type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-2.5">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={stateVals.opening}
+                                  onChange={(e) => {
+                                    setFormItems((prev) => ({
+                                      ...prev,
+                                      [item.nozzle_uuid]: {
+                                        ...prev[item.nozzle_uuid],
+                                        opening: e.target.value,
+                                      },
+                                    }));
+                                  }}
+                                  className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8"
+                                  required
+                                />
+                              </TableCell>
+                              <TableCell className="py-2.5">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Enter final reading"
+                                  value={stateVals.closing}
+                                  onChange={(e) => {
+                                    setFormItems((prev) => ({
+                                      ...prev,
+                                      [item.nozzle_uuid]: {
+                                        ...prev[item.nozzle_uuid],
+                                        closing: e.target.value,
+                                      },
+                                    }));
+                                  }}
+                                  className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8"
+                                  required
+                                />
+                              </TableCell>
+                              <TableCell className="px-5 text-right font-semibold text-xs text-ink">
+                                {salesAmt > 0 ? `${salesAmt.toFixed(2)} L` : "—"}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="p-12 text-center text-xs text-ink-subtle">
+                      No nozzles configured. Please configure dispensers and nozzles in the first tab.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {isAdminOrManager && bulkForm && bulkForm.items.length > 0 && (
+              <div className="flex justify-end mt-4">
+                <Button
+                  type="submit"
+                  disabled={postBulkReadingsMutation.isPending}
+                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-6 py-2 shadow-md cursor-pointer"
+                >
+                  {postBulkReadingsMutation.isPending ? "Saving batch..." : "Save All Readings"}
+                </Button>
+              </div>
+            )}
+          </form>
         </div>
       ) : (
         /* Prices Schedules Tab */
@@ -715,6 +549,7 @@ export default function InventoryPage() {
                       className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
                     >
                       <option value="PETROL">PETROL</option>
+                      <option value="SPEED_PETROL">SPEED PETROL</option>
                       <option value="DIESEL">DIESEL</option>
                       <option value="LUBRICANT">LUBRICANT</option>
                     </select>
@@ -789,12 +624,12 @@ export default function InventoryPage() {
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="grid gap-4 sm:grid-cols-3">
-                  {(["PETROL", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => (
+                  {(["PETROL", "SPEED_PETROL", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => (
                     <Card key={ft} className="bg-surface-2 border border-hairline p-4 flex flex-col justify-between">
                       <p className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">{ft}</p>
                       <div className="flex items-baseline gap-1 mt-2.5">
                         <span className="text-xl font-bold tracking-tight text-ink">
-                          ₹{ft === "PETROL" ? "104.20" : ft === "DIESEL" ? "95.50" : "320.00"}
+                          ₹{ft === "PETROL" ? "104.20" : ft === "SPEED_PETROL" ? "108.50" : ft === "DIESEL" ? "95.50" : "320.00"}
                         </span>
                         <span className="text-[10px] text-ink-subtle">/L</span>
                       </div>
@@ -812,156 +647,24 @@ export default function InventoryPage() {
 
       {/* Dialogs */}
 
-      {/* 1. Add Tank Dialog */}
-      <Dialog open={tankDialogOpen} onOpenChange={setTankDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[425px]">
+      {/* 1. Add Dispenser Dialog */}
+      <Dialog open={dispenserDialogOpen} onOpenChange={setDispenserDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
-              <Fuel size={18} className="text-fuel-amber" /> Create Fuel Tank
+              <Fuel size={18} className="text-fuel-amber" /> Create Fuel Dispenser
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateTank} className="space-y-4 py-2">
+          <form onSubmit={handleCreateDispenser} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="tankName" className="text-xs font-semibold text-ink-muted">
-                Tank Name
+              <Label htmlFor="dispenserName" className="text-xs font-semibold text-ink-muted">
+                Dispenser Name / Label
               </Label>
               <Input
-                id="tankName"
-                placeholder="e.g. Tank A - Petrol"
-                value={tankName}
-                onChange={(e) => setTankName(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="tankFuelType" className="text-xs font-semibold text-ink-muted">
-                Fuel Type
-              </Label>
-              <select
-                id="tankFuelType"
-                value={tankFuelType}
-                onChange={(e) => setTankFuelType(e.target.value as FuelType)}
-                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
-              >
-                <option value="PETROL">PETROL</option>
-                <option value="DIESEL">DIESEL</option>
-                <option value="LUBRICANT">LUBRICANT</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="tankCapacity" className="text-xs font-semibold text-ink-muted">
-                Capacity (Liters)
-              </Label>
-              <Input
-                id="tankCapacity"
-                type="number"
-                placeholder="e.g. 10000"
-                value={tankCapacity}
-                onChange={(e) => setTankCapacity(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="tankInitialStock" className="text-xs font-semibold text-ink-muted">
-                Initial Stock Level (Liters)
-              </Label>
-              <Input
-                id="tankInitialStock"
-                type="number"
-                placeholder="e.g. 5000"
-                value={tankInitialStock}
-                onChange={(e) => setTankInitialStock(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
-              />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setTankDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
-              >
-                Create Tank
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 2. Log Dip Reading Dialog */}
-      <Dialog open={dipDialogOpen} onOpenChange={setDipDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
-              <Calculator size={18} className="text-fuel-amber" /> Log Physical Dip Reading
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handlePostDip} className="space-y-4 py-2">
-            <div className="space-y-1.5 relative">
-              <Label htmlFor="readingDate" className="text-xs font-semibold text-ink-muted">
-                Reading Date
-              </Label>
-              <div className="relative">
-                <Calendar
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
-                  size={14}
-                  onClick={() => {
-                    const el = document.getElementById("readingDate") as HTMLInputElement | null;
-                    if (el && typeof el.showPicker === "function") {
-                      el.showPicker();
-                    }
-                  }}
-                />
-                <Input
-                  id="readingDate"
-                  type="date"
-                  value={readingDate}
-                  onChange={(e) => setReadingDate(e.target.value)}
-                  className="bg-surface-2 border-hairline outline-none text-sm text-ink pl-10"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="openingDip" className="text-xs font-semibold text-ink-muted">
-                Opening Physical Dip (Liters)
-              </Label>
-              <Input
-                id="openingDip"
-                type="number"
-                step="0.1"
-                placeholder="Initial dip reading level"
-                value={openingDip}
-                onChange={(e) => setOpeningDip(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="closingDip" className="text-xs font-semibold text-ink-muted">
-                Closing Physical Dip (Liters)
-              </Label>
-              <Input
-                id="closingDip"
-                type="number"
-                step="0.1"
-                placeholder="Final dip reading level"
-                value={closingDip}
-                onChange={(e) => setClosingDip(e.target.value)}
+                id="dispenserName"
+                placeholder="e.g. Dispenser 1"
+                value={dispenserName}
+                onChange={(e) => setDispenserName(e.target.value)}
                 className="bg-surface-2 border-hairline outline-none text-sm text-ink"
                 required
               />
@@ -971,37 +674,39 @@ export default function InventoryPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDipDialogOpen(false)}
+                onClick={() => setDispenserDialogOpen(false)}
                 className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
+                disabled={createDispenserMutation.isPending}
                 className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
               >
-                Sync & Reconcile
+                {createDispenserMutation.isPending ? "Creating..." : "Create Dispenser"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-      {/* 3. Add Nozzle Dialog */}
+
+      {/* 2. Add Nozzle Dialog */}
       <Dialog open={nozzleDialogOpen} onOpenChange={setNozzleDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[450px]">
+        <DialogContent className="glass border border-hairline sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
-              <Fuel size={18} className="text-fuel-amber" /> Configure Nozzle
+              <Calculator size={18} className="text-fuel-amber" /> Configure Nozzle
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateNozzle} className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="nozzleName" className="text-xs font-semibold text-ink-muted">
-                Nozzle Name
+                Nozzle Custom Name
               </Label>
               <Input
                 id="nozzleName"
-                placeholder="e.g. Nozzle A"
+                placeholder="e.g. Nozzle 1A"
                 value={nozzleName}
                 onChange={(e) => setNozzleName(e.target.value)}
                 className="bg-surface-2 border-hairline outline-none text-sm text-ink"
@@ -1009,76 +714,37 @@ export default function InventoryPage() {
               />
             </div>
 
-            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
-              <h4 className="text-xs font-bold text-ink">Pipe 1 Configuration</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe1Fuel" className="text-[10px] font-semibold text-ink-subtle">
-                    Fuel Type
-                  </Label>
-                  <select
-                    id="nozzlePipe1Fuel"
-                    value={nozzlePipe1Fuel}
-                    onChange={(e) => setNozzlePipe1Fuel(e.target.value as FuelType)}
-                    className="w-full rounded-md border border-hairline bg-surface-2 p-1.5 text-xs text-ink outline-none"
-                  >
-                    <option value="PETROL">PETROL</option>
-                    <option value="SPEED_PETROL">SPEED PETROL</option>
-                    <option value="DIESEL">DIESEL</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe1Initial" className="text-[10px] font-semibold text-ink-subtle">
-                    Initial Reading (L)
-                  </Label>
-                  <Input
-                    id="nozzlePipe1Initial"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.0"
-                    value={nozzlePipe1Initial}
-                    onChange={(e) => setNozzlePipe1Initial(e.target.value)}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
-                    required
-                  />
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nozzleFuel" className="text-xs font-semibold text-ink-muted">
+                Fuel Type
+              </Label>
+              <select
+                id="nozzleFuel"
+                value={nozzleFuelType}
+                onChange={(e) => setNozzleFuelType(e.target.value as FuelType)}
+                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+              >
+                <option value="PETROL">PETROL</option>
+                <option value="SPEED_PETROL">SPEED PETROL</option>
+                <option value="DIESEL">DIESEL</option>
+                <option value="LUBRICANT">LUBRICANT</option>
+              </select>
             </div>
 
-            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
-              <h4 className="text-xs font-bold text-ink">Pipe 2 Configuration</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe2Fuel" className="text-[10px] font-semibold text-ink-subtle">
-                    Fuel Type
-                  </Label>
-                  <select
-                    id="nozzlePipe2Fuel"
-                    value={nozzlePipe2Fuel}
-                    onChange={(e) => setNozzlePipe2Fuel(e.target.value as FuelType)}
-                    className="w-full rounded-md border border-hairline bg-surface-2 p-1.5 text-xs text-ink outline-none"
-                  >
-                    <option value="PETROL">PETROL</option>
-                    <option value="SPEED_PETROL">SPEED PETROL</option>
-                    <option value="DIESEL">DIESEL</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe2Initial" className="text-[10px] font-semibold text-ink-subtle">
-                    Initial Reading (L)
-                  </Label>
-                  <Input
-                    id="nozzlePipe2Initial"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.0"
-                    value={nozzlePipe2Initial}
-                    onChange={(e) => setNozzlePipe2Initial(e.target.value)}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
-                    required
-                  />
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nozzleInitial" className="text-xs font-semibold text-ink-muted">
+                Initial Meter Reading (Liters)
+              </Label>
+              <Input
+                id="nozzleInitial"
+                type="number"
+                step="0.01"
+                placeholder="e.g. 1000.00"
+                value={nozzleInitialReading}
+                onChange={(e) => setNozzleInitialReading(e.target.value)}
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                required
+              />
             </div>
 
             <DialogFooter className="pt-2">
@@ -1092,139 +758,10 @@ export default function InventoryPage() {
               </Button>
               <Button
                 type="submit"
+                disabled={createNozzleMutation.isPending}
                 className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
               >
-                Create Nozzle
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* 4. Log Nozzle Readings Dialog */}
-      <Dialog open={nozzleReadingDialogOpen} onOpenChange={setNozzleReadingDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[450px]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
-              <Calculator size={18} className="text-fuel-amber" /> Log Nozzle Readings
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handlePostNozzleReading} className="space-y-4 py-2">
-            <div className="space-y-1.5 relative">
-              <Label htmlFor="nozzleReadingDate" className="text-xs font-semibold text-ink-muted">
-                Reading Date
-              </Label>
-              <div className="relative">
-                <Calendar
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
-                  size={14}
-                  onClick={() => {
-                    const el = document.getElementById("nozzleReadingDate") as HTMLInputElement | null;
-                    if (el && typeof el.showPicker === "function") {
-                      el.showPicker();
-                    }
-                  }}
-                />
-                <Input
-                  id="nozzleReadingDate"
-                  type="date"
-                  value={nozzleReadingDate}
-                  onChange={(e) => {
-                    setNozzleReadingDate(e.target.value);
-                    fetchOpeningReadings(selectedNozzleUuid, e.target.value);
-                  }}
-                  className="bg-surface-2 border-hairline outline-none text-sm text-ink pl-10"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
-              <h4 className="text-xs font-bold text-ink">Pipe 1 Readings</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe1Opening" className="text-[10px] font-semibold text-ink-subtle">
-                    Opening Reading (L)
-                  </Label>
-                  <Input
-                    id="nozzlePipe1Opening"
-                    type="number"
-                    step="0.01"
-                    placeholder="Enter opening reading"
-                    value={nozzlePipe1Opening}
-                    onChange={(e) => setNozzlePipe1Opening(e.target.value === "" ? "" : parseFloat(e.target.value))}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe1Closing" className="text-[10px] font-semibold text-ink-subtle">
-                    Closing Reading (L)
-                  </Label>
-                  <Input
-                    id="nozzlePipe1Closing"
-                    type="number"
-                    step="0.01"
-                    placeholder="Enter final reading"
-                    value={nozzlePipe1Closing}
-                    onChange={(e) => setNozzlePipe1Closing(e.target.value)}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-hairline rounded-lg p-3 space-y-3 bg-surface-2/30">
-              <h4 className="text-xs font-bold text-ink">Pipe 2 Readings</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe2Opening" className="text-[10px] font-semibold text-ink-subtle">
-                    Opening Reading (L)
-                  </Label>
-                  <Input
-                    id="nozzlePipe2Opening"
-                    type="number"
-                    step="0.01"
-                    placeholder="Enter opening reading"
-                    value={nozzlePipe2Opening}
-                    onChange={(e) => setNozzlePipe2Opening(e.target.value === "" ? "" : parseFloat(e.target.value))}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="nozzlePipe2Closing" className="text-[10px] font-semibold text-ink-subtle">
-                    Closing Reading (L)
-                  </Label>
-                  <Input
-                    id="nozzlePipe2Closing"
-                    type="number"
-                    step="0.01"
-                    placeholder="Enter final reading"
-                    value={nozzlePipe2Closing}
-                    onChange={(e) => setNozzlePipe2Closing(e.target.value)}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setNozzleReadingDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
-              >
-                Save Readings
+                {createNozzleMutation.isPending ? "Configuring..." : "Configure Nozzle"}
               </Button>
             </DialogFooter>
           </form>

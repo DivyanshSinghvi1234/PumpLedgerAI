@@ -53,14 +53,29 @@ export interface PriceScheduleCreate {
   effective_from: string;
 }
 
-export interface Nozzle {
+// Dispenser & Nozzle structural updates
+export interface FuelDispenser {
   id: number;
   uuid: string;
   name: string;
-  pipe_1_fuel_type: FuelType;
-  pipe_1_last_reading: number;
-  pipe_2_fuel_type: FuelType;
-  pipe_2_last_reading: number;
+  status: string;
+  nozzles: Nozzle[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FuelDispenserCreate {
+  name: string;
+  status?: string;
+}
+
+export interface Nozzle {
+  id: number;
+  uuid: string;
+  dispenser_id: number;
+  name: string;
+  fuel_type: FuelType;
+  last_reading: number;
   status: string;
   created_at: string;
   updated_at: string;
@@ -68,10 +83,8 @@ export interface Nozzle {
 
 export interface NozzleCreate {
   name: string;
-  pipe_1_fuel_type: FuelType;
-  pipe_1_last_reading: number;
-  pipe_2_fuel_type: FuelType;
-  pipe_2_last_reading: number;
+  fuel_type: FuelType;
+  last_reading: number;
 }
 
 export interface NozzleReading {
@@ -79,21 +92,35 @@ export interface NozzleReading {
   uuid: string;
   nozzle_id: number;
   reading_date: string;
-  pipe_1_opening: number;
-  pipe_1_closing: number;
-  pipe_1_sales: number;
-  pipe_2_opening: number;
-  pipe_2_closing: number;
-  pipe_2_sales: number;
+  opening_reading: number;
+  closing_reading: number;
+  sales: number;
   total_sales: number;
   created_at: string;
 }
 
 export interface NozzleReadingCreate {
-  pipe_1_opening?: number;
-  pipe_2_opening?: number;
-  pipe_1_closing: number;
-  pipe_2_closing: number;
-  reading_date?: string;
+  nozzle_uuid: string;
+  opening_reading?: number;
+  closing_reading: number;
 }
 
+export interface BulkNozzleReadingCreate {
+  reading_date: string;
+  readings: NozzleReadingCreate[];
+}
+
+export interface BulkFormNozzleItem {
+  nozzle_uuid: string;
+  nozzle_name: string;
+  dispenser_name: string;
+  fuel_type: FuelType;
+  opening_reading: number;
+  closing_reading: number | null;
+  sales: number | null;
+}
+
+export interface BulkFormResponse {
+  reading_date: string;
+  items: BulkFormNozzleItem[];
+}

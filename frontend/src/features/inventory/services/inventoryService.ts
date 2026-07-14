@@ -7,6 +7,13 @@ import type {
   PriceSchedule,
   PriceScheduleCreate,
   FuelType,
+  Nozzle,
+  NozzleCreate,
+  NozzleReading,
+  FuelDispenser,
+  FuelDispenserCreate,
+  BulkNozzleReadingCreate,
+  BulkFormResponse,
 } from "../types";
 
 class InventoryService {
@@ -42,6 +49,34 @@ class InventoryService {
         params: { fuel_type: fuelType },
       }
     );
+    return response.data;
+  }
+
+  // Dispenser & Nozzle APIs
+  async getDispensers(): Promise<FuelDispenser[]> {
+    const response = await api.get<FuelDispenser[]>("/v1/nozzles/dispensers");
+    return response.data;
+  }
+
+  async createDispenser(data: FuelDispenserCreate): Promise<FuelDispenser> {
+    const response = await api.post<FuelDispenser>("/v1/nozzles/dispensers", data);
+    return response.data;
+  }
+
+  async createNozzle(dispenserUuid: string, data: NozzleCreate): Promise<Nozzle> {
+    const response = await api.post<Nozzle>(`/v1/nozzles/dispensers/${dispenserUuid}/nozzles`, data);
+    return response.data;
+  }
+
+  async getBulkReadingsForm(date: string): Promise<BulkFormResponse> {
+    const response = await api.get<BulkFormResponse>("/v1/nozzles/readings/bulk-form", {
+      params: { reading_date: date },
+    });
+    return response.data;
+  }
+
+  async postBulkReadings(data: BulkNozzleReadingCreate): Promise<NozzleReading[]> {
+    const response = await api.post<NozzleReading[]>("/v1/nozzles/readings/bulk", data);
     return response.data;
   }
 }

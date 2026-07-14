@@ -11,6 +11,9 @@ from app.models.shift import Shift
 from app.models.audit_log import AuditLog
 from app.models.shift_timetable import ShiftTimetable
 from app.models.employee import Employee
+from app.models.nozzle import Nozzle
+from app.models.nozzle_reading import NozzleReading
+from app.models.fuel_dispenser import FuelDispenser
 
 __all__ = [
     "Voucher",
@@ -27,4 +30,7 @@ __all__ = [
     "AuditLog",
     "ShiftTimetable",
     "Employee",
+    "Nozzle",
+    "NozzleReading",
+    "FuelDispenser",
 ]

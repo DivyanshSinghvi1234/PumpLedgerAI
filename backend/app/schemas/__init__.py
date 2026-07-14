@@ -15,6 +15,17 @@ from app.schemas.vehicle import (
     VehicleUpdate,
     VehicleResponse,
 )
+from app.schemas.nozzle import (
+    NozzleCreate,
+    NozzleResponse,
+    NozzleReadingCreate,
+    NozzleReadingResponse,
+    FuelDispenserCreate,
+    FuelDispenserResponse,
+    BulkNozzleReadingCreate,
+    BulkFormNozzleItem,
+    BulkFormResponse,
+)
 __all__ = [
     "VoucherCreate",
     "VoucherUpdate",
@@ -28,4 +39,13 @@ __all__ = [
     "VehicleCreate",
     "VehicleUpdate",
     "VehicleResponse",
+    "NozzleCreate",
+    "NozzleResponse",
+    "NozzleReadingCreate",
+    "NozzleReadingResponse",
+    "FuelDispenserCreate",
+    "FuelDispenserResponse",
+    "BulkNozzleReadingCreate",
+    "BulkFormNozzleItem",
+    "BulkFormResponse",
 ]

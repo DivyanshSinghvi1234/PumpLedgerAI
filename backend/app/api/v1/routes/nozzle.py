@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_db, require_roles
+from app.core.enums import UserRole
+from app.schemas.nozzle import (
+    NozzleCreate,
+    NozzleResponse,
+    FuelDispenserCreate,
+    FuelDispenserResponse,
+    BulkNozzleReadingCreate,
+    NozzleReadingResponse,
+    BulkFormResponse,
+)
+from app.services.nozzle_service import NozzleService
+
+router = APIRouter(prefix="/nozzles", tags=["Nozzles"])
+service = NozzleService()
+
+
+@router.post(
+    "/dispensers",
+    response_model=FuelDispenserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def create_dispenser(
+    data: FuelDispenserCreate,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.create_dispenser(db, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/dispensers",
+    response_model=list[FuelDispenserResponse],
+)
+def list_dispensers(
+    db: Session = Depends(get_db),
+):
+    return service.get_dispensers(db)
+
+
+@router.post(
+    "/dispensers/{dispenser_uuid}/nozzles",
+    response_model=NozzleResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def create_nozzle(
+    dispenser_uuid: str,
+    data: NozzleCreate,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.create_nozzle(db, dispenser_uuid, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/readings/bulk-form",
+    response_model=BulkFormResponse,
+)
+def get_bulk_readings_form(
+    reading_date: date,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.get_bulk_form(db, reading_date)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.post(
+    "/readings/bulk",
+    response_model=list[NozzleReadingResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def post_bulk_readings(
+    data: BulkNozzleReadingCreate,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.post_bulk_readings(db, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
