@@ -159,7 +159,7 @@ export default function OCRReviewForm({
 
   // Shared input classes; red ring + border when the field has an error.
   function inputClass(field: string) {
-    return `w-full rounded border p-2 ${
+    return `w-full rounded border border-hairline bg-surface-2 px-4 py-3 text-sm text-ink ${
       fieldErrors[field]
         ? "border-red-500 focus:ring-red-500"
         : ""
@@ -294,10 +294,10 @@ export default function OCRReviewForm({
               )
             }
           >
-            <option value="">Select fuel type</option>
+            <option value="" className="bg-surface-2 text-ink">Select fuel type</option>
 
             {FUEL_TYPES.map((type) => (
-              <option key={type} value={type}>
+              <option key={type} value={type} className="bg-surface-2 text-ink">
                 {type}
               </option>
             ))}
@@ -318,10 +318,10 @@ export default function OCRReviewForm({
               )
             }
           >
-            <option value="">Select payment mode</option>
+            <option value="" className="bg-surface-2 text-ink">Select payment mode</option>
 
             {PAYMENT_MODES.map((mode) => (
-              <option key={mode} value={mode}>
+              <option key={mode} value={mode} className="bg-surface-2 text-ink">
                 {mode}
               </option>
             ))}
@@ -385,7 +385,7 @@ export default function OCRReviewForm({
 
           <textarea
             rows={4}
-            className="w-full rounded border p-2"
+            className="w-full rounded border border-hairline bg-surface-2 px-4 py-3 text-sm text-ink"
             value={formData.remarks}
             onChange={(e) =>
               updateField(

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pumpledger-backend
+    restart: always
+    environment:
+      DATABASE_URL: "sqlite:///./pumpledger.db"
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:-SUPER_SECRET_KEY_FOR_JWT}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/pumpledger.db:/app/pumpledger.db
+      - ./backend/storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pumpledger-frontend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend

@@ -1,0 +1,30 @@
+# Git and config
+.git
+.gitignore
+.env
+.env.local
+.agents
+.gemini
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.venv/
+**/venv/
+**/.uv/
+
+# Node
+**/node_modules/
+**/dist/
+**/build/
+.npm
+.eslintcache
+
+# Local database & storage
+**/pumpledger.db
+**/pumpledger.db-journal
+**/backend/storage/invoices/*
+!**/backend/storage/invoices/.gitkeep
