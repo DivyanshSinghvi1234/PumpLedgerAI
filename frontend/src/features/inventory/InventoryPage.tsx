@@ -61,6 +61,10 @@ export default function InventoryPage() {
   // Meter Readings Bulk Entry state
   const [readingsDate, setReadingsDate] = useState(new Date().toISOString().split("T")[0]);
   const [formItems, setFormItems] = useState<Record<string, { opening: string | number; closing: string | number }>>({});
+  
+  // Safe editing states for saved readings
+  const [isEditingSaved, setIsEditingSaved] = useState(false);
+  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
 
   // Price Schedule Form states
   const [priceFuelType, setPriceFuelType] = useState<FuelType>("PETROL");
@@ -110,6 +114,16 @@ export default function InventoryPage() {
       });
       setFormItems(initialMap);
     }
+  }, [bulkForm]);
+
+  // Reset unlock status when switching logging dates
+  useEffect(() => {
+    setIsEditingSaved(false);
+  }, [readingsDate]);
+
+  // Evaluate if there are any saved logs on this date
+  const hasSavedReadings = useMemo(() => {
+    return bulkForm?.items.some((item) => item.closing_reading !== null) ?? false;
   }, [bulkForm]);
 
   // Mutations
@@ -181,8 +195,6 @@ export default function InventoryPage() {
       inventoryService.updateNozzle(uuid, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dispensers"] });
-      queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
-      queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
       setEditNozzleDialogOpen(false);
       toast.success("Nozzle updated successfully!");
     },
@@ -215,6 +227,7 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ["dispensers"] });
       queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
       queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
+      setIsEditingSaved(false); // Re-lock inputs on successful write
       toast.success("All nozzle meter readings saved successfully!");
     },
     onError: (err: any) => {
@@ -703,7 +716,8 @@ export default function InventoryPage() {
                                       },
                                     }));
                                   }}
-                                  className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8"
+                                  disabled={hasSavedReadings && !isEditingSaved}
+                                  className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                                   required
                                 />
                               </TableCell>
@@ -722,7 +736,8 @@ export default function InventoryPage() {
                                       },
                                     }));
                                   }}
-                                  className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8"
+                                  disabled={hasSavedReadings && !isEditingSaved}
+                                  className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                                 />
                               </TableCell>
                               <TableCell className="px-5 text-right font-semibold text-xs text-ink">
@@ -743,14 +758,36 @@ export default function InventoryPage() {
             </Card>
 
             {isAdminOrManager && bulkForm && bulkForm.items.length > 0 && (
-              <div className="flex justify-end mt-4">
-                <Button
-                  type="submit"
-                  disabled={postBulkReadingsMutation.isPending}
-                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-6 py-2 shadow-md cursor-pointer"
-                >
-                  {postBulkReadingsMutation.isPending ? "Saving batch..." : "Save All Readings"}
-                </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-4">
+                {hasSavedReadings && !isEditingSaved ? (
+                  <p className="text-xs text-fuel-amber flex items-center gap-1.5 font-semibold bg-fuel-amber/5 border border-fuel-amber/10 px-3 py-1.5 rounded-lg">
+                    <AlertTriangle size={14} /> Readings for this date are saved and locked.
+                  </p>
+                ) : (
+                  <p className="text-xs text-ink-subtle italic">
+                    {hasSavedReadings ? "Editing saved meter readings..." : "No readings recorded for this date."}
+                  </p>
+                )}
+
+                <div className="flex justify-end">
+                  {hasSavedReadings && !isEditingSaved ? (
+                    <Button
+                      type="button"
+                      onClick={() => setUnlockConfirmOpen(true)}
+                      className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-6 py-2 shadow-md cursor-pointer text-xs"
+                    >
+                      Edit Saved Readings
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled={postBulkReadingsMutation.isPending}
+                      className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-6 py-2 shadow-md cursor-pointer text-xs"
+                    >
+                      {postBulkReadingsMutation.isPending ? "Saving changes..." : hasSavedReadings ? "Save Changes" : "Save All Readings"}
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </form>
@@ -1314,6 +1351,50 @@ export default function InventoryPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Unlock Confirmation Dialog */}
+      <Dialog open={unlockConfirmOpen} onOpenChange={setUnlockConfirmOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2 text-fuel-amber">
+              <AlertTriangle size={18} /> Edit Saved Readings?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-xs text-ink-muted">
+              Are you sure you want to unlock and edit the saved meter readings for{" "}
+              <strong className="text-ink font-bold">
+                {new Date(readingsDate).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </strong>
+              ? Modifying finalized entries may affect subsequent date rollovers.
+            </p>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setUnlockConfirmOpen(false)}
+              className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setIsEditingSaved(true);
+                setUnlockConfirmOpen(false);
+              }}
+              className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+            >
+              Confirm & Unlock
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
