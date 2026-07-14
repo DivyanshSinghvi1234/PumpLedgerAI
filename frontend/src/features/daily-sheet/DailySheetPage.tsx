@@ -43,19 +43,7 @@ export default function DailySheetPage() {
     queryFn: () => voucherService.getVouchers({ from_date: salesDate, to_date: salesDate, page_size: 100 }),
   });
 
-  // Dispenser readings grouping
-  const salesDispenserGroups = useMemo(() => {
-    if (!salesForm?.items) return {};
-    const groups: Record<string, typeof salesForm.items> = {};
-    salesForm.items.forEach((item) => {
-      const dName = item.dispenser_name;
-      if (!groups[dName]) {
-        groups[dName] = [];
-      }
-      groups[dName].push(item);
-    });
-    return groups;
-  }, [salesForm]);
+
 
   // Total calculations
   const totalLitersSold = useMemo(() => {
@@ -257,75 +245,58 @@ export default function DailySheetPage() {
             </h3>
           </div>
 
-          {Object.keys(salesDispenserGroups).length > 0 ? (
-            <div className="space-y-3">
-              {Object.entries(salesDispenserGroups).map(([dispenserName, items]) => (
-                <Card key={dispenserName} className="glass border-hairline overflow-hidden print-card">
-                  <div className="p-3.5 flex flex-col md:flex-row md:items-center gap-4">
-                    {/* Dispenser Name Label (Row Header on Left) */}
-                    <div className="w-full md:w-32 shrink-0 border-b md:border-b-0 md:border-r border-hairline pb-2 md:pb-0 md:pr-4 flex items-center justify-between md:block bg-print-accent">
-                      <span className="text-xs font-black text-ink uppercase tracking-wider font-mono">
-                        {dispenserName}
-                      </span>
-                      <Badge className="md:hidden bg-fuel-amber/10 text-fuel-amber text-[8px] font-bold">
-                        {items.length} Nozzles
-                      </Badge>
+          {salesForm?.items && salesForm.items.length > 0 ? (
+            <Card className="glass border-hairline p-4 print-card">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 print-nozzle-grid">
+                {salesForm.items.map((item) => {
+                  const opening = item.opening_reading || 0;
+                  const closing = item.closing_reading !== null ? item.closing_reading : null;
+                  const sales = closing !== null && closing >= opening ? closing - opening : null;
+
+                  return (
+                    <div
+                      key={item.nozzle_uuid}
+                      className="border border-hairline rounded bg-surface-2 flex flex-col text-center divide-y divide-hairline print-nozzle-box shadow-sm"
+                    >
+                      {/* Nozzle Header */}
+                      <div className="bg-surface-3/50 px-1 py-1 font-bold text-[10px] text-ink flex items-center justify-center gap-1.5 bg-print-accent">
+                        <span className="truncate max-w-[60px]">{item.nozzle_name}</span>
+                        <Badge className="text-[8px] px-1 py-0 uppercase bg-fuel-amber/10 text-fuel-amber border-transparent font-bold print-badge">
+                          {item.fuel_type === "SPEED" ? "SPEED" : item.fuel_type}
+                        </Badge>
+                      </div>
+
+                      {/* Closing Reading */}
+                      <div className="py-1 px-1.5">
+                        <div className="text-[8px] uppercase font-mono text-ink-subtle">Closing</div>
+                        <div className="text-xs font-bold text-ink mt-0.5 font-mono">
+                          {closing !== null ? closing.toLocaleString(undefined, { minimumFractionDigits: 1 }) : "—"}
+                        </div>
+                      </div>
+
+                      {/* Opening Reading */}
+                      <div className="py-1 px-1.5">
+                        <div className="text-[8px] uppercase font-mono text-ink-subtle">Opening</div>
+                        <div className="text-xs font-bold text-ink-muted mt-0.5 font-mono">
+                          {opening.toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                        </div>
+                      </div>
+
+                      {/* Liters Sold */}
+                      <div className="py-1 px-1.5 bg-fuel-amber/5">
+                        <div className="text-[8px] uppercase font-mono text-fuel-amber font-bold">Liters</div>
+                        <div className="text-xs font-black text-fuel-amber mt-0.5 font-mono">
+                          {sales !== null ? `${sales.toLocaleString(undefined, { minimumFractionDigits: 1 })} L` : "—"}
+                        </div>
+                      </div>
                     </div>
-
-                    {/* Nozzle Grid (Row Cells on Right) */}
-                    <div className="flex-1 w-full grid grid-cols-2 sm:grid-cols-4 gap-3 print-nozzle-grid">
-                      {items.map((item) => {
-                        const opening = item.opening_reading || 0;
-                        const closing = item.closing_reading !== null ? item.closing_reading : null;
-                        const sales = closing !== null && closing >= opening ? closing - opening : null;
-
-                        return (
-                          <div
-                            key={item.nozzle_uuid}
-                            className="border border-hairline rounded bg-surface-2 flex flex-col text-center divide-y divide-hairline print-nozzle-box shadow-sm"
-                          >
-                            {/* Nozzle Header */}
-                            <div className="bg-surface-3/50 px-1 py-1 font-bold text-[10px] text-ink flex items-center justify-center gap-1.5 bg-print-accent">
-                              <span className="truncate max-w-[60px]">{item.nozzle_name}</span>
-                              <Badge className="text-[8px] px-1 py-0 uppercase bg-fuel-amber/10 text-fuel-amber border-transparent font-bold print-badge">
-                                {item.fuel_type === "SPEED" ? "SPEED" : item.fuel_type}
-                              </Badge>
-                            </div>
-
-                            {/* Closing Reading */}
-                            <div className="py-1 px-1.5">
-                              <div className="text-[8px] uppercase font-mono text-ink-subtle">Closing</div>
-                              <div className="text-xs font-bold text-ink mt-0.5 font-mono">
-                                {closing !== null ? closing.toLocaleString(undefined, { minimumFractionDigits: 1 }) : "—"}
-                              </div>
-                            </div>
-
-                            {/* Opening Reading */}
-                            <div className="py-1 px-1.5">
-                              <div className="text-[8px] uppercase font-mono text-ink-subtle">Opening</div>
-                              <div className="text-xs font-bold text-ink-muted mt-0.5 font-mono">
-                                {opening.toLocaleString(undefined, { minimumFractionDigits: 1 })}
-                              </div>
-                            </div>
-
-                            {/* Liters Sold */}
-                            <div className="py-1 px-1.5 bg-fuel-amber/5">
-                              <div className="text-[8px] uppercase font-mono text-fuel-amber font-bold">Liters</div>
-                              <div className="text-xs font-black text-fuel-amber mt-0.5 font-mono">
-                                {sales !== null ? `${sales.toLocaleString(undefined, { minimumFractionDigits: 1 })} L` : "—"}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            </Card>
           ) : (
             <Card className="glass border-hairline p-8 text-center text-xs text-ink-subtle italic print-card">
-              No active dispenser machines or nozzle readings saved for this date.
+              No active nozzle readings saved for this date.
             </Card>
           )}
         </div>
