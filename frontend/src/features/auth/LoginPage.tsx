@@ -107,13 +107,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="mt-10 rounded-xl border border-hairline bg-surface-2/40 p-5">
-                <p className="text-xs font-mono text-ink-tertiary">Demo credentials</p>
-                <p className="mt-2 text-sm text-ink">
-                  <span className="text-ink-subtle font-medium">admin</span> /{' '}
-                  <span className="text-ink-subtle font-medium">admin123</span>
-                </p>
-              </div>
+
             </div>
           </div>
 
@@ -190,9 +184,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-ink-tertiary md:hidden">
-              Demo credentials: <span className="text-ink-subtle font-medium">admin</span> / <span className="text-ink-subtle font-medium">admin123</span>
-            </p>
+
           </div>
         </div>
       </div>
