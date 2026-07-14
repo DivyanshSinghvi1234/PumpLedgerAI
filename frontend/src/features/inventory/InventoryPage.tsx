@@ -682,7 +682,7 @@ export default function InventoryPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {bulkForm.items.map((item) => {
+                        {bulkForm.items.map((item, idx) => {
                           const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "" };
                           const openVal = parseFloat(stateVals.opening.toString() || "0");
                           const closeVal = parseFloat(stateVals.closing.toString() || "0");
@@ -718,11 +718,11 @@ export default function InventoryPage() {
                                   }}
                                   disabled={hasSavedReadings && !isEditingSaved}
                                   className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
-                                  required
                                 />
                               </TableCell>
                               <TableCell className="py-2.5">
                                 <Input
+                                  id={`closing-input-${idx}`}
                                   type="number"
                                   step="0.01"
                                   placeholder="Enter final reading"
@@ -735,6 +735,16 @@ export default function InventoryPage() {
                                         closing: e.target.value,
                                       },
                                     }));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const nextInput = document.getElementById(`closing-input-${idx + 1}`) as HTMLInputElement | null;
+                                      if (nextInput) {
+                                        nextInput.focus();
+                                        nextInput.select();
+                                      }
+                                    }
                                   }}
                                   disabled={hasSavedReadings && !isEditingSaved}
                                   className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
