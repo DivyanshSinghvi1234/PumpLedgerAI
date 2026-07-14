@@ -15,3 +15,12 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
 export function formatCurrency(value: number): string {
   return currencyFormatter.format(value ?? 0)
 }
+
+/** Return current date formatted as YYYY-MM-DD in local time. */
+export function getTodayDateString(): string {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}

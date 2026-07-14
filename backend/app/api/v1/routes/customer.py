@@ -17,7 +17,9 @@ from app.schemas.customer import (
     CustomerListResponse,
     CustomerResponse,
     CustomerUpdate,
+    CustomerAutocompleteItem,
 )
+from app.schemas.payment import CustomerOutstandingResponse
 from app.services.customer_service import CustomerService
 
 router = APIRouter(
@@ -82,6 +84,52 @@ def get_customers(
             total_items=total,
         ),
     )
+@router.get(
+    "/search/autocomplete",
+    response_model=list[CustomerAutocompleteItem],
+)
+def search_customers_autocomplete(
+    q: str = Query(..., min_length=1, max_length=100, description="Search query"),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Autocomplete search for customer selection in payment form."""
+    customers = service.search_autocomplete(db, search=q, limit=limit)
+    return [
+        CustomerAutocompleteItem(
+            uuid=c.uuid,
+            label=f"{c.name} ({c.customer_code or 'No Code'})",
+            name=c.name,
+            customer_code=c.customer_code,
+            mobile=c.mobile,
+            outstanding_balance=c.outstanding_balance,
+        )
+        for c in customers
+    ]
+
+
+@router.get(
+    "/{customer_uuid}/outstanding",
+    response_model=CustomerOutstandingResponse,
+)
+def get_customer_outstanding(
+    customer_uuid: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        customer = service.get_by_uuid(db, customer_uuid)
+        return CustomerOutstandingResponse(
+            customer_uuid=customer.uuid,
+            customer_name=customer.name,
+            outstanding_balance=customer.outstanding_balance,
+            credit_limit=customer.credit_limit,
+            opening_balance=customer.opening_balance,
+        )
+    except CustomerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(

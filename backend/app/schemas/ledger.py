@@ -64,6 +64,10 @@ class LedgerEntryResponse(BaseModel):
 
     remarks: str | None = None
 
+    image_path: str | None = None
+
+    invoice_number: str | None = None
+
     model_config = ConfigDict(
         from_attributes=True,
     )
@@ -90,3 +94,32 @@ class LedgerListResponse(BaseModel):
     model_config = ConfigDict(
         frozen=True,
     )
+
+
+class GroupedLedgerEntry(BaseModel):
+    uuid: UUID
+    entry_type: LedgerEntryType
+    amount: Decimal
+    signed_amount: Decimal
+    balance_after: Decimal
+    remarks: str | None = None
+    reference_type: str | None = None
+    reference_id: int | None = None
+    voucher_status: str | None = None
+    invoice_number: str | None = None
+
+
+class LedgerGroupResponse(BaseModel):
+    date: date
+    total_debit: Decimal
+    total_credit: Decimal
+    closing_balance: Decimal
+    entries: list[GroupedLedgerEntry]
+
+
+class LedgerGroupedResponse(BaseModel):
+    customer_uuid: UUID
+    customer_name: str
+    opening_balance: Decimal
+    closing_balance: Decimal
+    groups: list[LedgerGroupResponse]

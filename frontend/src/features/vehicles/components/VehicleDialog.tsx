@@ -90,6 +90,8 @@ export default function VehicleDialog({
               ? {
                   customer_uuid:
                     vehicle.customer_uuid,
+                  customer_name:
+                    vehicle.customer_name,
                   vehicle_number:
                     vehicle.vehicle_number,
                   vehicle_type:

@@ -14,7 +14,7 @@ import { formatCurrency } from "@/lib/utils";
 
 import type { Voucher } from "@/types/voucher";
 
-import VoucherStatusBadge from "@/features/vouchers/components/VoucherStatusBadge";
+import { VoucherPaymentStatusBadge } from "@/features/vouchers/components/VoucherStatusBadge";
 
 interface Props {
   vouchers: Voucher[];
@@ -90,8 +90,8 @@ export default function RecentVouchers({
                   </TableCell>
 
                   <TableCell>
-                    <VoucherStatusBadge
-                      status={voucher.verification_status}
+                    <VoucherPaymentStatusBadge
+                      status={voucher.payment_status}
                     />
                   </TableCell>
                 </TableRow>

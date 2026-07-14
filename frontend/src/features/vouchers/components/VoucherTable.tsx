@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import VoucherStatusBadge from "./VoucherStatusBadge";
+import { VoucherPaymentStatusBadge } from "./VoucherStatusBadge";
 import VoucherActions from "./VoucherActions";
 import InvoiceImageDialog from "./InvoiceImageDialog";
 import { invoiceImageUrl } from "../utils/invoiceImage";
@@ -114,8 +114,8 @@ export default function VoucherTable({
             </TableCell>
 
             <TableCell>
-              <VoucherStatusBadge
-                status={voucher.verification_status}
+              <VoucherPaymentStatusBadge
+                status={voucher.payment_status}
               />
             </TableCell>
 

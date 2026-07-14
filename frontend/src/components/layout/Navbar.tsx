@@ -89,7 +89,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                 {user.full_name || user.username}
               </p>
               <p className="text-[9px] font-mono uppercase tracking-wider text-fuel-amber">
-                {user.role}
+                {{ ADMIN: "Admin", MANAGER: "Manager", OPERATOR: "Employee" }[user.role] ?? user.role}
               </p>
             </div>
           </div>

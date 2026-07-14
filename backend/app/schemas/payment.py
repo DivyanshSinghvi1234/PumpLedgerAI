@@ -177,3 +177,20 @@ class PaymentListResponse(BaseModel):
     model_config = ConfigDict(
         frozen=True,
     )
+
+
+class PaymentFifoAllocateRequest(BaseModel):
+    customer_uuid: UUID
+    amount: Decimal = Field(..., gt=0)
+    payment_mode: PaymentMode
+    payment_date: date
+    reference_number: str | None = Field(default=None, max_length=50)
+    remarks: str | None = Field(default=None, max_length=500)
+
+
+class CustomerOutstandingResponse(BaseModel):
+    customer_uuid: UUID
+    customer_name: str
+    outstanding_balance: Decimal
+    credit_limit: Decimal
+    opening_balance: Decimal

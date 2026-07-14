@@ -22,8 +22,11 @@ export default function VoucherListPage() {
   const canManage = hasRole("ADMIN", "MANAGER");
 
   const [search, setSearch] = useState("");
-  const [fuelType, setFuelType] = useState("");
-  const [paymentMode, setPaymentMode] = useState("");
+  const [selectedFuelTypes, setSelectedFuelTypes] = useState<string[]>([]);
+  const [selectedPaymentModes, setSelectedPaymentModes] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,14 +45,22 @@ export default function VoucherListPage() {
     search,
 
     fuel_type:
-      fuelType === "ALL"
-        ? undefined
-        : fuelType,
+      selectedFuelTypes.length > 0
+        ? selectedFuelTypes.join(",")
+        : undefined,
 
     payment_mode:
-      paymentMode === "ALL"
-        ? undefined
-        : paymentMode,
+      selectedPaymentModes.length > 0
+        ? selectedPaymentModes.join(",")
+        : undefined,
+
+    verification_status:
+      selectedStatuses.length > 0
+        ? selectedStatuses.join(",")
+        : undefined,
+
+    from_date: fromDate || undefined,
+    to_date: toDate || undefined,
 
     page,
 
@@ -109,12 +120,29 @@ export default function VoucherListPage() {
           setSearch(value);
           setPage(1);
         }}
-        onFuelChange={(value) => {
-          setFuelType(value);
+        selectedFuelTypes={selectedFuelTypes}
+        selectedPaymentModes={selectedPaymentModes}
+        selectedStatuses={selectedStatuses}
+        fromDate={fromDate}
+        toDate={toDate}
+        onFuelTypesChange={(values) => {
+          setSelectedFuelTypes(values);
           setPage(1);
         }}
-        onPaymentChange={(value) => {
-          setPaymentMode(value);
+        onPaymentModesChange={(values) => {
+          setSelectedPaymentModes(values);
+          setPage(1);
+        }}
+        onStatusesChange={(values) => {
+          setSelectedStatuses(values);
+          setPage(1);
+        }}
+        onFromDateChange={(value) => {
+          setFromDate(value);
+          setPage(1);
+        }}
+        onToDateChange={(value) => {
+          setToDate(value);
           setPage(1);
         }}
       />

@@ -1,14 +1,14 @@
 import { useState } from "react";
 
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getTodayDateString } from "@/lib/utils";
 
-import FormInput from "@/components/forms/FormInput";
+import FormDatePicker from "@/components/forms/FormDatePicker";
 
 import { useDailySales } from "../hooks/useDailySales";
 import reportService from "../services/reportService";
 
 export default function DailySalesSection() {
-  const [onDate, setOnDate] = useState("");
+  const [onDate, setOnDate] = useState(getTodayDateString());
 
   const params = { on_date: onDate || undefined };
 
@@ -41,8 +41,7 @@ export default function DailySalesSection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="Date (default today)"
           value={onDate}
           onChange={(e) => setOnDate(e.target.value)}

@@ -6,7 +6,9 @@ import FormActions from "@/components/forms/FormActions";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
+import FormDatePicker from "@/components/forms/FormDatePicker";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
+import { getTodayDateString } from "@/lib/utils";
 
 import type {
   CreateVoucherRequest,
@@ -103,6 +105,7 @@ export default function VoucherForm({
     defaultValues: {
       fuel_type: "PETROL",
       payment_mode: "CASH",
+      invoice_date: getTodayDateString(),
       ...defaultValues,
     },
   });
@@ -137,8 +140,7 @@ export default function VoucherForm({
           {...register("invoice_number")}
         />
 
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="Invoice Date"
           required
           error={errors.invoice_date?.message}

@@ -6,6 +6,8 @@ import { uploadErrorMessage } from "../../upload/services/uploadService";
 import InvoiceImageDialog from "../../vouchers/components/InvoiceImageDialog";
 import { invoiceImageUrl } from "../../vouchers/utils/invoiceImage";
 import CustomerAutocomplete from "../../customers/components/CustomerAutocomplete";
+import FormDatePicker from "@/components/forms/FormDatePicker";
+import { getTodayDateString } from "@/lib/utils";
 
 type Props = {
   data: any;
@@ -48,7 +50,7 @@ export default function OCRReviewForm({
 
   const [formData, setFormData] = useState({
     invoice_number: ocr.invoice_number ?? "",
-    invoice_date: ocr.invoice_date ?? "",
+    invoice_date: ocr.invoice_date || getTodayDateString(),
     vehicle_number: ocr.vehicle_number ?? "",
     customer_name: ocr.customer_name ?? "",
     customer_uuid: null as string | null,
@@ -231,17 +233,12 @@ export default function OCRReviewForm({
         </div>
 
         <div>
-          <label>Invoice Date *</label>
-
-          <input
-            type="date"
-            className={inputClass("invoice_date")}
+          <FormDatePicker
+            label="Invoice Date"
+            required
             value={formData.invoice_date}
             onChange={(e) =>
-              updateField(
-                "invoice_date",
-                e.target.value
-              )
+              updateField("invoice_date", e.target.value)
             }
           />
           <FieldError field="invoice_date" />

@@ -6,6 +6,8 @@ import FormActions from "@/components/forms/FormActions";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
+import FormDatePicker from "@/components/forms/FormDatePicker";
+import { getTodayDateString } from "@/lib/utils";
 
 import type {
   AdjustmentType,
@@ -78,6 +80,7 @@ export default function AdjustmentForm({
 
     defaultValues: {
       entry_type: "DEBIT_ADJUSTMENT",
+      entry_date: getTodayDateString(),
       ...defaultValues,
     },
   });
@@ -114,8 +117,7 @@ export default function AdjustmentForm({
           {...register("amount")}
         />
 
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="Date"
           required
           error={errors.entry_date?.message}

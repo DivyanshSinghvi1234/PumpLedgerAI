@@ -12,9 +12,27 @@ import {
   History,
   X,
   ClipboardList,
+  UserCog,
 } from "lucide-react";
+import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
+import type { UserRole } from "@/features/auth/services/authService";
 
-const menuItems = [
+interface MenuItem {
+  title: string;
+  path: string;
+  icon: React.ComponentType<{ size?: number }>;
+  /** If set, only these roles see this item. Omit = visible to all. */
+  allowedRoles?: UserRole[];
+}
+
+interface MenuGroup {
+  section: string;
+  items: MenuItem[];
+  /** If set, only these roles see this entire section. */
+  allowedRoles?: UserRole[];
+}
+
+const menuItems: MenuGroup[] = [
   {
     section: "Overview",
     items: [
@@ -26,19 +44,71 @@ const menuItems = [
     items: [
       { title: "Upload Invoice", path: "/dashboard/upload", icon: Upload },
       { title: "Vouchers", path: "/dashboard/vouchers", icon: FileText },
-      { title: "Payments", path: "/dashboard/payments", icon: Wallet },
-      { title: "Tally Sync", path: "/dashboard/tally", icon: FileCode },
-      { title: "Inventory", path: "/dashboard/inventory", icon: Fuel },
-      { title: "Daily Sheet", path: "/dashboard/daily-sheet", icon: ClipboardList },
+      {
+        title: "Payments",
+        path: "/dashboard/payments",
+        icon: Wallet,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Tally Sync",
+        path: "/dashboard/tally",
+        icon: FileCode,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Inventory",
+        path: "/dashboard/inventory",
+        icon: Fuel,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Daily Sheet",
+        path: "/dashboard/daily-sheet",
+        icon: ClipboardList,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
     ],
   },
   {
     section: "Records",
     items: [
-      { title: "Customers", path: "/dashboard/customers", icon: Users },
-      { title: "Vehicles", path: "/dashboard/vehicles", icon: Truck },
-      { title: "Reports", path: "/dashboard/reports", icon: BarChart3 },
-      { title: "Audit Trail", path: "/dashboard/audit", icon: History },
+      {
+        title: "Customers",
+        path: "/dashboard/customers",
+        icon: Users,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Vehicles",
+        path: "/dashboard/vehicles",
+        icon: Truck,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Reports",
+        path: "/dashboard/reports",
+        icon: BarChart3,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Audit Trail",
+        path: "/dashboard/audit",
+        icon: History,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+    ],
+  },
+  {
+    section: "Administration",
+    allowedRoles: ["ADMIN"],
+    items: [
+      {
+        title: "User Management",
+        path: "/dashboard/users",
+        icon: UserCog,
+        allowedRoles: ["ADMIN"],
+      },
     ],
   },
 ];
@@ -49,6 +119,14 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { hasRole } = useCurrentUser();
+
+  /** Check whether the current user can see a given item / section. */
+  function isAllowed(roles?: UserRole[]): boolean {
+    if (!roles || roles.length === 0) return true;
+    return hasRole(...roles);
+  }
+
   return (
     <>
       {/* Mobile overlay backdrop */}
@@ -93,48 +171,58 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Nav List */}
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
-          {menuItems.map((group) => (
-            <div key={group.section}>
-              <p className="mb-2.5 px-3 text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary">
-                {group.section}
-              </p>
+          {menuItems
+            .filter((group) => isAllowed(group.allowedRoles))
+            .map((group) => {
+              const visibleItems = group.items.filter((item) =>
+                isAllowed(item.allowedRoles)
+              );
 
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
+              if (visibleItems.length === 0) return null;
 
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      end={item.path === "/dashboard"}
-                      onClick={onClose}
-                      className={({ isActive }) =>
-                        `group flex items-center gap-3 py-2 px-3 text-[13px] font-medium rounded-lg transition-all duration-150 ${
-                          isActive
-                            ? "nav-active-bar bg-gradient-to-r from-fuel-amber/10 to-transparent text-ink font-semibold"
-                            : "text-ink-muted hover:bg-surface-3/60 hover:text-ink"
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <div className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-                            isActive
-                              ? "bg-fuel-amber/15 text-fuel-amber"
-                              : "text-ink-subtle group-hover:text-ink-muted"
-                          }`}>
-                            <Icon size={15} />
-                          </div>
-                          <span>{item.title}</span>
-                        </>
-                      )}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+              return (
+                <div key={group.section}>
+                  <p className="mb-2.5 px-3 text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary">
+                    {group.section}
+                  </p>
+
+                  <div className="space-y-0.5">
+                    {visibleItems.map((item) => {
+                      const Icon = item.icon;
+
+                      return (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          end={item.path === "/dashboard"}
+                          onClick={onClose}
+                          className={({ isActive }) =>
+                            `group flex items-center gap-3 py-2 px-3 text-[13px] font-medium rounded-lg transition-all duration-150 ${
+                              isActive
+                                ? "nav-active-bar bg-gradient-to-r from-fuel-amber/10 to-transparent text-ink font-semibold"
+                                : "text-ink-muted hover:bg-surface-3/60 hover:text-ink"
+                            }`
+                          }
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <div className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                                isActive
+                                  ? "bg-fuel-amber/15 text-fuel-amber"
+                                  : "text-ink-subtle group-hover:text-ink-muted"
+                              }`}>
+                                <Icon size={15} />
+                              </div>
+                              <span>{item.title}</span>
+                            </>
+                          )}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
         </nav>
 
         {/* Footer */}
@@ -148,3 +236,4 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     </>
   );
 }
+

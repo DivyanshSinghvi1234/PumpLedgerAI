@@ -188,3 +188,27 @@ class CustomerRepository(
         )
 
         return customers, total or 0
+
+    def search_autocomplete(
+        self,
+        db: Session,
+        *,
+        search: str,
+        limit: int = 10,
+    ) -> list[Customer]:
+        """Lightweight search for autocomplete dropdown."""
+        pattern = f"%{search}%"
+        query = (
+            select(Customer)
+            .where(
+                Customer.is_active.is_(True),
+                or_(
+                    Customer.name.ilike(pattern),
+                    Customer.mobile.ilike(pattern),
+                    Customer.customer_code.ilike(pattern),
+                ),
+            )
+            .order_by(Customer.name)
+            .limit(limit)
+        )
+        return list(db.scalars(query).all())

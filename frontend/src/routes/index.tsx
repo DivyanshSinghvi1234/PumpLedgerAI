@@ -15,7 +15,10 @@ import TallyExportPage from "../features/tally/TallyExportPage";
 import InventoryPage from "../features/inventory/InventoryPage";
 import DailySheetPage from "../features/daily-sheet/DailySheetPage";
 import AuditLogPage from "../features/audit/AuditLogPage";
+import UserManagementPage from "../features/users/UserManagementPage";
 import AppErrorPage from "../components/common/AppErrorPage";
+import AccessDeniedPage from "../components/auth/AccessDeniedPage";
+import ProtectedRoute from "../components/auth/ProtectedRoute";
 
 const router = createBrowserRouter([
   {
@@ -33,6 +36,7 @@ const router = createBrowserRouter([
     element: <AppLayout />,
     errorElement: <AppErrorPage />,
     children: [
+      /* ─── Open to ALL authenticated roles ─── */
       {
         index: true,
         element: <DashboardPage />,
@@ -50,48 +54,71 @@ const router = createBrowserRouter([
         element: <VoucherListPage />,
       },
       {
-        path: "customers",
-        element: <CustomerListPage />,
+        path: "access-denied",
+        element: <AccessDeniedPage />,
       },
+
+      /* ─── Manager + Admin ─── */
       {
-        path: "customers/:customerUuid/ledger",
-        element: <CustomerLedgerPage />,
+        element: <ProtectedRoute allowedRoles={["ADMIN", "MANAGER"]} />,
+        children: [
+          {
+            path: "customers",
+            element: <CustomerListPage />,
+          },
+          {
+            path: "customers/:customerUuid/ledger",
+            element: <CustomerLedgerPage />,
+          },
+          {
+            path: "vehicles",
+            element: <VehicleListPage />,
+          },
+          {
+            path: "payments",
+            element: <PaymentListPage />,
+          },
+          {
+            path: "reports",
+            element: <ReportsPage />,
+          },
+          {
+            path: "tally",
+            element: <TallyExportPage />,
+          },
+          {
+            path: "inventory",
+            element: <InventoryPage />,
+          },
+          {
+            path: "daily-sheet",
+            element: <DailySheetPage />,
+          },
+          {
+            path: "audit",
+            element: <AuditLogPage />,
+          },
+        ],
       },
+
+      /* ─── Admin only ─── */
       {
-        path: "vehicles",
-        element: <VehicleListPage />,
+        element: <ProtectedRoute allowedRoles={["ADMIN"]} />,
+        children: [
+          {
+            path: "users",
+            element: <UserManagementPage />,
+          },
+        ],
       },
-      {
-        path: "payments",
-        element: <PaymentListPage />,
-      },
-      {
-        path: "reports",
-        element: <ReportsPage />,
-      },
-      {
-        path: "tally",
-        element: <TallyExportPage />,
-      },
-      {
-        path: "inventory",
-        element: <InventoryPage />,
-      },
-      {
-        path: "daily-sheet",
-        element: <DailySheetPage />,
-      },
-      {
-        path: "audit",
-        element: <AuditLogPage />,
-      },
+
       {
         path: "*",
         element: (
           <div style={{ padding: 16 }}>
             <h2 style={{ margin: 0 }}>Page not found</h2>
             <p style={{ marginTop: 8, color: "rgba(0,0,0,.7)" }}>
-              The page you requested doesn’t exist.
+              The page you requested doesn't exist.
             </p>
           </div>
         ),
@@ -105,4 +132,3 @@ const router = createBrowserRouter([
 ]);
 
 export default router;
-

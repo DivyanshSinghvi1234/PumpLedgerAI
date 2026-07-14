@@ -138,6 +138,20 @@ class CustomerService:
             page_size=page_size,
         )
 
+    def search_autocomplete(
+        self,
+        db: Session,
+        *,
+        search: str,
+        limit: int = 10,
+    ) -> list[Customer]:
+        """Lightweight search for autocomplete dropdown."""
+        return self.repository.search_autocomplete(
+            db,
+            search=search,
+            limit=limit,
+        )
+
     # -----------------------------------
     # Get By UUID
     # -----------------------------------

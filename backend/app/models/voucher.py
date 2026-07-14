@@ -112,6 +112,20 @@ class Voucher(
         back_populates="vouchers",
     )
 
+    # ======================================================
+    # Nozzle Reference
+    # ======================================================
+
+    nozzle_id: Mapped[int | None] = mapped_column(
+        ForeignKey("nozzles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    nozzle = relationship(
+        "Nozzle",
+    )
+
     settlements = relationship(
         "VoucherSettlement",
         back_populates="voucher",

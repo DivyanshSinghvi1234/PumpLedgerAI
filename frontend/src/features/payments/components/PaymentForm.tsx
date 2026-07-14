@@ -6,6 +6,9 @@ import FormActions from "@/components/forms/FormActions";
 import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
+import FormDatePicker from "@/components/forms/FormDatePicker";
+import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
+import { getTodayDateString } from "@/lib/utils";
 
 import type {
   CreatePaymentRequest,
@@ -29,6 +32,8 @@ const paymentSchema = z.object({
   customer_uuid: z
     .string()
     .min(1, "Customer is required"),
+
+  customer_name: z.string().optional(),
 
   amount: z.coerce
     .number()
@@ -64,7 +69,6 @@ interface Props {
 }
 
 export default function PaymentForm({
-  customerOptions,
   defaultValues,
   loading = false,
   onCancel,
@@ -74,6 +78,8 @@ export default function PaymentForm({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: {
       errors,
     },
@@ -86,22 +92,26 @@ export default function PaymentForm({
 
     defaultValues: {
       payment_mode: "CASH",
+      payment_date: getTodayDateString(),
       ...defaultValues,
     },
   });
 
+  const customerName = watch("customer_name") ?? "";
+  const customerUuid = watch("customer_uuid") ?? "";
+
   function submitForm(
     data: PaymentFormData
   ) {
-    return onSubmit(data);
+    return onSubmit({
+      customer_uuid: data.customer_uuid,
+      amount: data.amount,
+      payment_mode: data.payment_mode,
+      payment_date: data.payment_date,
+      reference_number: data.reference_number,
+      remarks: data.remarks,
+    });
   }
-
-  // A leading placeholder so the select doesn't silently default
-  // to the first customer.
-  const customerSelectOptions = [
-    { label: "Select customer...", value: "" },
-    ...customerOptions,
-  ];
 
   return (
     <form
@@ -112,11 +122,21 @@ export default function PaymentForm({
       <div className="grid grid-cols-2 gap-4">
 
         <div className="col-span-2">
-          <FormSelect
-            label="Customer"
-            options={customerSelectOptions}
-            error={errors.customer_uuid?.message}
-            {...register("customer_uuid")}
+          <CustomerAutocomplete
+            value={customerName}
+            customerUuid={customerUuid || null}
+            error={
+              errors.customer_name?.message ??
+              errors.customer_uuid?.message
+            }
+            onChange={(name, uuid) => {
+              setValue("customer_name", name, {
+                shouldValidate: true,
+              });
+              setValue("customer_uuid", uuid ?? "", {
+                shouldValidate: true,
+              });
+            }}
           />
         </div>
 
@@ -136,8 +156,7 @@ export default function PaymentForm({
           {...register("payment_mode")}
         />
 
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="Payment Date"
           required
           error={errors.payment_date?.message}

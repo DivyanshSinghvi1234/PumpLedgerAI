@@ -18,6 +18,12 @@ export function useCreatePayment() {
       queryClient.invalidateQueries({
         queryKey: ["customers"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["customer"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["vouchers"],
+      });
 
       toast.success("Payment recorded.");
     },

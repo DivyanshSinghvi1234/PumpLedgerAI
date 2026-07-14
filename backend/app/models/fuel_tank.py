@@ -51,6 +51,7 @@ class FuelTank(
     )
 
 
+
 class DipReading(
     Base,
     IDMixin,

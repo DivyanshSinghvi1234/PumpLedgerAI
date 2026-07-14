@@ -8,9 +8,17 @@ import VoucherFilters from "./VoucherFilters";
 interface Props {
   onSearch(value: string): void;
 
-  onFuelChange(value: string): void;
+  selectedFuelTypes: string[];
+  selectedPaymentModes: string[];
+  selectedStatuses: string[];
+  fromDate: string;
+  toDate: string;
 
-  onPaymentChange(value: string): void;
+  onFuelTypesChange(values: string[]): void;
+  onPaymentModesChange(values: string[]): void;
+  onStatusesChange(values: string[]): void;
+  onFromDateChange(value: string): void;
+  onToDateChange(value: string): void;
 
   onCreate?(): void;
 
@@ -19,17 +27,21 @@ interface Props {
 
 export default function VoucherToolbar({
   onSearch,
-  onFuelChange,
-  onPaymentChange,
+  selectedFuelTypes,
+  selectedPaymentModes,
+  selectedStatuses,
+  fromDate,
+  toDate,
+  onFuelTypesChange,
+  onPaymentModesChange,
+  onStatusesChange,
+  onFromDateChange,
+  onToDateChange,
   onCreate,
   canCreate = true,
 }: Props) {
 
   const [search, setSearch] = useState("");
-
-  const [fuel, setFuel] = useState("ALL");
-
-  const [payment, setPayment] = useState("ALL");
 
   function handleSearch(value: string) {
     setSearch(value);
@@ -37,34 +49,28 @@ export default function VoucherToolbar({
     onSearch(value);
   }
 
-  function handleFuel(value: string) {
-    setFuel(value);
-
-    onFuelChange(value);
-  }
-
-  function handlePayment(value: string) {
-    setPayment(value);
-
-    onPaymentChange(value);
-  }
-
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap gap-4 items-center">
 
         <SearchInput
           value={search}
           onChange={handleSearch}
-          placeholder="Search invoice..."
+          placeholder="Search"
         />
 
         <VoucherFilters
-          fuelType={fuel}
-          paymentMode={payment}
-          onFuelChange={handleFuel}
-          onPaymentChange={handlePayment}
+          selectedFuelTypes={selectedFuelTypes}
+          selectedPaymentModes={selectedPaymentModes}
+          selectedStatuses={selectedStatuses}
+          fromDate={fromDate}
+          toDate={toDate}
+          onFuelTypesChange={onFuelTypesChange}
+          onPaymentModesChange={onPaymentModesChange}
+          onStatusesChange={onStatusesChange}
+          onFromDateChange={onFromDateChange}
+          onToDateChange={onToDateChange}
         />
 
       </div>

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload,
@@ -35,11 +35,44 @@ export default function UploadPage() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
 
+  useEffect(() => {
+    const savedBase64 = sessionStorage.getItem("saved_image_base64");
+    const savedName = sessionStorage.getItem("saved_image_name");
+    const savedType = sessionStorage.getItem("saved_image_type");
+    if (savedBase64 && savedName && savedType) {
+      fetch(savedBase64)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const file = new File([blob], savedName, { type: savedType });
+          setImage(file);
+          setPreview(URL.createObjectURL(file));
+        })
+        .catch((e) => console.error("Error restoring saved image", e));
+    }
+
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
   function handleFile(file: File) {
     setImage(file);
     setPreview(URL.createObjectURL(file));
     setError("");
     stopCamera();
+
+    // Save to sessionStorage to survive OS OOM reloads when native camera triggers background state
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        sessionStorage.setItem("saved_image_base64", reader.result as string);
+        sessionStorage.setItem("saved_image_name", file.name);
+        sessionStorage.setItem("saved_image_type", file.type);
+      } catch (e) {
+        console.warn("Could not save image to sessionStorage (likely quota exceeded)", e);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   function handleChange(
@@ -121,6 +154,11 @@ export default function UploadPage() {
 
       const result = await uploadInvoice(image);
 
+      // Clean storage on successful upload
+      sessionStorage.removeItem("saved_image_base64");
+      sessionStorage.removeItem("saved_image_name");
+      sessionStorage.removeItem("saved_image_type");
+
       navigate("/dashboard/review", {
         state: result,
       });
@@ -136,6 +174,9 @@ export default function UploadPage() {
     setImage(null);
     setPreview("");
     setError("");
+    sessionStorage.removeItem("saved_image_base64");
+    sessionStorage.removeItem("saved_image_name");
+    sessionStorage.removeItem("saved_image_type");
   }
 
   return (

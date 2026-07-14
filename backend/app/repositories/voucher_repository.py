@@ -127,14 +127,14 @@ class VoucherRepository(BaseRepository[Voucher]):
         # -------------------------
 
         if fuel_type:
-            statement = statement.where(
-                Voucher.fuel_type == fuel_type
-            )
+            types = [t.strip() for t in fuel_type.split(",") if t.strip()]
+            if types:
+                statement = statement.where(Voucher.fuel_type.in_(types))
 
         if payment_mode:
-            statement = statement.where(
-                Voucher.payment_mode == payment_mode
-            )
+            modes = [m.strip() for m in payment_mode.split(",") if m.strip()]
+            if modes:
+                statement = statement.where(Voucher.payment_mode.in_(modes))
 
         if payment_status:
             statement = statement.where(
@@ -147,9 +147,9 @@ class VoucherRepository(BaseRepository[Voucher]):
             )
 
         if verification_status:
-            statement = statement.where(
-                Voucher.verification_status == verification_status
-            )
+            statuses = [s.strip() for s in verification_status.split(",") if s.strip()]
+            if statuses:
+                statement = statement.where(Voucher.verification_status.in_(statuses))
 
         if from_date:
             statement = statement.where(
@@ -214,3 +214,22 @@ class VoucherRepository(BaseRepository[Voucher]):
         db.refresh(voucher)
 
         return voucher
+
+    def list_for_customer_fifo(
+        self,
+        db: Session,
+        customer_id: int,
+    ) -> list[Voucher]:
+        """Return customer's active vouchers with balance due, oldest first (FIFO)."""
+        from app.core.enums import PaymentStatus
+        statement = (
+            select(Voucher)
+            .where(
+                Voucher.customer_id == customer_id,
+                Voucher.is_active.is_(True),
+                Voucher.payment_status.in_([PaymentStatus.UNPAID, PaymentStatus.PARTIAL]),
+            )
+            .order_by(Voucher.invoice_date.asc(), Voucher.id.asc())
+            .options(joinedload(Voucher.customer))
+        )
+        return list(db.scalars(statement).all())

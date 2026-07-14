@@ -44,6 +44,12 @@ export interface Voucher {
 
   verification_status: VerificationStatus;
 
+  payment_status: "UNPAID" | "PARTIAL" | "PAID";
+
+  amount_paid: number;
+
+  balance_due: number;
+
   tally_status: TallyStatus;
 
   ai_provider: string | null;

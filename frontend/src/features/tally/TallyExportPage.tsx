@@ -118,8 +118,18 @@ export default function TallyExportPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-muted-foreground" />
+              <Calendar
+                size={16}
+                className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                onClick={() => {
+                  const el = document.getElementById("tallyFromDate") as HTMLInputElement | null;
+                  if (el && typeof el.showPicker === "function") {
+                    el.showPicker();
+                  }
+                }}
+              />
               <input
+                id="tallyFromDate"
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
@@ -128,8 +138,18 @@ export default function TallyExportPage() {
             </div>
             <span className="text-muted-foreground text-sm">to</span>
             <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-muted-foreground" />
+              <Calendar
+                size={16}
+                className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                onClick={() => {
+                  const el = document.getElementById("tallyToDate") as HTMLInputElement | null;
+                  if (el && typeof el.showPicker === "function") {
+                    el.showPicker();
+                  }
+                }}
+              />
               <input
+                id="tallyToDate"
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}

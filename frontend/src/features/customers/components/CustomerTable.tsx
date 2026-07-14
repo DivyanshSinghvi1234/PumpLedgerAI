@@ -41,6 +41,10 @@ export default function CustomerTable({
             </th>
 
             <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Status
+            </th>
+
+            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Actions
             </th>
           </tr>
@@ -73,6 +77,18 @@ export default function CustomerTable({
                 {Number(
                   customer.outstanding_balance
                 ).toLocaleString()}
+              </td>
+
+              <td className="px-4 py-3 text-center">
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${
+                    customer.outstanding_balance > 0
+                      ? "badge-warning"
+                      : "badge-success"
+                  }`}
+                >
+                  {customer.outstanding_balance > 0 ? "Pending" : "Completed"}
+                </span>
               </td>
 
               <td className="px-4 py-3">

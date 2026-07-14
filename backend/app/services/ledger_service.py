@@ -211,6 +211,21 @@ class LedgerService:
 
         # Compute the running balance across the FULL chronological
         # series so balance_after is correct regardless of page.
+        from sqlalchemy import select
+        from app.models.voucher import Voucher
+
+        voucher_ids = {
+            entry.reference_id
+            for entry in entries
+            if entry.reference_type == "VOUCHER" and entry.reference_id is not None
+        }
+        vouchers_map = {}
+        if voucher_ids:
+            vouchers = db.scalars(
+                select(Voucher).where(Voucher.id.in_(voucher_ids))
+            ).all()
+            vouchers_map = {v.id: v for v in vouchers}
+
         running = Decimal("0.00")
         enriched: list[LedgerEntryResponse] = []
 
@@ -220,6 +235,13 @@ class LedgerService:
                 entry.amount,
             )
             running += signed
+
+            voucher = None
+            if entry.reference_type == "VOUCHER" and entry.reference_id is not None:
+                voucher = vouchers_map.get(entry.reference_id)
+
+            image_path = voucher.image_path if voucher else None
+            invoice_number = voucher.invoice_number if voucher else None
 
             enriched.append(
                 LedgerEntryResponse(
@@ -231,6 +253,8 @@ class LedgerService:
                     entry_date=entry.entry_date,
                     reference_type=entry.reference_type,
                     remarks=entry.remarks,
+                    image_path=image_path,
+                    invoice_number=invoice_number,
                 )
             )
 
@@ -342,4 +366,111 @@ class LedgerService:
             "closing_balance": closing,
             "rows": rows,
             "count": len(rows),
+        }
+
+    def list_for_customer_grouped_by_date(
+        self,
+        db: Session,
+        customer_uuid: str,
+        *,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> dict:
+        """
+        Returns ledger entries grouped by entry_date with voucher status info.
+        """
+        customer = self.customer_repository.get_by_uuid(db, customer_uuid)
+        if customer is None:
+            raise CustomerNotFoundError(customer_uuid)
+
+        entries = self.repository.list_for_customer(db, customer.id)
+        
+        # Load vouchers if any entry is a VOUCHER
+        from sqlalchemy import select
+        from app.models.voucher import Voucher
+        
+        voucher_ids = {
+            e.reference_id
+            for e in entries
+            if e.reference_type == "VOUCHER" and e.reference_id is not None
+        }
+        vouchers_map = {}
+        if voucher_ids:
+            vouchers = db.scalars(
+                select(Voucher).where(Voucher.id.in_(voucher_ids))
+            ).all()
+            vouchers_map = {v.id: v for v in vouchers}
+
+        # Apply date filters & calculate running balance
+        running = Decimal("0.00")
+        
+        # Group entries by date
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        
+        for entry in entries:
+            signed = signed_amount(entry.entry_type, entry.amount)
+            running += signed
+            
+            # Apply date filters
+            if from_date and entry.entry_date < from_date:
+                continue
+            if to_date and entry.entry_date > to_date:
+                continue
+                
+            voucher = vouchers_map.get(entry.reference_id) if (entry.reference_type == "VOUCHER" and entry.reference_id is not None) else None
+            
+            grouped[entry.entry_date].append({
+                "uuid": entry.uuid,
+                "entry_type": entry.entry_type,
+                "amount": entry.amount,
+                "signed_amount": signed,
+                "balance_after": running,
+                "remarks": entry.remarks,
+                "reference_type": entry.reference_type,
+                "reference_id": entry.reference_id,
+                "voucher_status": voucher.payment_status.value if voucher else None,
+                "invoice_number": voucher.invoice_number if voucher else None,
+            })
+
+        # Sort dates ascending for statement view
+        sorted_dates = sorted(grouped.keys())
+        groups = []
+        
+        # Calculate opening balance before the first in-range group
+        opening_balance = Decimal("0.00")
+        if entries and from_date:
+            running_temp = Decimal("0.00")
+            for entry in entries:
+                signed = signed_amount(entry.entry_type, entry.amount)
+                if entry.entry_date < from_date:
+                    running_temp += signed
+                else:
+                    break
+            opening_balance = running_temp
+        else:
+            opening_balance = Decimal("0.00")
+
+        for d in sorted_dates:
+            entries_for_date = grouped[d]
+            total_debit = sum(e["signed_amount"] for e in entries_for_date if e["signed_amount"] > 0)
+            total_credit = sum(-e["signed_amount"] for e in entries_for_date if e["signed_amount"] < 0)
+            closing_balance = entries_for_date[-1]["balance_after"]
+            
+            groups.append({
+                "date": d,
+                "total_debit": total_debit,
+                "total_credit": total_credit,
+                "closing_balance": closing_balance,
+                "entries": entries_for_date,
+            })
+            
+        closing_balance_total = groups[-1]["closing_balance"] if groups else opening_balance
+        
+        return {
+            "customer_uuid": customer.uuid,
+            "customer_name": customer.name,
+            "opening_balance": opening_balance,
+            "closing_balance": closing_balance_total,
+            "groups": groups,
         }

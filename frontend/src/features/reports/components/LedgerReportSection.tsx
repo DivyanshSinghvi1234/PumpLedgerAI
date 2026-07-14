@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getTodayDateString } from "@/lib/utils";
 
 import FormSelect from "@/components/forms/FormSelect";
-import FormInput from "@/components/forms/FormInput";
+import FormDatePicker from "@/components/forms/FormDatePicker";
 
 import { useCustomerOptions } from "@/features/payments/hooks/useCustomerOptions";
 
@@ -20,8 +20,8 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function LedgerReportSection() {
   const [customerUuid, setCustomerUuid] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(getTodayDateString());
+  const [toDate, setToDate] = useState(getTodayDateString());
 
   const { data: customerData } = useCustomerOptions();
 
@@ -66,14 +66,12 @@ export default function LedgerReportSection() {
             onChange={(e) => setCustomerUuid(e.target.value)}
           />
         </div>
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="From"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
         />
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="To"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}

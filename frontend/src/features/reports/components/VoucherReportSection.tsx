@@ -1,9 +1,9 @@
 import { useState } from "react";
 
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getTodayDateString } from "@/lib/utils";
 
 import FormSelect from "@/components/forms/FormSelect";
-import FormInput from "@/components/forms/FormInput";
+import FormDatePicker from "@/components/forms/FormDatePicker";
 
 import VoucherStatusBadge from "@/features/vouchers/components/VoucherStatusBadge";
 
@@ -26,8 +26,8 @@ const PAYMENT_OPTIONS = [
 ];
 
 export default function VoucherReportSection() {
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(getTodayDateString());
+  const [toDate, setToDate] = useState(getTodayDateString());
   const [fuelType, setFuelType] = useState("");
   const [paymentMode, setPaymentMode] = useState("");
 
@@ -51,14 +51,12 @@ export default function VoucherReportSection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="From"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
         />
-        <FormInput
-          type="date"
+        <FormDatePicker
           label="To"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}

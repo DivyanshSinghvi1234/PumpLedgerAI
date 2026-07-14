@@ -6,10 +6,12 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db, require_roles
 from app.core.enums import UserRole, signed_amount
 from app.core.exceptions import CustomerNotFoundError
+from datetime import date
 from app.schemas.ledger import (
     LedgerAdjustmentCreate,
     LedgerEntryResponse,
     LedgerListResponse,
+    LedgerGroupedResponse,
 )
 from app.services.ledger_service import LedgerService
 
@@ -41,6 +43,28 @@ def get_customer_ledger(
             page=page,
             page_size=page_size,
         )
+    except CustomerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{customer_uuid}/grouped",
+    response_model=LedgerGroupedResponse,
+)
+def get_ledger_grouped(
+    customer_uuid: str,
+    from_date: date | None = Query(None),
+    to_date: date | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = service.list_for_customer_grouped_by_date(
+            db, customer_uuid, from_date=from_date, to_date=to_date
+        )
+        return LedgerGroupedResponse(**result)
     except CustomerNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -20,6 +20,7 @@ api.interceptors.request.use((config) => {
 });
 
 // On 401, drop the stale token and send the user back to login.
+// On 403, redirect to the access-denied page.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -31,9 +32,16 @@ api.interceptors.response.use(
       }
     }
 
+    if (error.response?.status === 403) {
+      if (!window.location.pathname.includes("access-denied")) {
+        window.location.href = "/dashboard/access-denied";
+      }
+    }
+
     return Promise.reject(error);
   }
 );
+
 
 export default api;
 

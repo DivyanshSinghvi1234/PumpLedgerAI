@@ -69,3 +69,8 @@ class Shift(
 
     # Relationships
     employee: Mapped[Employee] = relationship("Employee")
+    nozzle_readings = relationship(
+        "NozzleReading",
+        back_populates="shift",
+        cascade="all, delete-orphan",
+    )

@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
 interface AppDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
@@ -15,46 +21,23 @@ export default function AppDialog({
   description,
   children,
 }: AppDialogProps) {
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl bg-card p-6 shadow-xl">
+        <DialogTitle className="text-xl font-semibold">
+          {title}
+        </DialogTitle>
 
-      <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl">
+        {description && (
+          <p className="mt-1 text-sm text-ink-muted">
+            {description}
+          </p>
+        )}
 
-        <div className="border-b px-6 py-4">
-
-          <h2 className="text-xl font-semibold">
-            {title}
-          </h2>
-
-          {description && (
-            <p className="mt-1 text-sm text-slate-500">
-              {description}
-            </p>
-          )}
-
-        </div>
-
-        <div className="p-6">
+        <div className="mt-6">
           {children}
         </div>
-
-        <div className="border-t px-6 py-3 flex justify-end">
-
-          <button
-            onClick={() => onOpenChange(false)}
-            className="rounded border px-4 py-2"
-          >
-            Close
-          </button>
-
-        </div>
-
-      </div>
-
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

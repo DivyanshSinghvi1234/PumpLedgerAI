@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI
 from fastapi.responses import ORJSONResponse
+
 from fastapi.middleware.cors import CORSMiddleware
 from app.models import Voucher
 from app.api.v1.routes.voucher import router as voucher_router
@@ -15,7 +16,8 @@ from app.modules.dashboard.router import (
 )
 
 from app.core.config import settings
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_roles
+from app.core.enums import UserRole
 from app.core.logging import get_logger, setup_logging
 from app.database.init_db import init_db
 from app.api.v1.routes.customer import router as customer_router
@@ -25,6 +27,7 @@ from app.api.v1.routes.ledger import router as ledger_router
 from app.api.v1.routes.report import router as report_router
 from app.api.v1.routes.tally import router as tally_router
 from app.api.v1.routes.fuel_tank import router as fuel_tank_router
+from app.api.v1.routes.nozzle import router as nozzle_router
 from app.api.v1.routes.price_schedule import router as price_schedule_router
 from app.api.v1.routes.shift import router as shift_router
 from app.api.v1.routes.audit_log import router as audit_log_router
@@ -36,6 +39,12 @@ logger = get_logger(__name__)
 
 # Routers below this dependency require a valid bearer token.
 protected = [Depends(get_current_user)]
+
+# Manager+ routes: require ADMIN or MANAGER role (blocks OPERATOR/Employee).
+manager_protected = [
+    Depends(get_current_user),
+    Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER)),
+]
 
 # Create FastAPI app
 app = FastAPI(
@@ -106,7 +115,7 @@ app.include_router(
 app.include_router(
     customer_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     vehicle_router,
@@ -130,47 +139,52 @@ app.include_router(
 app.include_router(
     payment_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     ledger_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     report_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     tally_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     fuel_tank_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
+)
+app.include_router(
+    nozzle_router,
+    prefix="/api/v1",
+    dependencies=manager_protected,
 )
 app.include_router(
     price_schedule_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     shift_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     audit_log_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.include_router(
     employee_router,
     prefix="/api/v1",
-    dependencies=protected,
+    dependencies=manager_protected,
 )
 app.mount(
     "/storage",

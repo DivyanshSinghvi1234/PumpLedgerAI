@@ -25,6 +25,10 @@ export interface LedgerEntry {
   reference_type: string | null;
 
   remarks: string | null;
+
+  image_path?: string | null;
+
+  invoice_number?: string | null;
 }
 
 export interface Pagination {

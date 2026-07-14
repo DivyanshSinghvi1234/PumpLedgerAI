@@ -60,11 +60,18 @@ export default function CustomerAutocomplete({
     queryKey: ["customers", "search", term],
     queryFn: () =>
       customerService.getCustomers({
-        search: term,
+        search: term || undefined,
         page: 1,
-        page_size: 8,
+        page_size: 5,
       }),
-    enabled: term.length >= 2,
+    enabled: term.length > 0,
+    staleTime: 30_000,
+  });
+
+  const { data: selectedCustomer } = useQuery({
+    queryKey: ["customer", customerUuid],
+    queryFn: () => customerService.getCustomer(customerUuid!),
+    enabled: !!customerUuid,
     staleTime: 30_000,
   });
 
@@ -113,6 +120,16 @@ export default function CustomerAutocomplete({
 
   const isExisting = Boolean(linkedMatch);
 
+  const outstandingBalance = selectedCustomer?.outstanding_balance ?? (linkedMatch as Customer | null)?.outstanding_balance;
+
+  const formattedOutstanding = useMemo(() => {
+    if (outstandingBalance === undefined || outstandingBalance === null) return null;
+    return Number(outstandingBalance).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }, [outstandingBalance]);
+
   function handlePick(customer: Customer) {
     onChange(customer.name, customer.uuid);
     setOpen(false);
@@ -139,7 +156,7 @@ export default function CustomerAutocomplete({
           placeholder="Start typing a customer name…"
         />
 
-        {open && value.trim().length >= 2 && (
+        {open && (
           <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
             {isFetching && matches.length === 0 && (
               <p className="px-3 py-2 text-sm text-muted-foreground">
@@ -181,15 +198,22 @@ export default function CustomerAutocomplete({
 
       {/* Existing vs new indicator */}
       {value.trim().length > 0 && (
-        <p
-          className={`text-xs font-medium ${
-            isExisting ? "text-green-600" : "text-amber-600"
-          }`}
-        >
-          {isExisting
-            ? "✓ Existing customer"
-            : "+ New customer (will be created on save)"}
-        </p>
+        <div className="flex flex-col gap-0.5">
+          <p
+            className={`text-xs font-medium ${
+              isExisting ? "text-green-600" : "text-amber-600"
+            }`}
+          >
+            {isExisting
+              ? "✓ Existing customer"
+              : "+ New customer (will be created on save)"}
+          </p>
+          {isExisting && formattedOutstanding !== null && (
+            <p className="text-xs font-semibold text-blue-600">
+              Outstanding Balance: ₹{formattedOutstanding}
+            </p>
+          )}
+        </div>
       )}
 
       {/*

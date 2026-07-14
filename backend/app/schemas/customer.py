@@ -223,3 +223,12 @@ class CustomerListResponse(BaseModel):
     model_config = ConfigDict(
         frozen=True,
     )
+
+
+class CustomerAutocompleteItem(BaseModel):
+    uuid: UUID
+    label: str  # "Name (CODE)" for display
+    name: str
+    customer_code: str | None = None
+    mobile: str | None = None
+    outstanding_balance: Decimal

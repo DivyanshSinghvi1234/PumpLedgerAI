@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormActions from "@/components/forms/FormActions";
 import FormInput from "@/components/forms/FormInput";
-import FormSelect from "@/components/forms/FormSelect";
+import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
 
 import type { CreateVehicleRequest } from "../types/vehicle";
 
@@ -12,6 +12,8 @@ const vehicleSchema = z.object({
   customer_uuid: z
     .string()
     .min(1, "Customer is required"),
+
+  customer_name: z.string().optional(),
 
   vehicle_number: z
     .string()
@@ -47,7 +49,6 @@ interface Props {
 
 export default function VehicleForm({
   defaultValues,
-  customerOptions,
   lockCustomer = false,
   loading = false,
   onCancel,
@@ -57,6 +58,8 @@ export default function VehicleForm({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: {
       errors,
     },
@@ -65,16 +68,24 @@ export default function VehicleForm({
 
     defaultValues: {
       customer_uuid: "",
+      customer_name: "",
       vehicle_number: "",
       vehicle_type: "",
       ...defaultValues,
     },
   });
 
+  const customerName = watch("customer_name") ?? "";
+  const customerUuid = watch("customer_uuid") ?? "";
+
   function submitForm(
     data: VehicleFormData
   ) {
-    return onSubmit(data);
+    return onSubmit({
+      customer_uuid: data.customer_uuid,
+      vehicle_number: data.vehicle_number,
+      vehicle_type: data.vehicle_type || null,
+    });
   }
 
   return (
@@ -85,18 +96,22 @@ export default function VehicleForm({
 
       <div className="grid grid-cols-1 gap-4">
 
-        <FormSelect
-          label="Customer"
+        <CustomerAutocomplete
+          value={customerName}
+          customerUuid={customerUuid || null}
           disabled={lockCustomer}
-          error={errors.customer_uuid?.message}
-          options={[
-            {
-              label: "Select customer...",
-              value: "",
-            },
-            ...customerOptions,
-          ]}
-          {...register("customer_uuid")}
+          error={
+            errors.customer_name?.message ??
+            errors.customer_uuid?.message
+          }
+          onChange={(name, uuid) => {
+            setValue("customer_name", name, {
+              shouldValidate: true,
+            });
+            setValue("customer_uuid", uuid ?? "", {
+              shouldValidate: true,
+            });
+          }}
         />
 
         <FormInput
