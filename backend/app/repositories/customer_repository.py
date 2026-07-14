@@ -55,7 +55,7 @@ class CustomerRepository(
         customer: Customer,
     ) -> None:
 
-        db.delete(customer)
+        customer.is_active = False
         db.commit()
 
     # -----------------------------------

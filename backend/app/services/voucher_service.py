@@ -21,6 +21,8 @@ from app.schemas.voucher import (
     VoucherUpdate,
 )
 from app.services.ledger_service import LedgerService
+from app.services.fuel_tank_service import FuelTankService
+from app.services.audit_log_service import AuditLogService
 
 
 class VoucherService:
@@ -28,6 +30,8 @@ class VoucherService:
         self.repository = VoucherRepository()
         self.customer_repository = CustomerRepository()
         self.ledger_service = LedgerService()
+        self.tank_service = FuelTankService()
+        self.audit_service = AuditLogService()
 
     # -----------------------------------
     # Helpers
@@ -110,6 +114,7 @@ class VoucherService:
         self,
         db: Session,
         data: VoucherCreate,
+        actor_id: int | None = None,
     ) -> Voucher:
 
         existing = self.repository.get_by_invoice(
@@ -172,14 +177,52 @@ class VoucherService:
                 reference_id=voucher.id,
                 remarks=f"Credit sale — invoice {voucher.invoice_number}",
                 extra_objects=[voucher],
+                actor_id=actor_id,
             )
 
+            self.tank_service.deduct_stock(db, voucher.fuel_type, voucher.quantity_liters)
+            
+            # Log audit log
+            self.audit_service.log_action(
+                db,
+                action="CREATE_VOUCHER",
+                target_table="vouchers",
+                target_id=str(voucher.id),
+                actor_id=actor_id,
+                new_values={
+                    "invoice_number": voucher.invoice_number,
+                    "invoice_date": str(voucher.invoice_date),
+                    "total_amount": str(voucher.total_amount),
+                    "fuel_type": voucher.fuel_type.value,
+                    "quantity_liters": str(voucher.quantity_liters),
+                    "payment_mode": voucher.payment_mode.value,
+                }
+            )
             return voucher
 
-        return self.repository.create(
+        voucher = self.repository.create(
             db,
             voucher,
         )
+        self.tank_service.deduct_stock(db, voucher.fuel_type, voucher.quantity_liters)
+        
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="CREATE_VOUCHER",
+            target_table="vouchers",
+            target_id=str(voucher.id),
+            actor_id=actor_id,
+            new_values={
+                "invoice_number": voucher.invoice_number,
+                "invoice_date": str(voucher.invoice_date),
+                "total_amount": str(voucher.total_amount),
+                "fuel_type": voucher.fuel_type.value,
+                "quantity_liters": str(voucher.quantity_liters),
+                "payment_mode": voucher.payment_mode.value,
+            }
+        )
+        return voucher
 
     # -----------------------------------
     # Search + Pagination
@@ -271,6 +314,7 @@ class VoucherService:
         db: Session,
         voucher_uuid: str,
         data: VoucherUpdate,
+        actor_id: int | None = None,
     ) -> Voucher:
 
         voucher = self.repository.get_by_uuid(
@@ -282,6 +326,18 @@ class VoucherService:
             raise VoucherNotFoundError(
                 voucher_uuid,
             )
+
+        old_fuel_type = voucher.fuel_type
+        old_quantity = voucher.quantity_liters
+
+        old_values = {
+            "invoice_number": voucher.invoice_number,
+            "invoice_date": str(voucher.invoice_date),
+            "total_amount": str(voucher.total_amount),
+            "fuel_type": voucher.fuel_type.value,
+            "quantity_liters": str(voucher.quantity_liters),
+            "payment_mode": voucher.payment_mode.value,
+        }
 
         update_data = data.model_dump(
             exclude_unset=True,
@@ -296,6 +352,7 @@ class VoucherService:
                 voucher.customer,
                 "VOUCHER",
                 voucher.id,
+                actor_id=actor_id,
             )
 
         # Resolve a new customer link if provided.
@@ -333,6 +390,14 @@ class VoucherService:
             voucher,
         )
 
+        self.tank_service.update_stock(
+            db,
+            old_fuel_type,
+            old_quantity,
+            voucher.fuel_type,
+            voucher.quantity_liters,
+        )
+
         # Re-post from the new state if it still affects the ledger.
         if self._affects_ledger(voucher):
             self.ledger_service.post(
@@ -344,7 +409,26 @@ class VoucherService:
                 reference_type="VOUCHER",
                 reference_id=voucher.id,
                 remarks=f"Credit sale — invoice {voucher.invoice_number}",
+                actor_id=actor_id,
             )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="UPDATE_VOUCHER",
+            target_table="vouchers",
+            target_id=str(voucher.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values={
+                "invoice_number": voucher.invoice_number,
+                "invoice_date": str(voucher.invoice_date),
+                "total_amount": str(voucher.total_amount),
+                "fuel_type": voucher.fuel_type.value,
+                "quantity_liters": str(voucher.quantity_liters),
+                "payment_mode": voucher.payment_mode.value,
+            }
+        )
 
         return voucher
 
@@ -384,6 +468,7 @@ class VoucherService:
         self,
         db: Session,
         voucher_uuid: str,
+        actor_id: int | None = None,
     ) -> None:
 
         voucher = self.repository.get_by_uuid(
@@ -405,10 +490,47 @@ class VoucherService:
                 "VOUCHER",
                 voucher.id,
                 extra_deletes=[voucher],
+                actor_id=actor_id,
+            )
+            self.tank_service.restore_stock(db, voucher.fuel_type, voucher.quantity_liters)
+            
+            # Log audit log
+            self.audit_service.log_action(
+                db,
+                action="DELETE_VOUCHER",
+                target_table="vouchers",
+                target_id=str(voucher.id),
+                actor_id=actor_id,
+                old_values={
+                    "invoice_number": voucher.invoice_number,
+                    "invoice_date": str(voucher.invoice_date),
+                    "total_amount": str(voucher.total_amount),
+                    "fuel_type": voucher.fuel_type.value,
+                    "quantity_liters": str(voucher.quantity_liters),
+                    "payment_mode": voucher.payment_mode.value,
+                }
             )
             return
 
+        self.tank_service.restore_stock(db, voucher.fuel_type, voucher.quantity_liters)
         self.repository.delete(
             db,
             voucher,
+        )
+        
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="DELETE_VOUCHER",
+            target_table="vouchers",
+            target_id=str(voucher.id),
+            actor_id=actor_id,
+            old_values={
+                "invoice_number": voucher.invoice_number,
+                "invoice_date": str(voucher.invoice_date),
+                "total_amount": str(voucher.total_amount),
+                "fuel_type": voucher.fuel_type.value,
+                "quantity_liters": str(voucher.quantity_liters),
+                "payment_mode": voucher.payment_mode.value,
+            }
         )

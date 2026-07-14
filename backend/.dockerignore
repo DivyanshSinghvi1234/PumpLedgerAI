@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+pumpledger.db
+.env
+.env.local
+tests/
+_e2e_smoke.py

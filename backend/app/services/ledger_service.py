@@ -12,6 +12,7 @@ from app.models.customer import Customer
 from app.models.ledger_entry import LedgerEntry
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.ledger_repository import LedgerRepository
+from app.services.audit_log_service import AuditLogService
 from app.schemas.ledger import (
     LedgerAdjustmentCreate,
     LedgerEntryResponse,
@@ -30,6 +31,7 @@ class LedgerService:
     def __init__(self) -> None:
         self.repository = LedgerRepository()
         self.customer_repository = CustomerRepository()
+        self.audit_service = AuditLogService()
 
     # -----------------------------------
     # Post an entry (sole balance writer)
@@ -47,6 +49,7 @@ class LedgerService:
         reference_id: int | None = None,
         remarks: str | None = None,
         extra_objects=(),
+        actor_id: int | None = None,
     ) -> LedgerEntry:
 
         new_balance = (
@@ -64,13 +67,32 @@ class LedgerService:
             remarks=remarks,
         )
 
-        return self.repository.post(
+        res = self.repository.post(
             db,
             entry,
             customer,
             new_balance,
             extra_objects=extra_objects,
         )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action=f"POST_LEDGER_{entry_type.value}",
+            target_table="ledger_entries",
+            target_id=str(res.id),
+            actor_id=actor_id,
+            new_values={
+                "customer_uuid": customer.uuid,
+                "amount": str(amount),
+                "entry_type": entry_type.value,
+                "entry_date": str(entry_date),
+                "reference_type": reference_type,
+                "reference_id": reference_id,
+            }
+        )
+
+        return res
 
     # -----------------------------------
     # Reverse all entries for a source row
@@ -84,6 +106,7 @@ class LedgerService:
         reference_id: int,
         *,
         extra_deletes=(),
+        actor_id: int | None = None,
     ) -> None:
 
         entries = self.repository.get_entries_by_reference(
@@ -111,6 +134,24 @@ class LedgerService:
             extra_deletes=extra_deletes,
         )
 
+        # Log audit log
+        for e in entries:
+            self.audit_service.log_action(
+                db,
+                action=f"REVERSE_LEDGER_{e.entry_type.value}",
+                target_table="ledger_entries",
+                target_id=str(e.id),
+                actor_id=actor_id,
+                old_values={
+                    "customer_uuid": customer.uuid,
+                    "amount": str(e.amount),
+                    "entry_type": e.entry_type.value,
+                    "entry_date": str(e.entry_date),
+                    "reference_type": reference_type,
+                    "reference_id": reference_id,
+                }
+            )
+
     # -----------------------------------
     # Manual adjustment
     # -----------------------------------
@@ -120,6 +161,7 @@ class LedgerService:
         db: Session,
         customer_uuid: str,
         data: LedgerAdjustmentCreate,
+        actor_id: int | None = None,
     ) -> LedgerEntry:
 
         customer = self.customer_repository.get_by_uuid(
@@ -138,6 +180,7 @@ class LedgerService:
             entry_date=data.entry_date,
             reference_type="ADJUSTMENT",
             remarks=data.remarks,
+            actor_id=actor_id,
         )
 
     # -----------------------------------

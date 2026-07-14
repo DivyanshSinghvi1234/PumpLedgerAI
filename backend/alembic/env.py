@@ -13,6 +13,12 @@ from app.models.voucher import Voucher
 from app.models.user import User  # Remove if you don't have this model
 from app.models.payment import Payment
 from app.models.ledger_entry import LedgerEntry
+from app.models.fuel_tank import FuelTank, DipReading
+from app.models.price_schedule import PriceSchedule
+from app.models.shift import Shift
+from app.models.audit_log import AuditLog
+from app.models.shift_timetable import ShiftTimetable
+from app.models.employee import Employee
 
 config = context.config
 

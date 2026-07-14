@@ -130,16 +130,16 @@ def update_customer(
 
 
 @router.delete(
-    "/{customer_uuid}",
+    "/{uuid}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=manager,
 )
 def delete_customer(
-    customer_uuid: str,
+    uuid: str,
     db: Session = Depends(get_db),
 ):
     try:
-        service.delete(db, customer_uuid)
+        service.delete(db, uuid)
     except CustomerNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

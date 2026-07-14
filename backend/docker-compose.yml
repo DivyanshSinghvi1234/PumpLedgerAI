@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pumpledger-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pumpledger}
+      POSTGRES_USER: ${POSTGRES_USER:-pumpledger_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pumpledger_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pumpledger-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://pumpledger_user:pumpledger_pass@postgres:5432/pumpledger
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:-SUPER_SECRET_KEY_FOR_JWT}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: pumpledger-frontend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

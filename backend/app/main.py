@@ -24,6 +24,11 @@ from app.api.v1.routes.payment import router as payment_router
 from app.api.v1.routes.ledger import router as ledger_router
 from app.api.v1.routes.report import router as report_router
 from app.api.v1.routes.tally import router as tally_router
+from app.api.v1.routes.fuel_tank import router as fuel_tank_router
+from app.api.v1.routes.price_schedule import router as price_schedule_router
+from app.api.v1.routes.shift import router as shift_router
+from app.api.v1.routes.audit_log import router as audit_log_router
+from app.api.v1.routes.employee import router as employee_router
 
 # Configure logging
 setup_logging()
@@ -139,6 +144,31 @@ app.include_router(
 )
 app.include_router(
     tally_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    fuel_tank_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    price_schedule_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    shift_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    audit_log_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    employee_router,
     prefix="/api/v1",
     dependencies=protected,
 )

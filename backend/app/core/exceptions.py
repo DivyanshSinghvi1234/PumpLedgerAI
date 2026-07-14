@@ -92,3 +92,17 @@ class DuplicateUsernameError(AppException):
 class InvalidPasswordError(AppException):
     def __init__(self) -> None:
         super().__init__("Current password is incorrect.")
+
+
+# -------------------------
+# Employee Exceptions
+# -------------------------
+
+class EmployeeNotFoundError(AppException):
+    def __init__(self, employee_uuid: str):
+        super().__init__(f"Employee '{employee_uuid}' not found.")
+
+
+class DuplicateEmployeeEmailError(AppException):
+    def __init__(self, email: str):
+        super().__init__(f"Employee email '{email}' already exists.")
