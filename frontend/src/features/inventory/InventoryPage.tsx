@@ -12,7 +12,6 @@ import {
   Edit2,
   Trash2,
   History,
-  Coins,
 } from "lucide-react";
 
 import PageHeader from "@/components/common/PageHeader";
@@ -27,7 +26,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "./services/inventoryService";
-import paymentService from "@/features/payments/services/paymentService";
 import type { FuelType, PriceScheduleCreate, FuelDispenserCreate, NozzleCreate, BulkNozzleReadingCreate } from "./types";
 
 export default function InventoryPage() {
@@ -35,7 +33,7 @@ export default function InventoryPage() {
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"dispensers" | "readings" | "history" | "prices" | "sales">("dispensers");
+  const [activeTab, setActiveTab] = useState<"dispensers" | "readings" | "history" | "prices">("dispensers");
 
   // Dispensers and Nozzles state
   const [dispenserDialogOpen, setDispenserDialogOpen] = useState(false);
@@ -68,9 +66,6 @@ export default function InventoryPage() {
   // Safe editing states for saved readings
   const [isEditingSaved, setIsEditingSaved] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
-
-  // Sales Accounting states
-  const [salesDate, setSalesDate] = useState(new Date().toISOString().split("T")[0]);
 
   // Price Schedule Form states
   const [priceFuelType, setPriceFuelType] = useState<FuelType>("PETROL");
@@ -131,31 +126,7 @@ export default function InventoryPage() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [nozzleReadings]);
 
-  // Sales Tab Queries & Grouping
-  const { data: salesForm, isLoading: salesFormLoading } = useQuery({
-    queryKey: ["salesReadings", salesDate],
-    queryFn: () => inventoryService.getBulkReadingsForm(salesDate),
-    enabled: activeTab === "sales",
-  });
 
-  const { data: dailyPayments, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["dailyPayments", salesDate],
-    queryFn: () => paymentService.getPayments({ payment_date: salesDate, page_size: 100 }),
-    enabled: activeTab === "sales",
-  });
-
-  const salesDispenserGroups = useMemo(() => {
-    if (!salesForm?.items) return {};
-    const groups: Record<string, typeof salesForm.items> = {};
-    salesForm.items.forEach((item) => {
-      const dName = item.dispenser_name;
-      if (!groups[dName]) {
-        groups[dName] = [];
-      }
-      groups[dName].push(item);
-    });
-    return groups;
-  }, [salesForm]);
 
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
@@ -483,16 +454,7 @@ export default function InventoryPage() {
         >
           Meter Logs
         </button>
-        <button
-          onClick={() => setActiveTab("sales")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
-            activeTab === "sales"
-              ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
-          }`}
-        >
-          Sales Section
-        </button>
+
         <button
           onClick={() => setActiveTab("prices")}
           className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
@@ -981,236 +943,6 @@ export default function InventoryPage() {
             <Card className="glass border-hairline p-12 text-center text-xs text-ink-subtle italic">
               No meter logs recorded yet.
             </Card>
-          )}
-        </div>
-      ) : activeTab === "sales" ? (
-        <div className="space-y-6 animate-fade-in">
-          {/* Sales Accounting Toolbar */}
-          <Card className="glass border-hairline p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
-                <Coins size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-ink">Daily Sales Accounting Sheet</h3>
-                <p className="text-xs text-ink-subtle">
-                  Daily worksheet detailing nozzle meter readings and payment collection totals.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="salesDateInput" className="text-xs font-semibold text-ink-muted shrink-0">
-                Accounting Date:
-              </Label>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const d = new Date(salesDate);
-                    d.setDate(d.getDate() - 1);
-                    setSalesDate(d.toISOString().split("T")[0]);
-                  }}
-                  className="h-8 w-8 p-0 border border-hairline hover:bg-surface-3 text-ink cursor-pointer"
-                  title="Previous Day"
-                >
-                  &larr;
-                </Button>
-                <div className="relative">
-                  <Calendar
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink cursor-pointer transition-colors"
-                    size={14}
-                    onClick={() => {
-                      const el = document.getElementById("salesDateInput") as HTMLInputElement | null;
-                      if (el && typeof el.showPicker === "function") {
-                        el.showPicker();
-                      }
-                    }}
-                  />
-                  <Input
-                    id="salesDateInput"
-                    type="date"
-                    value={salesDate}
-                    onChange={(e) => setSalesDate(e.target.value)}
-                    className="bg-surface-2 border-hairline outline-none text-xs text-ink pl-9 pr-2 py-1 h-8 w-32"
-                    required
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const d = new Date(salesDate);
-                    d.setDate(d.getDate() + 1);
-                    setSalesDate(d.toISOString().split("T")[0]);
-                  }}
-                  className="h-8 w-8 p-0 border border-hairline hover:bg-surface-3 text-ink cursor-pointer"
-                  title="Next Day"
-                >
-                  &rarr;
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {salesFormLoading || paymentsLoading ? (
-            <Card className="glass border-hairline p-12 text-center text-xs text-ink-subtle">
-              Loading daily accounting sheet...
-            </Card>
-          ) : (
-            <>
-              {/* Daily Nozzle Worksheet Cards (Grouped by Dispenser) */}
-              <div className="space-y-6">
-                <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted px-1 font-bold">
-                  Daily Nozzle Reading Worksheet
-                </h3>
-
-                {Object.keys(salesDispenserGroups).length > 0 ? (
-                  Object.entries(salesDispenserGroups).map(([dispenserName, items]) => (
-                    <Card key={dispenserName} className="glass border-hairline overflow-hidden">
-                      <div className="bg-surface-3/50 px-5 py-3 border-b border-hairline">
-                        <span className="text-xs font-bold text-ink">{dispenserName}</span>
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                          {items.map((item) => {
-                            const opening = item.opening_reading || 0;
-                            const closing = item.closing_reading !== null ? item.closing_reading : null;
-                            const sales = closing !== null && closing >= opening ? closing - opening : null;
-
-                            return (
-                              <div
-                                key={item.nozzle_uuid}
-                                className="border border-hairline rounded-lg overflow-hidden bg-surface-2 flex flex-col text-center divide-y divide-hairline shadow-sm"
-                              >
-                                {/* Nozzle Name & Fuel Type Header */}
-                                <div className="bg-surface-3/30 px-2 py-1.5 font-bold text-xs text-ink flex items-center justify-center gap-1.5">
-                                  <span className="truncate">{item.nozzle_name}</span>
-                                  <Badge className="text-[8px] px-1 py-0 uppercase bg-fuel-amber/10 text-fuel-amber hover:bg-fuel-amber/10 border-transparent font-bold">
-                                    {item.fuel_type}
-                                  </Badge>
-                                </div>
-
-                                {/* Closing Reading */}
-                                <div className="py-2.5 px-3">
-                                  <div className="text-[10px] uppercase font-mono tracking-wider text-ink-subtle">
-                                    Closing Reading
-                                  </div>
-                                  <div className="text-sm font-extrabold text-ink mt-0.5 font-mono">
-                                    {closing !== null ? closing.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
-                                  </div>
-                                </div>
-
-                                {/* Opening Reading */}
-                                <div className="py-2.5 px-3">
-                                  <div className="text-[10px] uppercase font-mono tracking-wider text-ink-subtle">
-                                    Opening Reading
-                                  </div>
-                                  <div className="text-sm font-extrabold text-ink-muted mt-0.5 font-mono">
-                                    {opening.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                  </div>
-                                </div>
-
-                                {/* Liters Sold */}
-                                <div className="py-2.5 px-3 bg-fuel-amber/5">
-                                  <div className="text-[10px] uppercase font-mono tracking-wider text-fuel-amber/80 font-bold">
-                                    Liters Sold
-                                  </div>
-                                  <div className="text-base font-black text-fuel-amber mt-0.5 font-mono">
-                                    {sales !== null ? `${sales.toLocaleString(undefined, { minimumFractionDigits: 2 })} L` : "—"}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : (
-                  <Card className="glass border-hairline p-8 text-center text-xs text-ink-subtle italic">
-                    No active dispenser machines or nozzle readings saved for this date.
-                  </Card>
-                )}
-              </div>
-
-              {/* Payments Collection summary */}
-              <Card className="glass border-hairline overflow-hidden mt-8">
-                <CardHeader className="pb-3 border-b border-hairline bg-surface-3/50 px-5 py-3.5">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-xs font-bold text-ink uppercase tracking-wider font-mono">
-                      Payments Collection Summary
-                    </CardTitle>
-                    <Badge className="bg-fuel-amber/15 text-fuel-amber border-transparent font-mono font-bold text-[10px] uppercase">
-                      {dailyPayments?.items?.length || 0} Transactions
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {dailyPayments && dailyPayments.items.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-b border-hairline hover:bg-transparent">
-                            <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Customer
-                            </TableHead>
-                            <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Payment Mode
-                            </TableHead>
-                            <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Reference Number
-                            </TableHead>
-                            <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Remarks
-                            </TableHead>
-                            <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">
-                              Amount (₹)
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dailyPayments.items.map((payment) => (
-                            <TableRow key={payment.uuid} className="border-b border-hairline hover:bg-surface-3/15">
-                              <TableCell className="px-5 text-xs font-bold text-ink">
-                                {payment.customer_name}
-                              </TableCell>
-                              <TableCell className="text-xs font-semibold text-ink-muted">
-                                <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
-                                  {payment.payment_mode}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-xs text-ink-subtle font-mono">
-                                {payment.reference_number || "—"}
-                              </TableCell>
-                              <TableCell className="text-xs text-ink-muted italic">
-                                {payment.remarks || "—"}
-                              </TableCell>
-                              <TableCell className="px-5 text-right font-bold text-xs text-ink font-mono">
-                                ₹{payment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          {/* Totals Summary Row */}
-                          <TableRow className="bg-surface-3/20 font-bold hover:bg-surface-3/20 border-t border-hairline">
-                            <TableCell colSpan={4} className="px-5 text-xs font-bold text-ink text-right uppercase tracking-wider">
-                              Total Payments Collected:
-                            </TableCell>
-                            <TableCell className="px-5 text-right text-sm font-black text-fuel-amber font-mono">
-                              ₹{dailyPayments.items.reduce((sum, p) => sum + p.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center text-xs text-ink-subtle italic">
-                      No customer payment receipts logged on this date.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
           )}
         </div>
       ) : (

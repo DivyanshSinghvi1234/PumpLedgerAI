@@ -9,10 +9,9 @@ import {
   BarChart3,
   Fuel,
   FileCode,
-  RefreshCw,
   History,
   X,
-  Briefcase,
+  ClipboardList,
 } from "lucide-react";
 
 const menuItems = [
@@ -30,14 +29,13 @@ const menuItems = [
       { title: "Payments", path: "/dashboard/payments", icon: Wallet },
       { title: "Tally Sync", path: "/dashboard/tally", icon: FileCode },
       { title: "Inventory", path: "/dashboard/inventory", icon: Fuel },
-      { title: "Shifts", path: "/dashboard/shifts", icon: RefreshCw },
+      { title: "Daily Sheet", path: "/dashboard/daily-sheet", icon: ClipboardList },
     ],
   },
   {
     section: "Records",
     items: [
       { title: "Customers", path: "/dashboard/customers", icon: Users },
-      { title: "Employees", path: "/dashboard/employees", icon: Briefcase },
       { title: "Vehicles", path: "/dashboard/vehicles", icon: Truck },
       { title: "Reports", path: "/dashboard/reports", icon: BarChart3 },
       { title: "Audit Trail", path: "/dashboard/audit", icon: History },

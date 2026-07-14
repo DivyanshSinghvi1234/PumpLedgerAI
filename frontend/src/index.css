@@ -429,3 +429,95 @@ tr.table-row-hover:hover {
   border-color: #f59e0b;
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.1) inset;
 }
+
+/* Print Media Styles for Single-Page Daily Sheet */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Hide sidebar, headers, footers, buttons, and date stepping controls during print */
+  aside, 
+  header, 
+  .no-print,
+  button,
+  .no-print-toolbar,
+  nav,
+  .mobile-overlay {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Align print sheet to the top-left to avoid margins shifting contents off-screen */
+  #daily-sheet-print-container {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    visibility: visible !important;
+  }
+
+  /* Force visibility and default coloring on print outputs */
+  #daily-sheet-print-container * {
+    visibility: visible !important;
+    color: black !important;
+    border-color: #e4e4e7 !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+  }
+
+  /* Retain specific backgrounds like badge or card totals in print */
+  .bg-print-accent {
+    background-color: #f4f4f5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent split of cards or logs across A4 boundaries */
+  .print-card {
+    page-break-inside: avoid !important;
+    border: 1px solid #d4d4d8 !important;
+    border-radius: 6px !important;
+    margin-bottom: 10px !important;
+  }
+
+  /* Tighten spacing for invoice & payment tables to avoid scrolling/spilling */
+  .print-table th {
+    background-color: #f4f4f5 !important;
+    color: #18181b !important;
+    font-size: 8px !important;
+    padding: 3px 5px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-table td {
+    padding: 3px 5px !important;
+    font-size: 8px !important;
+    border-bottom: 1px solid #e4e4e7 !important;
+  }
+
+  .print-nozzle-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .print-nozzle-box {
+    border: 1px solid #d4d4d8 !important;
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+  }
+
+  .print-nozzle-box div {
+    padding: 2px !important;
+  }
+}

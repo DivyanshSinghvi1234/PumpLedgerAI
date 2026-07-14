@@ -13,9 +13,8 @@ import CustomerLedgerPage from "../features/ledger/CustomerLedgerPage";
 import ReportsPage from "../features/reports/ReportsPage";
 import TallyExportPage from "../features/tally/TallyExportPage";
 import InventoryPage from "../features/inventory/InventoryPage";
-import ShiftPage from "../features/shifts/ShiftPage";
+import DailySheetPage from "../features/daily-sheet/DailySheetPage";
 import AuditLogPage from "../features/audit/AuditLogPage";
-import EmployeePage from "../features/employees/EmployeePage";
 import AppErrorPage from "../components/common/AppErrorPage";
 
 const router = createBrowserRouter([
@@ -63,10 +62,6 @@ const router = createBrowserRouter([
         element: <VehicleListPage />,
       },
       {
-        path: "employees",
-        element: <EmployeePage />,
-      },
-      {
         path: "payments",
         element: <PaymentListPage />,
       },
@@ -83,8 +78,8 @@ const router = createBrowserRouter([
         element: <InventoryPage />,
       },
       {
-        path: "shifts",
-        element: <ShiftPage />,
+        path: "daily-sheet",
+        element: <DailySheetPage />,
       },
       {
         path: "audit",
