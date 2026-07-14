@@ -249,25 +249,31 @@ export default function DailySheetPage() {
           </Card>
         </div>
 
-        {/* Side-by-Side Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 print-grid">
-          
-          {/* Left Column: Daily Nozzle Reading Worksheet (takes 6 columns) */}
-          <div className="lg:col-span-6 print-col-6 space-y-6">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold flex items-center gap-1.5">
-                <CheckCircle2 size={14} className="text-fuel-amber" /> Nozzle Readings Worksheet
-              </h3>
-            </div>
+        {/* Full-Width Nozzle Readings Worksheet */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="text-fuel-amber" /> Nozzle Readings Worksheet
+            </h3>
+          </div>
 
-            {Object.keys(salesDispenserGroups).length > 0 ? (
-              Object.entries(salesDispenserGroups).map(([dispenserName, items]) => (
+          {Object.keys(salesDispenserGroups).length > 0 ? (
+            <div className="space-y-3">
+              {Object.entries(salesDispenserGroups).map(([dispenserName, items]) => (
                 <Card key={dispenserName} className="glass border-hairline overflow-hidden print-card">
-                  <div className="bg-surface-3/50 px-4 py-2 border-b border-hairline bg-print-accent">
-                    <span className="text-xs font-bold text-ink">{dispenserName}</span>
-                  </div>
-                  <CardContent className="p-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 print-nozzle-grid">
+                  <div className="p-3.5 flex flex-col md:flex-row md:items-center gap-4">
+                    {/* Dispenser Name Label (Row Header on Left) */}
+                    <div className="w-full md:w-32 shrink-0 border-b md:border-b-0 md:border-r border-hairline pb-2 md:pb-0 md:pr-4 flex items-center justify-between md:block bg-print-accent">
+                      <span className="text-xs font-black text-ink uppercase tracking-wider font-mono">
+                        {dispenserName}
+                      </span>
+                      <Badge className="md:hidden bg-fuel-amber/10 text-fuel-amber text-[8px] font-bold">
+                        {items.length} Nozzles
+                      </Badge>
+                    </div>
+
+                    {/* Nozzle Grid (Row Cells on Right) */}
+                    <div className="flex-1 w-full grid grid-cols-2 sm:grid-cols-4 gap-3 print-nozzle-grid">
                       {items.map((item) => {
                         const opening = item.opening_reading || 0;
                         const closing = item.closing_reading !== null ? item.closing_reading : null;
@@ -276,11 +282,11 @@ export default function DailySheetPage() {
                         return (
                           <div
                             key={item.nozzle_uuid}
-                            className="border border-hairline rounded-lg overflow-hidden bg-surface-2 flex flex-col text-center divide-y divide-hairline print-nozzle-box shadow-sm"
+                            className="border border-hairline rounded bg-surface-2 flex flex-col text-center divide-y divide-hairline print-nozzle-box shadow-sm"
                           >
                             {/* Nozzle Header */}
-                            <div className="bg-surface-3/30 px-1 py-1 font-bold text-[10px] text-ink flex items-center justify-center gap-1 bg-print-accent">
-                              <span className="truncate max-w-[50px]">{item.nozzle_name}</span>
+                            <div className="bg-surface-3/50 px-1 py-1 font-bold text-[10px] text-ink flex items-center justify-center gap-1.5 bg-print-accent">
+                              <span className="truncate max-w-[60px]">{item.nozzle_name}</span>
                               <Badge className="text-[8px] px-1 py-0 uppercase bg-fuel-amber/10 text-fuel-amber border-transparent font-bold print-badge">
                                 {item.fuel_type === "SPEED" ? "SPEED" : item.fuel_type}
                               </Badge>
@@ -289,7 +295,7 @@ export default function DailySheetPage() {
                             {/* Closing Reading */}
                             <div className="py-1 px-1.5">
                               <div className="text-[8px] uppercase font-mono text-ink-subtle">Closing</div>
-                              <div className="text-xs font-extrabold text-ink mt-0.5 font-mono">
+                              <div className="text-xs font-bold text-ink mt-0.5 font-mono">
                                 {closing !== null ? closing.toLocaleString(undefined, { minimumFractionDigits: 1 }) : "—"}
                               </div>
                             </div>
@@ -297,12 +303,12 @@ export default function DailySheetPage() {
                             {/* Opening Reading */}
                             <div className="py-1 px-1.5">
                               <div className="text-[8px] uppercase font-mono text-ink-subtle">Opening</div>
-                              <div className="text-xs font-extrabold text-ink-muted mt-0.5 font-mono">
+                              <div className="text-xs font-bold text-ink-muted mt-0.5 font-mono">
                                 {opening.toLocaleString(undefined, { minimumFractionDigits: 1 })}
                               </div>
                             </div>
 
-                            {/* Net Sales */}
+                            {/* Liters Sold */}
                             <div className="py-1 px-1.5 bg-fuel-amber/5">
                               <div className="text-[8px] uppercase font-mono text-fuel-amber font-bold">Liters</div>
                               <div className="text-xs font-black text-fuel-amber mt-0.5 font-mono">
@@ -313,167 +319,167 @@ export default function DailySheetPage() {
                         );
                       })}
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
-              ))
-            ) : (
-              <Card className="glass border-hairline p-8 text-center text-xs text-ink-subtle italic print-card">
-                No active dispenser machines or nozzle readings saved for this date.
-              </Card>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <Card className="glass border-hairline p-8 text-center text-xs text-ink-subtle italic print-card">
+              No active dispenser machines or nozzle readings saved for this date.
+            </Card>
+          )}
+        </div>
 
-          {/* Right Column: Vouchers & Payments lists (takes 6 columns) */}
-          <div className="lg:col-span-6 print-col-6 space-y-6">
+        {/* Side-by-Side Content Grid (Vouchers and Payments lists) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print-grid">
+          
+          {/* Voucher Invoices List */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold px-1 flex items-center gap-1.5">
+              <FileText size={14} className="text-fuel-amber" /> Voucher Credit/Cash Sales
+            </h3>
             
-            {/* Voucher Invoices List */}
-            <div>
-              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold px-1 mb-3 flex items-center gap-1.5">
-                <FileText size={14} className="text-fuel-amber" /> Voucher Credit/Cash Sales
-              </h3>
-              
-              <Card className="glass border-hairline overflow-hidden print-card">
-                <CardContent className="p-0">
-                  {dailyVouchers && dailyVouchers.items.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table className="print-table">
-                        <TableHeader>
-                          <TableRow className="border-b border-hairline hover:bg-transparent">
-                            <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Invoice / Customer
-                            </TableHead>
-                            <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Vehicle
-                            </TableHead>
-                            <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Fuel / Qty
-                            </TableHead>
-                            <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Mode
-                            </TableHead>
-                            <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
-                              Amount (₹)
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dailyVouchers.items.map((voucher) => (
-                            <TableRow key={voucher.uuid} className="border-b border-hairline hover:bg-surface-3/15">
-                              <TableCell className="px-3 py-1.5 text-xs">
-                                <div className="font-bold text-ink truncate max-w-[120px]">{voucher.invoice_number}</div>
-                                <div className="text-[9px] text-ink-subtle truncate max-w-[120px]">{voucher.customer_name || "—"}</div>
-                              </TableCell>
-                              <TableCell className="py-1.5 text-xs text-ink-muted font-semibold">
-                                {voucher.vehicle_number || "—"}
-                              </TableCell>
-                              <TableCell className="py-1.5 text-xs text-ink-muted font-mono">
-                                <div>{voucher.fuel_type}</div>
-                                <div className="text-[9px] text-ink-subtle">{voucher.quantity_liters.toFixed(2)} L</div>
-                              </TableCell>
-                              <TableCell className="py-1.5 text-xs">
-                                <Badge className={`text-[8px] px-1 py-0 uppercase border-transparent font-bold print-badge ${
-                                  voucher.payment_mode === "CREDIT" 
-                                    ? "bg-red-500/10 text-red-500" 
-                                    : "bg-fuel-amber/15 text-fuel-amber"
-                                }`}>
-                                  {voucher.payment_mode}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="px-3 py-1.5 text-right font-bold text-xs text-ink font-mono">
-                                ₹{voucher.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          {/* Total Row */}
-                          <TableRow className="bg-surface-3/20 font-bold hover:bg-surface-3/20 border-t border-hairline bg-print-accent">
-                            <TableCell colSpan={4} className="px-3 py-1 text-[9px] font-bold text-ink text-right uppercase tracking-wider">
-                              Total Invoice Sales:
+            <Card className="glass border-hairline overflow-hidden print-card">
+              <CardContent className="p-0">
+                {dailyVouchers && dailyVouchers.items.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table className="print-table">
+                      <TableHeader>
+                        <TableRow className="border-b border-hairline hover:bg-transparent">
+                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Invoice / Customer
+                          </TableHead>
+                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Vehicle
+                          </TableHead>
+                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Fuel / Qty
+                          </TableHead>
+                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Mode
+                          </TableHead>
+                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                            Amount (₹)
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dailyVouchers.items.map((voucher) => (
+                          <TableRow key={voucher.uuid} className="border-b border-hairline hover:bg-surface-3/15">
+                            <TableCell className="px-3 py-1.5 text-xs">
+                              <div className="font-bold text-ink truncate max-w-[120px]">{voucher.invoice_number}</div>
+                              <div className="text-[9px] text-ink-subtle truncate max-w-[120px]">{voucher.customer_name || "—"}</div>
                             </TableCell>
-                            <TableCell className="px-3 py-1 text-right text-xs font-black text-fuel-amber font-mono">
-                              ₹{totalInvoiceSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <TableCell className="py-1.5 text-xs text-ink-muted font-semibold">
+                              {voucher.vehicle_number || "—"}
+                            </TableCell>
+                            <TableCell className="py-1.5 text-xs text-ink-muted font-mono">
+                              <div>{voucher.fuel_type}</div>
+                              <div className="text-[9px] text-ink-subtle">{voucher.quantity_liters.toFixed(2)} L</div>
+                            </TableCell>
+                            <TableCell className="py-1.5 text-xs">
+                              <Badge className={`text-[8px] px-1 py-0 uppercase border-transparent font-bold print-badge ${
+                                voucher.payment_mode === "CREDIT" 
+                                  ? "bg-red-500/10 text-red-500" 
+                                  : "bg-fuel-amber/15 text-fuel-amber"
+                              }`}>
+                                {voucher.payment_mode}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-3 py-1.5 text-right font-bold text-xs text-ink font-mono">
+                              ₹{voucher.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center text-xs text-ink-subtle italic">
-                      No invoices or credit sales generated on this date.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Payments List */}
-            <div>
-              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold px-1 mb-3 flex items-center gap-1.5">
-                <Coins size={14} className="text-fuel-amber" /> Payments Collection Summaries
-              </h3>
-              
-              <Card className="glass border-hairline overflow-hidden print-card">
-                <CardContent className="p-0">
-                  {dailyPayments && dailyPayments.items.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table className="print-table">
-                        <TableHeader>
-                          <TableRow className="border-b border-hairline hover:bg-transparent">
-                            <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Customer
-                            </TableHead>
-                            <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Payment Mode
-                            </TableHead>
-                            <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
-                              Reference / Remarks
-                            </TableHead>
-                            <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
-                              Amount (₹)
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {dailyPayments.items.map((payment) => (
-                            <TableRow key={payment.uuid} className="border-b border-hairline hover:bg-surface-3/15">
-                              <TableCell className="px-3 py-1.5 text-xs font-bold text-ink">
-                                {payment.customer_name}
-                              </TableCell>
-                              <TableCell className="py-1.5 text-xs font-semibold text-ink-muted">
-                                <Badge className="text-[8px] px-1 py-0 uppercase bg-fuel-amber/15 text-fuel-amber border-transparent print-badge font-bold">
-                                  {payment.payment_mode}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="py-1.5 text-xs font-mono">
-                                <div className="text-ink truncate max-w-[120px]">{payment.reference_number || "—"}</div>
-                                <div className="text-[9px] text-ink-subtle truncate max-w-[120px] italic">{payment.remarks || ""}</div>
-                              </TableCell>
-                              <TableCell className="px-3 py-1.5 text-right font-bold text-xs text-ink font-mono">
-                                ₹{payment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          {/* Total Row */}
-                          <TableRow className="bg-surface-3/20 font-bold hover:bg-surface-3/20 border-t border-hairline bg-print-accent">
-                            <TableCell colSpan={3} className="px-3 py-1 text-[9px] font-bold text-ink text-right uppercase tracking-wider">
-                              Total Payments Collected:
-                            </TableCell>
-                            <TableCell className="px-3 py-1 text-right text-xs font-black text-fuel-amber font-mono">
-                              ₹{totalPaymentsCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center text-xs text-ink-subtle italic">
-                      No customer payment receipts logged on this date.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
+                        ))}
+                        {/* Total Row */}
+                        <TableRow className="bg-surface-3/20 font-bold hover:bg-surface-3/20 border-t border-hairline bg-print-accent">
+                          <TableCell colSpan={4} className="px-3 py-1 text-[9px] font-bold text-ink text-right uppercase tracking-wider">
+                            Total Invoice Sales:
+                          </TableCell>
+                          <TableCell className="px-3 py-1 text-right text-xs font-black text-fuel-amber font-mono">
+                            ₹{totalInvoiceSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-ink-subtle italic">
+                    No invoices or credit sales generated on this date.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Payments List */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold px-1 flex items-center gap-1.5">
+              <Coins size={14} className="text-fuel-amber" /> Payments Collection Summaries
+            </h3>
+            
+            <Card className="glass border-hairline overflow-hidden print-card">
+              <CardContent className="p-0">
+                {dailyPayments && dailyPayments.items.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table className="print-table">
+                      <TableHeader>
+                        <TableRow className="border-b border-hairline hover:bg-transparent">
+                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Customer
+                          </TableHead>
+                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Payment Mode
+                          </TableHead>
+                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Reference / Remarks
+                          </TableHead>
+                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                            Amount (₹)
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dailyPayments.items.map((payment) => (
+                          <TableRow key={payment.uuid} className="border-b border-hairline hover:bg-surface-3/15">
+                            <TableCell className="px-3 py-1.5 text-xs font-bold text-ink">
+                              {payment.customer_name}
+                            </TableCell>
+                            <TableCell className="py-1.5 text-xs font-semibold text-ink-muted">
+                              <Badge className="text-[8px] px-1 py-0 uppercase bg-fuel-amber/15 text-fuel-amber border-transparent print-badge font-bold">
+                                {payment.payment_mode}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-1.5 text-xs font-mono">
+                              <div className="text-ink truncate max-w-[120px]">{payment.reference_number || "—"}</div>
+                              <div className="text-[9px] text-ink-subtle truncate max-w-[120px] italic">{payment.remarks || ""}</div>
+                            </TableCell>
+                            <TableCell className="px-3 py-1.5 text-right font-bold text-xs text-ink font-mono">
+                              ₹{payment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {/* Total Row */}
+                        <TableRow className="bg-surface-3/20 font-bold hover:bg-surface-3/20 border-t border-hairline bg-print-accent">
+                          <TableCell colSpan={3} className="px-3 py-1 text-[9px] font-bold text-ink text-right uppercase tracking-wider">
+                            Total Payments Collected:
+                          </TableCell>
+                          <TableCell className="px-3 py-1 text-right text-xs font-black text-fuel-amber font-mono">
+                            ₹{totalPaymentsCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-ink-subtle italic">
+                    No customer payment receipts logged on this date.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
         </div>
 
         {/* Print Disclaimer (Visible only when printing) */}
