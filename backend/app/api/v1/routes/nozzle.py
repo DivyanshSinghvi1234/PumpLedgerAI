@@ -10,6 +10,7 @@ from app.schemas.nozzle import (
     NozzleCreate,
     NozzleResponse,
     FuelDispenserCreate,
+    FuelDispenserUpdate,
     FuelDispenserResponse,
     BulkNozzleReadingCreate,
     NozzleReadingResponse,
@@ -104,3 +105,50 @@ def post_bulk_readings(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+
+@router.put(
+    "/dispensers/{dispenser_uuid}",
+    response_model=FuelDispenserResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def update_dispenser(
+    dispenser_uuid: str,
+    data: FuelDispenserUpdate,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.update_dispenser(db, dispenser_uuid, data)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.delete(
+    "/dispensers/{dispenser_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def delete_dispenser(
+    dispenser_uuid: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service.delete_dispenser(db, dispenser_uuid)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.get(
+    "/readings",
+    response_model=list[NozzleReadingResponse],
+)
+def list_nozzle_readings(
+    db: Session = Depends(get_db),
+):
+    return service.get_all_readings(db)

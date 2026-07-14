@@ -4,6 +4,7 @@ from enum import Enum
 
 class FuelType(str, Enum):
     PETROL = "PETROL"
+    SPEED = "SPEED"
     DIESEL = "DIESEL"
     LUBRICANT = "LUBRICANT"
 
@@ -49,6 +50,12 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
     OPERATOR = "OPERATOR"
+
+
+class NozzleStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    MAINTENANCE = "MAINTENANCE"
+    OUT_OF_ORDER = "OUT_OF_ORDER"
 
 class VoucherSortField(str, Enum):
     invoice_date = "invoice_date"

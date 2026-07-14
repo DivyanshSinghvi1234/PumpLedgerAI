@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,8 @@ import {
   Calendar,
   AlertTriangle,
   Activity,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 
 import PageHeader from "@/components/common/PageHeader";
@@ -30,15 +32,19 @@ export default function InventoryPage() {
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
 
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"dispensers" | "readings" | "prices">("dispensers");
+  const [activeTab, setActiveTab] = useState<"dispensers" | "readings" | "history" | "prices">("dispensers");
 
   // Dispensers and Nozzles state
   const [dispenserDialogOpen, setDispenserDialogOpen] = useState(false);
+  const [editDispenserDialogOpen, setEditDispenserDialogOpen] = useState(false);
+  const [deleteDispenserDialogOpen, setDeleteDispenserDialogOpen] = useState(false);
   const [nozzleDialogOpen, setNozzleDialogOpen] = useState(false);
-  const [selectedDispenserUuid, setSelectedDispenserUuid] = useState("");
-
-  const [dispenserName, setDispenserName] = useState("");
   
+  const [selectedDispenserUuid, setSelectedDispenserUuid] = useState("");
+  const [dispenserName, setDispenserName] = useState("");
+  const [editDispenserName, setEditDispenserName] = useState("");
+  const [editDispenserStatus, setEditDispenserStatus] = useState("ACTIVE");
+
   const [nozzleName, setNozzleName] = useState("");
   const [nozzleFuelType, setNozzleFuelType] = useState<FuelType>("PETROL");
   const [nozzleInitialReading, setNozzleInitialReading] = useState("");
@@ -65,6 +71,23 @@ export default function InventoryPage() {
     queryFn: () => inventoryService.getBulkReadingsForm(readingsDate),
     enabled: activeTab === "readings",
   });
+
+  const { data: nozzleReadings, isLoading: readingsLoading } = useQuery({
+    queryKey: ["nozzleReadingsHistory"],
+    queryFn: () => inventoryService.getNozzleReadings(),
+    enabled: activeTab === "history",
+  });
+
+  // Lookup map to translate nozzle ID into nozzle & dispenser names
+  const nozzleLookup = useMemo(() => {
+    const map: Record<number, { nozzleName: string; dispenserName: string; fuel_type: FuelType }> = {};
+    dispensers?.forEach((d) => {
+      d.nozzles?.forEach((n) => {
+        map[n.id] = { nozzleName: n.name, dispenserName: d.name, fuel_type: n.fuel_type };
+      });
+    });
+    return map;
+  }, [dispensers]);
 
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
@@ -96,6 +119,37 @@ export default function InventoryPage() {
     },
   });
 
+  const updateDispenserMutation = useMutation({
+    mutationFn: ({ uuid, data }: { uuid: string; data: FuelDispenserCreate }) =>
+      inventoryService.updateDispenser(uuid, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      setEditDispenserDialogOpen(false);
+      toast.success("Fuel dispenser updated successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to update fuel dispenser.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
+  const deleteDispenserMutation = useMutation({
+    mutationFn: (uuid: string) => inventoryService.deleteDispenser(uuid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dispensers"] });
+      queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
+      setDeleteDispenserDialogOpen(false);
+      toast.success("Fuel dispenser deleted successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to delete fuel dispenser.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
   const createNozzleMutation = useMutation({
     mutationFn: ({ dispenserUuid, data }: { dispenserUuid: string; data: NozzleCreate }) =>
       inventoryService.createNozzle(dispenserUuid, data),
@@ -117,7 +171,9 @@ export default function InventoryPage() {
     mutationFn: (data: BulkNozzleReadingCreate) => inventoryService.postBulkReadings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dispensers"] });
-      queryClient.invalidateQueries({ queryKey: ["bulkReadings", readingsDate] });
+      // Invalidate globally to clear caches for future/past dates that are affected by rollover updates
+      queryClient.invalidateQueries({ queryKey: ["bulkReadings"] });
+      queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
       toast.success("All nozzle meter readings saved successfully!");
     },
     onError: (err: any) => {
@@ -147,6 +203,26 @@ export default function InventoryPage() {
       return;
     }
     createDispenserMutation.mutate({ name: dispenserName });
+  };
+
+  const handleUpdateDispenser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editDispenserName.trim()) {
+      toast.error("Please fill in dispenser name.");
+      return;
+    }
+    updateDispenserMutation.mutate({
+      uuid: selectedDispenserUuid,
+      data: {
+        name: editDispenserName,
+        status: editDispenserStatus,
+      },
+    });
+  };
+
+  const handleDeleteDispenser = (e: React.FormEvent) => {
+    e.preventDefault();
+    deleteDispenserMutation.mutate(selectedDispenserUuid);
   };
 
   const handleCreateNozzle = (e: React.FormEvent) => {
@@ -264,6 +340,16 @@ export default function InventoryPage() {
           Meter Readings
         </button>
         <button
+          onClick={() => setActiveTab("history")}
+          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
+            activeTab === "history"
+              ? "border-fuel-amber text-ink font-bold"
+              : "border-transparent text-ink-muted hover:text-ink"
+          }`}
+        >
+          Meter Logs
+        </button>
+        <button
           onClick={() => setActiveTab("prices")}
           className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer ${
             activeTab === "prices"
@@ -290,7 +376,35 @@ export default function InventoryPage() {
                       >
                         {dispenser.status}
                       </Badge>
-                      <Fuel size={18} className="text-ink-subtle" />
+                      <div className="flex items-center gap-1.5">
+                        {isAdminOrManager && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedDispenserUuid(dispenser.uuid);
+                                setEditDispenserName(dispenser.name);
+                                setEditDispenserStatus(dispenser.status);
+                                setEditDispenserDialogOpen(true);
+                              }}
+                              className="text-ink-subtle hover:text-fuel-amber transition-colors p-1 rounded hover:bg-surface-3 cursor-pointer"
+                              title="Edit Dispenser"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedDispenserUuid(dispenser.uuid);
+                                setDeleteDispenserDialogOpen(true);
+                              }}
+                              className="text-ink-subtle hover:text-destructive transition-colors p-1 rounded hover:bg-surface-3 cursor-pointer"
+                              title="Delete Dispenser"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        )}
+                        <Fuel size={18} className="text-ink-subtle" />
+                      </div>
                     </div>
                     <CardTitle className="text-lg font-bold tracking-tight text-ink mt-2">
                       {dispenser.name}
@@ -519,6 +633,116 @@ export default function InventoryPage() {
             )}
           </form>
         </div>
+      ) : activeTab === "history" ? (
+        <div className="space-y-6 animate-fade-in">
+          <Card className="glass border-hairline">
+            <CardHeader className="pb-3 border-b border-hairline">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
+                  <Activity size={15} />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold tracking-tight text-ink">
+                    Meter Readings History
+                  </CardTitle>
+                  <CardDescription className="text-xs text-ink-subtle">
+                    Chronological logs of all configured daily dispenser meter readings.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-hairline hover:bg-transparent">
+                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Date
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Dispenser
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Nozzle Name
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Fuel Type
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Initial Reading
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Final Reading
+                      </TableHead>
+                      <TableHead className="px-5 text-right text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                        Total Sales
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {readingsLoading ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={7} className="h-28 text-center text-xs text-ink-subtle">
+                          Loading meter readings history...
+                        </TableCell>
+                      </TableRow>
+                    ) : nozzleReadings && nozzleReadings.length > 0 ? (
+                      nozzleReadings.map((reading) => {
+                        const lookup = nozzleLookup[reading.nozzle_id] || {
+                          nozzleName: `Nozzle #${reading.nozzle_id}`,
+                          dispenserName: "Deleted Dispenser",
+                          fuel_type: "UNKNOWN",
+                        };
+                        return (
+                          <TableRow key={reading.uuid} className="border-b border-hairline hover:bg-surface-3/35">
+                            <TableCell className="px-5 text-xs font-semibold text-ink">
+                              {new Date(reading.reading_date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-xs font-bold text-ink">
+                              {lookup.dispenserName}
+                            </TableCell>
+                            <TableCell className="text-xs font-semibold text-ink-muted">
+                              {lookup.nozzleName}
+                            </TableCell>
+                            <TableCell className="text-xs font-medium text-ink-muted">
+                              <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
+                                {lookup.fuel_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-ink-muted font-medium">
+                              {reading.opening_reading.toLocaleString()} L
+                            </TableCell>
+                            <TableCell className="text-xs text-ink-muted font-medium">
+                              {reading.closing_reading.toLocaleString()} L
+                            </TableCell>
+                            <TableCell className="px-5 text-right font-bold">
+                              <Badge
+                                variant="secondary"
+                                className="text-[10px] font-mono font-bold uppercase bg-fuel-amber/10 text-fuel-amber"
+                              >
+                                {reading.sales.toLocaleString()} L
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={7} className="h-28 text-center text-xs text-ink-subtle">
+                          No meter logs recorded yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         /* Prices Schedules Tab */
         <div className="grid gap-8 md:grid-cols-3 animate-fade-in">
@@ -549,7 +773,7 @@ export default function InventoryPage() {
                       className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
                     >
                       <option value="PETROL">PETROL</option>
-                      <option value="SPEED_PETROL">SPEED PETROL</option>
+                      <option value="SPEED">SPEED</option>
                       <option value="DIESEL">DIESEL</option>
                       <option value="LUBRICANT">LUBRICANT</option>
                     </select>
@@ -624,12 +848,12 @@ export default function InventoryPage() {
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="grid gap-4 sm:grid-cols-3">
-                  {(["PETROL", "SPEED_PETROL", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => (
+                  {(["PETROL", "SPEED", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => (
                     <Card key={ft} className="bg-surface-2 border border-hairline p-4 flex flex-col justify-between">
                       <p className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">{ft}</p>
                       <div className="flex items-baseline gap-1 mt-2.5">
                         <span className="text-xl font-bold tracking-tight text-ink">
-                          ₹{ft === "PETROL" ? "104.20" : ft === "SPEED_PETROL" ? "108.50" : ft === "DIESEL" ? "95.50" : "320.00"}
+                          ₹{ft === "PETROL" ? "104.20" : ft === "SPEED" ? "108.50" : ft === "DIESEL" ? "95.50" : "320.00"}
                         </span>
                         <span className="text-[10px] text-ink-subtle">/L</span>
                       </div>
@@ -691,6 +915,99 @@ export default function InventoryPage() {
         </DialogContent>
       </Dialog>
 
+      {/* 1b. Edit Dispenser Dialog */}
+      <Dialog open={editDispenserDialogOpen} onOpenChange={setEditDispenserDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <Edit2 size={18} className="text-fuel-amber" /> Edit Fuel Dispenser
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateDispenser} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="editDispenserName" className="text-xs font-semibold text-ink-muted">
+                Dispenser Name / Label
+              </Label>
+              <Input
+                id="editDispenserName"
+                placeholder="e.g. Dispenser A"
+                value={editDispenserName}
+                onChange={(e) => setEditDispenserName(e.target.value)}
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editDispenserStatus" className="text-xs font-semibold text-ink-muted">
+                Dispenser Status
+              </Label>
+              <select
+                id="editDispenserStatus"
+                value={editDispenserStatus}
+                onChange={(e) => setEditDispenserStatus(e.target.value)}
+                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="MAINTENANCE">MAINTENANCE</option>
+                <option value="OUT_OF_ORDER">OUT OF ORDER</option>
+              </select>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditDispenserDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateDispenserMutation.isPending}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                {updateDispenserMutation.isPending ? "Updating..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 1c. Delete Dispenser Confirmation Dialog */}
+      <Dialog open={deleteDispenserDialogOpen} onOpenChange={setDeleteDispenserDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2 text-destructive">
+              <AlertTriangle size={18} /> Delete Fuel Dispenser
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleDeleteDispenser} className="space-y-4 py-2">
+            <p className="text-xs text-ink-muted">
+              Are you sure you want to delete this dispenser machine? This will also delete all of its configured nozzles and reading history logs. This action cannot be undone.
+            </p>
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteDispenserDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={deleteDispenserMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                {deleteDispenserMutation.isPending ? "Deleting..." : "Delete Dispenser"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* 2. Add Nozzle Dialog */}
       <Dialog open={nozzleDialogOpen} onOpenChange={setNozzleDialogOpen}>
         <DialogContent className="glass border border-hairline sm:max-w-[425px]">
@@ -725,7 +1042,7 @@ export default function InventoryPage() {
                 className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
               >
                 <option value="PETROL">PETROL</option>
-                <option value="SPEED_PETROL">SPEED PETROL</option>
+                <option value="SPEED">SPEED</option>
                 <option value="DIESEL">DIESEL</option>
                 <option value="LUBRICANT">LUBRICANT</option>
               </select>

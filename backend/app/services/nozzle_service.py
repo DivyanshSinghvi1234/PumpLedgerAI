@@ -15,6 +15,7 @@ from app.repositories.nozzle_repository import (
 from app.schemas.nozzle import (
     NozzleCreate,
     FuelDispenserCreate,
+    FuelDispenserUpdate,
     BulkNozzleReadingCreate,
     BulkFormNozzleItem,
     BulkFormResponse,
@@ -38,6 +39,37 @@ class NozzleService:
             status=data.status,
         )
         return self.dispenser_repo.create(db, dispenser)
+
+    def update_dispenser(
+        self,
+        db: Session,
+        dispenser_uuid: str,
+        data: FuelDispenserUpdate,
+    ) -> FuelDispenser:
+        dispenser = self.dispenser_repo.get_by_uuid(db, dispenser_uuid)
+        if not dispenser:
+            raise ValueError("Fuel dispenser not found")
+
+        if data.name is not None:
+            cleaned_name = data.name.strip()
+            if not cleaned_name:
+                raise ValueError("Dispenser name cannot be empty")
+            if cleaned_name != dispenser.name:
+                existing = self.dispenser_repo.get_by_name(db, cleaned_name)
+                if existing:
+                    raise ValueError(f"Fuel dispenser with name '{cleaned_name}' already exists")
+                dispenser.name = cleaned_name
+
+        if data.status is not None:
+            dispenser.status = data.status
+
+        return self.dispenser_repo.update(db, dispenser)
+
+    def delete_dispenser(self, db: Session, dispenser_uuid: str) -> None:
+        dispenser = self.dispenser_repo.get_by_uuid(db, dispenser_uuid)
+        if not dispenser:
+            raise ValueError("Fuel dispenser not found")
+        self.dispenser_repo.delete(db, dispenser)
 
     def get_dispensers(self, db: Session) -> list[FuelDispenser]:
         return self.dispenser_repo.get_all(db)
@@ -184,3 +216,6 @@ class NozzleService:
             readings.append(reading)
 
         return readings
+
+    def get_all_readings(self, db: Session) -> list[NozzleReading]:
+        return self.reading_repo.get_all_ordered(db)

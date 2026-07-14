@@ -1,4 +1,4 @@
-export type FuelType = "PETROL" | "SPEED_PETROL" | "DIESEL" | "LUBRICANT";
+export type FuelType = "PETROL" | "SPEED" | "DIESEL" | "LUBRICANT";
 
 export interface FuelTank {
   id: number;

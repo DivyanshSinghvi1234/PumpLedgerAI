@@ -28,6 +28,10 @@ class FuelDispenserCreate(BaseModel):
     name: str
     status: NozzleStatus = NozzleStatus.ACTIVE
 
+class FuelDispenserUpdate(BaseModel):
+    name: str | None = None
+    status: NozzleStatus | None = None
+
 class FuelDispenserResponse(BaseModel):
     id: int
     uuid: str

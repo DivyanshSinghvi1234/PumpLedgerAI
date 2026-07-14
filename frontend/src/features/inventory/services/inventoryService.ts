@@ -79,6 +79,20 @@ class InventoryService {
     const response = await api.post<NozzleReading[]>("/v1/nozzles/readings/bulk", data);
     return response.data;
   }
+
+  async updateDispenser(dispenserUuid: string, data: FuelDispenserCreate): Promise<FuelDispenser> {
+    const response = await api.put<FuelDispenser>(`/v1/nozzles/dispensers/${dispenserUuid}`, data);
+    return response.data;
+  }
+
+  async deleteDispenser(dispenserUuid: string): Promise<void> {
+    await api.delete(`/v1/nozzles/dispensers/${dispenserUuid}`);
+  }
+
+  async getNozzleReadings(): Promise<NozzleReading[]> {
+    const response = await api.get<NozzleReading[]>("/v1/nozzles/readings");
+    return response.data;
+  }
 }
 
 const inventoryService = new InventoryService();

@@ -74,3 +74,11 @@ class NozzleReadingRepository(BaseRepository[NozzleReading]):
                 NozzleReading.reading_date == reading_date,
             )
         )
+
+    def get_all_ordered(self, db: Session) -> list[NozzleReading]:
+        from sqlalchemy import desc
+        return list(
+            db.scalars(
+                select(NozzleReading).order_by(desc(NozzleReading.reading_date))
+            ).all()
+        )
