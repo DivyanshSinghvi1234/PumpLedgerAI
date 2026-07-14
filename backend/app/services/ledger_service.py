@@ -6,7 +6,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.common.pagination import build_pagination
-from app.core.enums import LedgerEntryType, signed_amount
+from app.core.enums import LedgerEntryType, signed_amount, PaymentStatus
 from app.core.exceptions import CustomerNotFoundError
 from app.models.customer import Customer
 from app.models.ledger_entry import LedgerEntry
@@ -243,6 +243,13 @@ class LedgerService:
             image_path = voucher.image_path if voucher else None
             invoice_number = voucher.invoice_number if voucher else None
 
+            # Determine entry status (Pending or Completed)
+            status_val = None
+            if entry.entry_type == LedgerEntryType.VOUCHER and voucher:
+                status_val = "Completed" if voucher.payment_status == PaymentStatus.PAID else "Pending"
+            elif entry.entry_type == LedgerEntryType.PAYMENT:
+                status_val = "Completed"
+
             enriched.append(
                 LedgerEntryResponse(
                     uuid=entry.uuid,
@@ -255,20 +262,24 @@ class LedgerService:
                     remarks=entry.remarks,
                     image_path=image_path,
                     invoice_number=invoice_number,
+                    status=status_val,
                 )
             )
 
+        # Reverse the chronological list so that newest entries appear first (descending)
+        enriched.reverse()
         total = len(enriched)
 
         start = (page - 1) * page_size
         end = start + page_size
         page_items = enriched[start:end]
 
-        # Opening balance for THIS page = running balance just before
-        # its first entry (0 for page 1).
+        # Since list is descending (newest first), the opening balance for this page
+        # is the balance after the entry that occurred chronologically before its oldest item.
+        # That is the entry at index `end` (or 0.00 if at the end of the list).
         opening = (
-            enriched[start - 1].balance_after
-            if start > 0 and start <= total
+            enriched[end].balance_after
+            if end < total
             else Decimal("0.00")
         )
 

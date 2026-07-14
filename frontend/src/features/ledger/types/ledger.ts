@@ -29,6 +29,8 @@ export interface LedgerEntry {
   image_path?: string | null;
 
   invoice_number?: string | null;
+
+  status?: string | null;
 }
 
 export interface Pagination {

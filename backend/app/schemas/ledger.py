@@ -68,6 +68,8 @@ class LedgerEntryResponse(BaseModel):
 
     invoice_number: str | None = None
 
+    status: str | None = None
+
     model_config = ConfigDict(
         from_attributes=True,
     )

@@ -99,12 +99,8 @@ class VoucherService:
 
     @staticmethod
     def _affects_ledger(voucher: Voucher) -> bool:
-        """A voucher posts to the ledger only if it's a CREDIT sale
-        linked to a real customer."""
-        return (
-            voucher.payment_mode == PaymentMode.CREDIT
-            and voucher.customer_id is not None
-        )
+        """A voucher posts to the ledger if it is linked to a customer."""
+        return voucher.customer_id is not None
 
     # -----------------------------------
     # Create
@@ -158,27 +154,51 @@ class VoucherService:
             voucher.amount_paid = total
             voucher.payment_status = PaymentStatus.PAID
 
-        # A CREDIT voucher linked to a customer increases the receivable
-        # via a VOUCHER ledger entry (committed with the voucher row).
-        if (
-            voucher.payment_mode == PaymentMode.CREDIT
-            and customer is not None
-        ):
+        # Any voucher linked to a customer is posted to the ledger.
+        if customer is not None:
             db.add(voucher)
             db.flush()
 
-            self.ledger_service.post(
-                db,
-                customer,
-                LedgerEntryType.VOUCHER,
-                total,
-                entry_date=voucher.invoice_date,
-                reference_type="VOUCHER",
-                reference_id=voucher.id,
-                remarks=f"Credit sale — invoice {voucher.invoice_number}",
-                extra_objects=[voucher],
-                actor_id=actor_id,
-            )
+            if voucher.payment_mode == PaymentMode.CREDIT:
+                self.ledger_service.post(
+                    db,
+                    customer,
+                    LedgerEntryType.VOUCHER,
+                    total,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Credit sale — invoice {voucher.invoice_number}",
+                    extra_objects=[voucher],
+                    actor_id=actor_id,
+                )
+            else:
+                # For non-credit (CASH, CARD, UPI) vouchers linked to a customer,
+                # post both the sale debit and the offsetting immediate payment credit
+                # so it registers in the customer's ledger history but has a net effect of 0.
+                self.ledger_service.post(
+                    db,
+                    customer,
+                    LedgerEntryType.VOUCHER,
+                    total,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Sale ({voucher.payment_mode.value}) — invoice {voucher.invoice_number}",
+                    extra_objects=[voucher],
+                    actor_id=actor_id,
+                )
+                self.ledger_service.post(
+                    db,
+                    customer,
+                    LedgerEntryType.PAYMENT,
+                    total,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Immediate payment ({voucher.payment_mode.value}) — invoice {voucher.invoice_number}",
+                    actor_id=actor_id,
+                )
 
             self.tank_service.deduct_stock(db, voucher.fuel_type, voucher.quantity_liters)
             
@@ -400,17 +420,41 @@ class VoucherService:
 
         # Re-post from the new state if it still affects the ledger.
         if self._affects_ledger(voucher):
-            self.ledger_service.post(
-                db,
-                voucher.customer,
-                LedgerEntryType.VOUCHER,
-                voucher.total_amount,
-                entry_date=voucher.invoice_date,
-                reference_type="VOUCHER",
-                reference_id=voucher.id,
-                remarks=f"Credit sale — invoice {voucher.invoice_number}",
-                actor_id=actor_id,
-            )
+            if voucher.payment_mode == PaymentMode.CREDIT:
+                self.ledger_service.post(
+                    db,
+                    voucher.customer,
+                    LedgerEntryType.VOUCHER,
+                    voucher.total_amount,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Credit sale — invoice {voucher.invoice_number}",
+                    actor_id=actor_id,
+                )
+            else:
+                self.ledger_service.post(
+                    db,
+                    voucher.customer,
+                    LedgerEntryType.VOUCHER,
+                    voucher.total_amount,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Sale ({voucher.payment_mode.value}) — invoice {voucher.invoice_number}",
+                    actor_id=actor_id,
+                )
+                self.ledger_service.post(
+                    db,
+                    voucher.customer,
+                    LedgerEntryType.PAYMENT,
+                    voucher.total_amount,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Immediate payment ({voucher.payment_mode.value}) — invoice {voucher.invoice_number}",
+                    actor_id=actor_id,
+                )
 
         # Log audit log
         self.audit_service.log_action(
