@@ -23,6 +23,9 @@ export function useDeletePayment() {
       queryClient.invalidateQueries({
         queryKey: ["vouchers"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["ledger"],
+      });
 
       toast.success("Payment deleted.");
     },

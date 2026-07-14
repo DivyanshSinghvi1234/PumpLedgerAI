@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from sqlalchemy.orm import Session
 
-from app.core.enums import LedgerEntryType
+from app.core.enums import LedgerEntryType, PaymentStatus
 from app.core.exceptions import (
     CustomerNotFoundError,
     PaymentNotFoundError,
@@ -138,6 +139,23 @@ class PaymentService:
                 payment_uuid,
             )
 
+        # Reverse the allocations on the settled vouchers by decrementing
+        # amount_paid and setting payment_status back accordingly.
+        for settlement in payment.settlements:
+            voucher = settlement.voucher
+            if voucher:
+                voucher.amount_paid = max(
+                    Decimal("0.00"),
+                    (voucher.amount_paid or Decimal("0.00")) - settlement.amount
+                )
+                if voucher.amount_paid <= Decimal("0.00"):
+                    voucher.payment_status = PaymentStatus.UNPAID
+                elif voucher.amount_paid < voucher.total_amount:
+                    voucher.payment_status = PaymentStatus.PARTIAL
+                else:
+                    voucher.payment_status = PaymentStatus.PAID
+                db.add(voucher)
+
         # Reversing the PAYMENT ledger entry restores the balance and
         # deletes the payment row in one transaction.
         self.ledger_service.reverse_reference(
@@ -147,4 +165,5 @@ class PaymentService:
             payment.id,
             extra_deletes=[payment],
         )
+
 

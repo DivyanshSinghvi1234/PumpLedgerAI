@@ -269,6 +269,7 @@ export default function OCRReviewForm({
                 ...prev,
                 customer_name: name,
                 customer_uuid: uuid,
+                payment_mode: uuid ? "CREDIT" : prev.payment_mode,
               }));
               setFieldErrors((prev) => {
                 if (!prev.customer_name) return prev;

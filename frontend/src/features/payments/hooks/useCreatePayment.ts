@@ -24,6 +24,9 @@ export function useCreatePayment() {
       queryClient.invalidateQueries({
         queryKey: ["vouchers"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["ledger"],
+      });
 
       toast.success("Payment recorded.");
     },

@@ -161,6 +161,11 @@ export default function VoucherForm({
             setValue("customer_uuid", uuid ?? "", {
               shouldValidate: true,
             });
+            if (uuid) {
+              setValue("payment_mode", "CREDIT", {
+                shouldValidate: true,
+              });
+            }
           }}
         />
 
