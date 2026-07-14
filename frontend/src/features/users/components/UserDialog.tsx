@@ -77,6 +77,7 @@ export default function UserDialog({
             defaultValues={{
               full_name: user.full_name,
               role: user.role,
+              pump_uuids: user.pump_access?.map((p) => p.uuid) ?? [],
             }}
             onCancel={() => onOpenChange(false)}
             onSubmit={(data) =>

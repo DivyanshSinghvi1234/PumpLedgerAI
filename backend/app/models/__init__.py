@@ -14,6 +14,8 @@ from app.models.employee import Employee
 from app.models.nozzle import Nozzle
 from app.models.nozzle_reading import NozzleReading
 from app.models.fuel_dispenser import FuelDispenser
+from app.models.pump import Pump
+from app.models.user_pump_access import UserPumpAccess
 
 __all__ = [
     "Voucher",
@@ -33,4 +35,7 @@ __all__ = [
     "Nozzle",
     "NozzleReading",
     "FuelDispenser",
+    "Pump",
+    "UserPumpAccess",
 ]
+

@@ -1,4 +1,6 @@
 import api from "@/api/client";
+import { getActivePumpUuid, setActivePumpUuid, clearActivePumpUuid } from "./pump";
+import type { Pump } from "./pump";
 
 export type UserRole = "ADMIN" | "MANAGER" | "OPERATOR";
 
@@ -8,6 +10,7 @@ export interface CurrentUser {
   full_name: string;
   role: UserRole;
   is_active: boolean;
+  pump_access: Pump[];
 }
 
 export interface LoginRequest {
@@ -43,12 +46,24 @@ export async function login(
     JSON.stringify(me.data)
   );
 
+  // Auto-select active pump if not set or invalid for this user
+  const currentActive = getActivePumpUuid();
+  const allowedPumps = me.data.pump_access || [];
+  const hasAccess = allowedPumps.some((p) => p.uuid === currentActive);
+
+  if (!hasAccess && allowedPumps.length > 0) {
+    setActivePumpUuid(allowedPumps[0].uuid);
+  } else if (allowedPumps.length === 0) {
+    clearActivePumpUuid();
+  }
+
   return response.data;
 }
 
 export function logout(): void {
   localStorage.removeItem("token");
   localStorage.removeItem(USER_KEY);
+  clearActivePumpUuid();
 }
 
 export function isAuthenticated(): boolean {

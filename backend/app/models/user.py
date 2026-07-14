@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import Boolean, Enum, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import UserRole
 from app.database.base import Base
@@ -47,4 +47,11 @@ class User(
         Boolean,
         default=True,
         nullable=False,
+    )
+
+    # Relationships
+    pump_assignments = relationship(
+        "UserPumpAccess",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )

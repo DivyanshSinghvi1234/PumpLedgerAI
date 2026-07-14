@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   UserCog,
   Plus,
@@ -37,6 +38,7 @@ const ROLE_ICONS: Record<string, typeof Shield> = {
 
 export default function UserManagementPage() {
   const { data: users, isLoading, isError, error: queryError } = useUserList();
+  const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User>();
@@ -55,6 +57,7 @@ export default function UserManagementPage() {
         await api.put(`/v1/users/${user.uuid}`, { is_active: true });
         toast.success("User reactivated.");
       }
+      queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch (err) {
       toast.error(extractApiError(err, "Failed to update user status."));
     }
@@ -119,6 +122,9 @@ export default function UserManagementPage() {
                   Role
                 </th>
                 <th className="px-5 py-3 text-left text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary">
+                  Assigned Pumps
+                </th>
+                <th className="px-5 py-3 text-left text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary">
                   Status
                 </th>
                 <th className="px-5 py-3 text-right text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary">
@@ -129,13 +135,13 @@ export default function UserManagementPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-ink-muted">
+                  <td colSpan={6} className="px-5 py-12 text-center text-ink-muted">
                     Loading users…
                   </td>
                 </tr>
               ) : !users || users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-ink-muted">
+                  <td colSpan={6} className="px-5 py-12 text-center text-ink-muted">
                     No users found.
                   </td>
                 </tr>
@@ -174,6 +180,29 @@ export default function UserManagementPage() {
                           <RoleIcon size={13} />
                           {ROLE_DISPLAY[user.role]}
                         </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                          {user.role === "ADMIN" ? (
+                            <span className="inline-flex items-center rounded-md bg-fuel-amber/15 border border-fuel-amber/20 px-1.5 py-0.5 text-[10px] font-semibold text-fuel-amber">
+                              All Stations
+                            </span>
+                          ) : !user.pump_access || user.pump_access.length === 0 ? (
+                            <span className="inline-flex items-center rounded-md bg-error/15 border border-error/20 px-1.5 py-0.5 text-[10px] font-semibold text-error">
+                              None
+                            </span>
+                          ) : (
+                            user.pump_access.map((pump) => (
+                              <span
+                                key={pump.uuid}
+                                title={pump.name}
+                                className="inline-flex items-center rounded-md bg-surface-3 border border-hairline px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted truncate max-w-[130px]"
+                              >
+                                {pump.name}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5">
                         {user.is_active ? (

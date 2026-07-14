@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import type { UserRole } from "@/features/auth/services/authService";
+import PumpSwitcher from "./PumpSwitcher";
 
 interface MenuItem {
   title: string;
@@ -167,6 +168,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           >
             <X size={16} />
           </button>
+        </div>
+
+        {/* Pump Switcher Section */}
+        <div className="px-5 py-3 border-b border-hairline bg-surface-2/20 backdrop-blur-xs">
+          <PumpSwitcher />
         </div>
 
         {/* Nav List */}

@@ -3,8 +3,31 @@ from app.core.enums import UserRole
 from app.core.security import hash_password
 from app.database.base import Base
 from app.database.session import SessionLocal, engine
+from app.models.pump import Pump
 from app.models.user import User
+from app.models.user_pump_access import UserPumpAccess
+from app.repositories.pump_repository import PumpRepository
 from app.repositories.user_repository import UserRepository
+
+
+# The 3 filling stations to seed
+SEED_PUMPS = [
+    {
+        "name": "Shri Vichaxan Filling Station",
+        "code": "SVF",
+        "address": None,
+    },
+    {
+        "name": "SardarJi And Sons",
+        "code": "SAS",
+        "address": None,
+    },
+    {
+        "name": "Doongriwala Filling Station",
+        "code": "DFS",
+        "address": None,
+    },
+]
 
 
 def seed_admin() -> None:
@@ -38,7 +61,61 @@ def seed_admin() -> None:
         db.close()
 
 
+def seed_pumps() -> None:
+    """Create the 3 filling stations if they don't exist yet,
+    and ensure the admin user has access to all of them."""
+    db = SessionLocal()
+
+    try:
+        pump_repo = PumpRepository()
+        user_repo = UserRepository()
+
+        created_or_existing = []
+
+        for pump_data in SEED_PUMPS:
+            existing = pump_repo.get_by_code(db, pump_data["code"])
+
+            if existing is not None:
+                created_or_existing.append(existing)
+                continue
+
+            pump = Pump(
+                name=pump_data["name"],
+                code=pump_data["code"],
+                address=pump_data["address"],
+            )
+            pump = pump_repo.create(db, pump)
+            created_or_existing.append(pump)
+
+        # Assign admin user access to all pumps
+        admin = user_repo.get_by_username(
+            db,
+            settings.DEFAULT_ADMIN_USERNAME,
+        )
+
+        if admin is not None:
+            existing_pump_ids = set(
+                pump_repo.get_user_pump_ids(db, admin.id)
+            )
+
+            for pump in created_or_existing:
+                if pump.id not in existing_pump_ids:
+                    db.add(
+                        UserPumpAccess(
+                            user_id=admin.id,
+                            pump_id=pump.id,
+                        )
+                    )
+
+            db.commit()
+
+    finally:
+        db.close()
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
     seed_admin()
+    seed_pumps()
+

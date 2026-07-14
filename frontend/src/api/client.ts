@@ -8,12 +8,17 @@ const api = axios.create({
   },
 });
 
-// Attach the bearer token (if present) to every request.
+// Attach the bearer token (if present) and the active pump UUID to every request.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const pumpUuid = localStorage.getItem("active_pump_uuid");
+  if (pumpUuid) {
+    config.headers["X-Pump-UUID"] = pumpUuid;
   }
 
   return config;

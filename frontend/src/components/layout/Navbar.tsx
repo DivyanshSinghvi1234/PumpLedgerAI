@@ -30,7 +30,7 @@ interface NavbarProps {
 export default function Navbar({ onMenuClick }: NavbarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useCurrentUser();
+  const { user, activePump } = useCurrentUser();
 
   function handleLogout() {
     logout();
@@ -56,10 +56,16 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           <Menu size={18} />
         </button>
 
-        <div>
+        <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold tracking-tight text-ink">
             {titleFor(location.pathname)}
           </h2>
+          {activePump && (
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-fuel-amber/10 border border-fuel-amber/15 px-2 py-0.5 text-[10px] font-semibold text-fuel-amber">
+              <span className="h-1 w-1 rounded-full bg-fuel-amber" />
+              {activePump.name}
+            </span>
+          )}
         </div>
       </div>
 

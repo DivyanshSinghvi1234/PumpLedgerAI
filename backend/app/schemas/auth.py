@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import UserRole
+from app.schemas.pump import PumpResponse
 
 
 class LoginRequest(BaseModel):
@@ -34,6 +35,8 @@ class UserResponse(BaseModel):
     role: UserRole
 
     is_active: bool
+
+    pump_access: list[PumpResponse] = []
 
     model_config = ConfigDict(
         from_attributes=True,

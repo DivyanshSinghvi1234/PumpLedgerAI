@@ -75,3 +75,47 @@ def require_roles(*roles: UserRole):
         return current_user
 
     return checker
+
+
+
+
+def _get_active_pump_dependency():
+    """Factory that creates the real Depends-compatible callable."""
+    from fastapi import Header
+
+    def _inner(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+        x_pump_uuid: str | None = Header(None, alias="X-Pump-UUID"),
+    ):
+        if x_pump_uuid is None:
+            return None
+
+        from app.services.pump_service import (
+            PumpAccessDeniedError,
+            PumpNotFoundError,
+            PumpService,
+        )
+
+        pump_service = PumpService()
+
+        try:
+            return pump_service.validate_user_has_pump_access(
+                db, current_user, x_pump_uuid
+            )
+        except PumpNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Pump '{x_pump_uuid}' not found.",
+            )
+        except PumpAccessDeniedError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this pump.",
+            )
+
+    return _inner
+
+
+get_active_pump = _get_active_pump_dependency()
+
