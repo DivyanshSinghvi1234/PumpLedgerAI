@@ -11,6 +11,7 @@ import {
   Activity,
   Edit2,
   Trash2,
+  History,
 } from "lucide-react";
 
 import PageHeader from "@/components/common/PageHeader";
@@ -101,6 +102,29 @@ export default function InventoryPage() {
     });
     return map;
   }, [dispensers]);
+
+  // Group readings date-wise for chronological display in history logs
+  const groupedReadings = useMemo(() => {
+    if (!nozzleReadings) return [];
+    const groups: Record<string, typeof nozzleReadings> = {};
+    nozzleReadings.forEach((reading) => {
+      const dateStr = reading.reading_date;
+      if (!groups[dateStr]) {
+        groups[dateStr] = [];
+      }
+      groups[dateStr].push(reading);
+    });
+    return Object.entries(groups)
+      .map(([dateStr, items]) => {
+        const totalSales = items.reduce((sum, item) => sum + item.sales, 0);
+        return {
+          date: dateStr,
+          items,
+          totalSales,
+        };
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [nozzleReadings]);
 
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
@@ -804,113 +828,119 @@ export default function InventoryPage() {
         </div>
       ) : activeTab === "history" ? (
         <div className="space-y-6 animate-fade-in">
-          <Card className="glass border-hairline">
-            <CardHeader className="pb-3 border-b border-hairline">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
-                  <Activity size={15} />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-bold tracking-tight text-ink">
-                    Meter Readings History
-                  </CardTitle>
-                  <CardDescription className="text-xs text-ink-subtle">
-                    Chronological logs of all configured daily dispenser meter readings.
-                  </CardDescription>
-                </div>
+          {/* Header Toolbar */}
+          <Card className="glass border-hairline p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
+                <History size={18} />
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-hairline hover:bg-transparent">
-                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Date
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Dispenser
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Nozzle Name
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Fuel Type
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Initial Reading
-                      </TableHead>
-                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Final Reading
-                      </TableHead>
-                      <TableHead className="px-5 text-right text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Total Sales
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {readingsLoading ? (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={7} className="h-28 text-center text-xs text-ink-subtle">
-                          Loading meter readings history...
-                        </TableCell>
-                      </TableRow>
-                    ) : nozzleReadings && nozzleReadings.length > 0 ? (
-                      nozzleReadings.map((reading) => {
-                        const lookup = nozzleLookup[reading.nozzle_id] || {
-                          nozzleName: `Nozzle #${reading.nozzle_id}`,
-                          dispenserName: "Deleted Dispenser",
-                          fuel_type: "UNKNOWN",
-                        };
-                        return (
-                          <TableRow key={reading.uuid} className="border-b border-hairline hover:bg-surface-3/35">
-                            <TableCell className="px-5 text-xs font-semibold text-ink">
-                              {new Date(reading.reading_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </TableCell>
-                            <TableCell className="text-xs font-bold text-ink">
-                              {lookup.dispenserName}
-                            </TableCell>
-                            <TableCell className="text-xs font-semibold text-ink-muted">
-                              {lookup.nozzleName}
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-ink-muted">
-                              <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
-                                {lookup.fuel_type}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-ink-muted font-medium">
-                              {reading.opening_reading.toLocaleString()} L
-                            </TableCell>
-                            <TableCell className="text-xs text-ink-muted font-medium">
-                              {reading.closing_reading.toLocaleString()} L
-                            </TableCell>
-                            <TableCell className="px-5 text-right font-bold">
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px] font-mono font-bold uppercase bg-fuel-amber/10 text-fuel-amber"
-                              >
-                                {reading.sales.toLocaleString()} L
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={7} className="h-28 text-center text-xs text-ink-subtle">
-                          No meter logs recorded yet.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+              <div>
+                <h3 className="text-sm font-bold text-ink">Meter Readings History</h3>
+                <p className="text-xs text-ink-subtle">
+                  Chronological logs of all configured daily dispenser meter readings.
+                </p>
               </div>
-            </CardContent>
+            </div>
           </Card>
+
+          {readingsLoading ? (
+            <Card className="glass border-hairline p-12 text-center text-xs text-ink-subtle">
+              Loading meter readings history...
+            </Card>
+          ) : groupedReadings && groupedReadings.length > 0 ? (
+            <div className="space-y-6">
+              {groupedReadings.map((group) => {
+                const formattedDate = new Date(group.date).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                });
+                return (
+                  <Card key={group.date} className="glass border-hairline overflow-hidden">
+                    <div className="bg-surface-3/50 px-5 py-3.5 border-b border-hairline flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="text-xs font-bold text-ink">
+                        {formattedDate}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-mono tracking-wider text-ink-muted">
+                          Daily Volume:
+                        </span>
+                        <Badge className="bg-fuel-amber/20 hover:bg-fuel-amber/20 text-fuel-amber font-mono font-bold text-xs border-transparent px-2.5 py-0.5">
+                          {group.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L
+                        </Badge>
+                      </div>
+                    </div>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-b border-hairline hover:bg-transparent">
+                              <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                                Dispenser
+                              </TableHead>
+                              <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                                Nozzle Name
+                              </TableHead>
+                              <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                                Fuel Type
+                              </TableHead>
+                              <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                                Initial Reading (L)
+                              </TableHead>
+                              <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                                Final Reading (L)
+                              </TableHead>
+                              <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                                Sales (L)
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.items.map((reading) => {
+                              const lookup = nozzleLookup[reading.nozzle_id] || {
+                                nozzleName: `Nozzle #${reading.nozzle_id}`,
+                                dispenserName: "Deleted Dispenser",
+                                fuel_type: "UNKNOWN",
+                              };
+                              return (
+                                <TableRow key={reading.uuid} className="border-b border-hairline hover:bg-surface-3/15">
+                                  <TableCell className="px-5 text-xs font-bold text-ink">
+                                    {lookup.dispenserName}
+                                  </TableCell>
+                                  <TableCell className="text-xs font-semibold text-ink-muted">
+                                    {lookup.nozzleName}
+                                  </TableCell>
+                                  <TableCell className="text-xs font-medium text-ink-muted">
+                                    <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
+                                      {lookup.fuel_type}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-ink-muted font-medium">
+                                    {reading.opening_reading.toLocaleString(undefined, { minimumFractionDigits: 2 })} L
+                                  </TableCell>
+                                  <TableCell className="text-xs text-ink-muted font-medium">
+                                    {reading.closing_reading.toLocaleString(undefined, { minimumFractionDigits: 2 })} L
+                                  </TableCell>
+                                  <TableCell className="px-5 text-right font-bold text-xs text-ink">
+                                    {reading.sales.toLocaleString(undefined, { minimumFractionDigits: 2 })} L
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="glass border-hairline p-12 text-center text-xs text-ink-subtle italic">
+              No meter logs recorded yet.
+            </Card>
+          )}
         </div>
       ) : (
         /* Prices Schedules Tab */
