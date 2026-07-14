@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.core.enums import LedgerEntryType, PaymentStatus
+from app.core.enums import LedgerEntryType, PaymentStatus, PaymentMode
+from app.models.voucher_settlement import VoucherSettlement
 from app.core.exceptions import (
     CustomerNotFoundError,
     SettlementError,
@@ -169,6 +171,80 @@ class VoucherPaymentService:
             LedgerEntryType.PAYMENT,
             total,
             entry_date=data.payment_date,
+            reference_type="PAYMENT",
+            reference_id=payment.id,
+            remarks=payment.remarks,
+            extra_objects=touched,
+        )
+
+        db.refresh(payment)
+        return payment
+
+    def allocate_payment_fifo(
+        self,
+        db: Session,
+        customer_uuid: str,
+        amount: Decimal,
+        payment_mode: PaymentMode,
+        payment_date: date,
+        reference_number: str | None = None,
+        remarks: str | None = None,
+    ) -> Payment:
+        """
+        Apply a payment to the customer's oldest outstanding vouchers first (FIFO).
+        Returns the created Payment with all voucher settlements.
+        """
+        customer = self.customer_repository.get_by_uuid(db, customer_uuid)
+        if customer is None:
+            raise CustomerNotFoundError(customer_uuid)
+
+        # Get ALL unpaid/partially paid vouchers for this customer, ordered by invoice_date ASC (oldest first)
+        vouchers = self.voucher_repository.list_for_customer_fifo(db, customer.id)
+
+        # Create single payment row
+        payment = Payment(
+            customer_id=customer.id,
+            amount=amount,
+            payment_mode=payment_mode,
+            payment_date=payment_date,
+            reference_number=reference_number,
+            remarks=remarks or "FIFO settlement",
+        )
+        db.add(payment)
+        db.flush()
+
+        total_allocated = Decimal("0.00")
+        touched = []
+        remaining = amount
+
+        for voucher in vouchers:
+            if remaining <= Decimal("0.00"):
+                break
+            
+            due = voucher.balance_due
+            alloc_amount = min(remaining, due)
+            
+            if alloc_amount > Decimal("0.00"):
+                self._apply_to_voucher(voucher, alloc_amount)
+                total_allocated += alloc_amount
+                remaining -= alloc_amount
+                touched.append(voucher)
+                
+                # Create settlement link
+                settlement = VoucherSettlement(
+                    payment_id=payment.id,
+                    voucher_id=voucher.id,
+                    amount=alloc_amount,
+                )
+                db.add(settlement)
+
+        # Post single ledger entry for total payment amount
+        self.ledger_service.post(
+            db,
+            customer,
+            LedgerEntryType.PAYMENT,
+            amount,
+            entry_date=payment_date,
             reference_type="PAYMENT",
             reference_id=payment.id,
             remarks=payment.remarks,
