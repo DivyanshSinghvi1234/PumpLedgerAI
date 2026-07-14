@@ -10,6 +10,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 
 
@@ -19,6 +20,7 @@ class VoucherSettlement(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "voucher_settlements"
 

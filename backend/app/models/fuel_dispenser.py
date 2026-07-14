@@ -9,6 +9,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 from app.core.enums import NozzleStatus
 
@@ -19,6 +20,7 @@ class FuelDispenser(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "fuel_dispensers"
 

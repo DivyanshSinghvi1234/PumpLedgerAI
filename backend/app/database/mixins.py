@@ -3,8 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, DateTime, String, func, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship, declared_attr
 
 
 class IDMixin:
@@ -45,3 +45,17 @@ class ActiveMixin:
         default=True,
         nullable=False,
     )
+
+
+class PumpScopedMixin:
+    """Adds a pump_id foreign key and pump relationship to scope entries by filling station."""
+
+    pump_id: Mapped[int] = mapped_column(
+        ForeignKey("pumps.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    @declared_attr
+    def pump(cls):
+        return relationship("Pump")

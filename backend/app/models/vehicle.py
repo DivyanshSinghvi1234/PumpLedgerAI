@@ -9,6 +9,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 
 
@@ -18,6 +19,7 @@ class Vehicle(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "vehicles"
 

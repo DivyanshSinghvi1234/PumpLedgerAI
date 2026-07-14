@@ -8,6 +8,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 
 
@@ -16,6 +17,7 @@ class NozzleReading(
     IDMixin,
     UUIDMixin,
     TimestampMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "nozzle_readings"
 

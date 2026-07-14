@@ -105,6 +105,18 @@ class BaseRepository(Generic[ModelType]):
             ).all()
         )
 
+    def get_all_by_pump(
+        self,
+        db: Session,
+        pump_id: int,
+    ) -> list[ModelType]:
+
+        return list(
+            db.scalars(
+                select(self.model).where(self.model.pump_id == pump_id)
+            ).all()
+        )
+
     # -----------------------------------
     # Count
     # -----------------------------------
@@ -119,3 +131,33 @@ class BaseRepository(Generic[ModelType]):
                 func.count(self.model.id)
             )
         ) or 0
+
+    def count_by_pump(
+        self,
+        db: Session,
+        pump_id: int,
+    ) -> int:
+
+        return db.scalar(
+            select(
+                func.count(self.model.id)
+            ).where(self.model.pump_id == pump_id)
+        ) or 0
+
+    # -----------------------------------
+    # Get by UUID and Pump
+    # -----------------------------------
+
+    def get_by_uuid_and_pump(
+        self,
+        db: Session,
+        uuid: str,
+        pump_id: int,
+    ) -> ModelType | None:
+
+        return db.scalar(
+            select(self.model).where(
+                self.model.uuid == uuid,
+                self.model.pump_id == pump_id,
+            )
+        )

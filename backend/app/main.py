@@ -47,6 +47,8 @@ manager_protected = [
     Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER)),
 ]
 
+from app.middleware.scoping import PumpScopingMiddleware
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
@@ -54,6 +56,9 @@ app = FastAPI(
     description=settings.APP_DESCRIPTION,
     default_response_class=ORJSONResponse,
 )
+
+# Register pump scoping middleware
+app.add_middleware(PumpScopingMiddleware)
 
 # Allow the Vite dev frontend to call the API during development.
 app.add_middleware(

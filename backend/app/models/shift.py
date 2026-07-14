@@ -11,6 +11,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 
 
@@ -20,6 +21,7 @@ class Shift(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "shifts"
 

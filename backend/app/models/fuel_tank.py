@@ -10,6 +10,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 from app.core.enums import FuelType
 
@@ -20,6 +21,7 @@ class FuelTank(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "fuel_tanks"
 
@@ -58,6 +60,7 @@ class DipReading(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "dip_readings"
 

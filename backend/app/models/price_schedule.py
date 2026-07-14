@@ -11,6 +11,7 @@ from app.database.mixins import (
     IDMixin,
     TimestampMixin,
     UUIDMixin,
+    PumpScopedMixin,
 )
 from app.core.enums import FuelType
 
@@ -21,6 +22,7 @@ class PriceSchedule(
     UUIDMixin,
     TimestampMixin,
     ActiveMixin,
+    PumpScopedMixin,
 ):
     __tablename__ = "price_schedules"
 

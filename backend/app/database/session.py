@@ -28,3 +28,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     autocommit=False,
 )
+
+# Register database scoping event listeners
+import app.database.scoping

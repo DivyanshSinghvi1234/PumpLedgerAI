@@ -119,3 +119,14 @@ def _get_active_pump_dependency():
 
 get_active_pump = _get_active_pump_dependency()
 
+
+def require_active_pump(
+    active_pump = Depends(get_active_pump),
+):
+    if active_pump is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Pump-UUID header is required.",
+        )
+    return active_pump
+
