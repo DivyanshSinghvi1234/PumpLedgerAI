@@ -72,23 +72,23 @@ export default function DailySheetPage() {
 
   const totalInvoiceSales = useMemo(() => {
     if (!dailyVouchers?.items) return 0;
-    return dailyVouchers.items.reduce((sum, v) => sum + v.total_amount, 0);
+    return dailyVouchers.items.reduce((sum, v) => sum + Number(v.total_amount), 0);
   }, [dailyVouchers]);
 
   const totalPaymentsCollected = useMemo(() => {
     if (!dailyPayments?.items) return 0;
-    return dailyPayments.items.reduce((sum, p) => sum + p.amount, 0);
+    return dailyPayments.items.reduce((sum, p) => sum + Number(p.amount), 0);
   }, [dailyPayments]);
 
   const totalCashCollected = useMemo(() => {
     // CASH payments
     const cashPayments = dailyPayments?.items
-      ? dailyPayments.items.filter((p) => p.payment_mode === "CASH").reduce((sum, p) => sum + p.amount, 0)
+      ? dailyPayments.items.filter((p) => p.payment_mode === "CASH").reduce((sum, p) => sum + Number(p.amount), 0)
       : 0;
 
     // CASH vouchers
     const cashVouchers = dailyVouchers?.items
-      ? dailyVouchers.items.filter((v) => v.payment_mode === "CASH").reduce((sum, v) => sum + v.total_amount, 0)
+      ? dailyVouchers.items.filter((v) => v.payment_mode === "CASH").reduce((sum, v) => sum + Number(v.total_amount), 0)
       : 0;
 
     return cashPayments + cashVouchers;
