@@ -71,7 +71,6 @@ services:
   - type: web
     name: pumpledger-frontend
     runtime: static
-    region: singapore
     plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
