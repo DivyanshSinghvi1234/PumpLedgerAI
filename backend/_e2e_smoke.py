@@ -257,6 +257,19 @@ tally_req["mark_as_synced"] = False
 r = client.post(f"{P}/tally/preview", headers=H, json=tally_req)
 check("tally preview empty after sync", r.json()["total_vouchers"] == 0 and r.json()["total_payments"] == 0, r.json())
 
+# ---- Price Schedules ----
+r = client.post(f"{P}/price-schedules", headers=H, json={
+    "fuel_type": "PETROL", "rate": "100.50", "effective_from": "2026-07-16T00:00:00Z"
+})
+check("create price schedule 201", r.status_code == 201, r.text)
+ps_uuid = r.json()["uuid"]
+
+r = client.get(f"{P}/price-schedules", headers=H)
+check("list price schedules", r.status_code == 200 and len(r.json()) > 0, r.text)
+
+r = client.delete(f"{P}/price-schedules/{ps_uuid}", headers=H)
+check("delete price schedule 204", r.status_code == 204, r.status_code)
+
 # ---- Daily Sheets ----
 r = client.get(f"{P}/daily-sheets/2026-07-15", headers=H)
 check("get nonexistent daily sheet 200 (null)", r.status_code == 200 and r.json() is None, r.text)

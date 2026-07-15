@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.common.pagination import build_pagination
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_db, require_roles, get_current_user
 from app.core.enums import UserRole
+from app.models.user import User
 from app.core.exceptions import (
     CustomerNotFoundError,
     PaymentNotFoundError,
@@ -41,9 +42,10 @@ manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))]
 def create_payment(
     data: PaymentCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.create(db, data)
+        return service.create(db, data, actor_id=current_user.id)
     except CustomerNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -60,6 +62,7 @@ def create_payment(
 def allocate_payment_fifo(
     data: PaymentFifoAllocateRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return voucher_payment_service.allocate_payment_fifo(
@@ -70,6 +73,7 @@ def allocate_payment_fifo(
             payment_date=data.payment_date,
             reference_number=data.reference_number,
             remarks=data.remarks,
+            actor_id=current_user.id,
         )
     except CustomerNotFoundError as exc:
         raise HTTPException(
@@ -148,9 +152,10 @@ def get_payment(
 def delete_payment(
     payment_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        service.delete(db, payment_uuid)
+        service.delete(db, payment_uuid, actor_id=current_user.id)
     except PaymentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

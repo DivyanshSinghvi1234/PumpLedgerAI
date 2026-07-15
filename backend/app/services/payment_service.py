@@ -31,6 +31,7 @@ class PaymentService:
         self,
         db: Session,
         data: PaymentCreate,
+        actor_id: int | None = None,
     ) -> Payment:
 
         customer = self.customer_repository.get_by_uuid(
@@ -69,6 +70,7 @@ class PaymentService:
             reference_id=payment.id,
             remarks=data.remarks,
             extra_objects=[payment],
+            actor_id=actor_id,
         )
 
         return payment
@@ -127,6 +129,7 @@ class PaymentService:
         self,
         db: Session,
         payment_uuid: str,
+        actor_id: int | None = None,
     ) -> None:
 
         payment = self.repository.get_by_uuid(
@@ -164,6 +167,7 @@ class PaymentService:
             "PAYMENT",
             payment.id,
             extra_deletes=[payment],
+            actor_id=actor_id,
         )
 
 

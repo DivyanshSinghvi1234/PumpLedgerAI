@@ -78,7 +78,13 @@ class LedgerService:
         # Log audit log
         self.audit_service.log_action(
             db,
-            action=f"POST_LEDGER_{entry_type.value}",
+            action={
+                "OPENING_BALANCE": "Set Opening Balance",
+                "VOUCHER": "Recorded Credit Sale",
+                "PAYMENT": "Received Payment",
+                "DEBIT_ADJUSTMENT": "Posted Debit Adjustment",
+                "CREDIT_ADJUSTMENT": "Posted Credit Adjustment",
+            }.get(entry_type.value, f"Posted Ledger {entry_type.value}"),
             target_table="ledger_entries",
             target_id=str(res.id),
             actor_id=actor_id,
@@ -138,7 +144,13 @@ class LedgerService:
         for e in entries:
             self.audit_service.log_action(
                 db,
-                action=f"REVERSE_LEDGER_{e.entry_type.value}",
+                action={
+                    "OPENING_BALANCE": "Reversed Opening Balance",
+                    "VOUCHER": "Reversed Credit Sale",
+                    "PAYMENT": "Reversed Payment",
+                    "DEBIT_ADJUSTMENT": "Reversed Debit Adjustment",
+                    "CREDIT_ADJUSTMENT": "Reversed Credit Adjustment",
+                }.get(e.entry_type.value, f"Reversed Ledger {e.entry_type.value}"),
                 target_table="ledger_entries",
                 target_id=str(e.id),
                 actor_id=actor_id,

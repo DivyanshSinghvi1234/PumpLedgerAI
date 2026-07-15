@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.daily_sheet import DailySheet
 from app.repositories.daily_sheet_repository import DailySheetRepository
+from app.services.audit_log_service import AuditLogService
 from app.core.exceptions import (
     DailySheetNotFoundError,
     DuplicateDailySheetError,
@@ -15,6 +16,7 @@ class DailySheetService:
 
     def __init__(self):
         self.repository = DailySheetRepository()
+        self.audit_service = AuditLogService()
 
     def get_daily_sheet(self, db: Session, date_val: date) -> DailySheet | None:
         """Retrieve the daily sheet for a specific date."""
@@ -31,17 +33,9 @@ class DailySheetService:
         remarks: str | None = None,
         period_start: datetime | None = None,
         period_end: datetime | None = None,
+        actor_id: int | None = None,
     ) -> DailySheet:
-        """Create a new daily sheet for a date, ensuring uniqueness.
-
-        If ``period_start`` / ``period_end`` are not supplied the service
-        defaults to:
-          • period_start = midnight (00:00:00 UTC) of ``date_val``
-          • period_end   = the current UTC moment (time of generation)
-
-        This means any voucher whose ``created_at`` falls within the window
-        belongs to this sheet; vouchers saved afterward belong to the next.
-        """
+        """Create a new daily sheet for a date, ensuring uniqueness."""
         existing = self.repository.get_by_date(db, date_val)
         if existing is not None:
             raise DuplicateDailySheetError(str(date_val))
@@ -61,7 +55,20 @@ class DailySheetService:
             period_start=period_start,
             period_end=period_end,
         )
-        return self.repository.create(db, sheet)
+        sheet = self.repository.create(db, sheet)
+
+        self.audit_service.log_action(
+            db,
+            action="Generated Daily Sheet",
+            target_table="daily_sheets",
+            target_id=str(sheet.id),
+            actor_id=actor_id,
+            new_values={
+                "date": str(date_val),
+                "remarks": remarks,
+            }
+        )
+        return sheet
 
     def update_daily_sheet(
         self,
@@ -72,11 +79,18 @@ class DailySheetService:
         date_val: date | None = None,
         period_start: datetime | None = None,
         period_end: datetime | None = None,
+        actor_id: int | None = None,
     ) -> DailySheet:
         """Update properties of an existing daily sheet."""
         sheet = self.repository.get_by_uuid(db, uuid)
         if sheet is None or not sheet.is_active:
             raise DailySheetNotFoundError(uuid)
+
+        old_values = {
+            "remarks": sheet.remarks,
+            "manual_sheet_image": sheet.manual_sheet_image,
+            "date": str(sheet.date),
+        }
 
         if remarks is not None:
             sheet.remarks = remarks
@@ -93,5 +107,20 @@ class DailySheetService:
         if period_end is not None:
             sheet.period_end = period_end
 
-        return self.repository.update(db, sheet)
+        sheet = self.repository.update(db, sheet)
+
+        self.audit_service.log_action(
+            db,
+            action="Updated Daily Sheet",
+            target_table="daily_sheets",
+            target_id=str(sheet.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values={
+                "remarks": sheet.remarks,
+                "manual_sheet_image": sheet.manual_sheet_image,
+                "date": str(sheet.date),
+            }
+        )
+        return sheet
 

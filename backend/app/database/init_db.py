@@ -113,8 +113,26 @@ def seed_pumps() -> None:
         db.close()
 
 
+def check_and_update_schema() -> None:
+    """Run self-healing schema updates (e.g. adding last_active_at if missing)."""
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        try:
+            db.execute(text("SELECT last_active_at FROM users LIMIT 1"))
+        except Exception:
+            db.rollback()
+            db.execute(text("ALTER TABLE users ADD COLUMN last_active_at TIMESTAMP WITH TIME ZONE"))
+            db.commit()
+            print("Successfully added last_active_at column to users table.")
+    finally:
+        db.close()
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    
+    check_and_update_schema()
 
     seed_admin()
     seed_pumps()

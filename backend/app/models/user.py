@@ -1,6 +1,5 @@
-from __future__ import annotations
-
-from sqlalchemy import Boolean, Enum, String
+from datetime import datetime
+from sqlalchemy import Boolean, Enum, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import UserRole
@@ -47,6 +46,11 @@ class User(
         Boolean,
         default=True,
         nullable=False,
+    )
+
+    last_active_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     # Relationships

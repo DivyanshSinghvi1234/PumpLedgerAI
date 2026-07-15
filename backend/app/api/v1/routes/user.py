@@ -8,6 +8,7 @@ from app.core.enums import UserRole
 from app.core.exceptions import (
     DuplicateUsernameError,
     UserNotFoundError,
+    SoleAdminConstraintError,
 )
 from app.schemas.user import (
     UserCreate,
@@ -89,21 +90,30 @@ def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
+    except SoleAdminConstraintError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
 
 
-@router.post(
-    "/{user_uuid}/deactivate",
-    response_model=UserResponse,
+@router.delete(
+    "/{user_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
 )
-def deactivate_user(
+def delete_user(
     user_uuid: str,
     db: Session = Depends(get_db),
 ):
     try:
-        return service.deactivate(db, user_uuid)
-
+        service.delete(db, user_uuid)
     except UserNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    except SoleAdminConstraintError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )

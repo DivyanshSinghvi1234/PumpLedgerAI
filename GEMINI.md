@@ -10,6 +10,8 @@ Gemini OCR
 
 Never duplicate logic.
 
+Do not commit to git without my permission
+
 Always extend existing modules.
 
 The OCR pipeline is:

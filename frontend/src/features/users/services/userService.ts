@@ -28,8 +28,8 @@ class UserService {
     return response.data;
   }
 
-  async deactivateUser(uuid: string): Promise<void> {
-    await api.post(`/v1/users/${uuid}/deactivate`);
+  async deleteUser(uuid: string): Promise<void> {
+    await api.delete(`/v1/users/${uuid}`);
   }
 }
 

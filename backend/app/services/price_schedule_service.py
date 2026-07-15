@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
@@ -37,13 +37,13 @@ class PriceScheduleService:
         at_time: datetime | None = None,
     ) -> Decimal | None:
         """Get the active fuel rate at a specific timestamp (defaults to now)."""
-        time_to_check = at_time or datetime.utcnow()
+        time_to_check = at_time or datetime.now(timezone.utc)
         schedule = self.repository.get_active_rate(db, fuel_type, time_to_check)
         return schedule.rate if schedule else None
 
     def apply_pending_schedules(self, db: Session) -> int:
         """Find and mark all schedules whose effective_from time has passed as applied."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         schedules = self.repository.get_unapplied_schedules(db, now)
         count = 0
         for s in schedules:
@@ -103,7 +103,7 @@ class PriceScheduleService:
         Fetches Rajasthan fuel prices, creates and immediately applies new price schedules.
         """
         rates = self.fetch_live_rajasthan_rates()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # Create schedules for core fuel types
         self.create_schedule(db, FuelType.PETROL, rates["PETROL"], now)

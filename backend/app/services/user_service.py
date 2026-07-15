@@ -7,6 +7,7 @@ from app.core.exceptions import (
     DuplicateUsernameError,
     InvalidPasswordError,
     UserNotFoundError,
+    SoleAdminConstraintError,
 )
 from app.core.security import hash_password, verify_password
 from app.models.user import User
@@ -120,6 +121,23 @@ class UserService:
             raise UserNotFoundError(user_uuid)
 
         update_data = data.model_dump(exclude_unset=True)
+        
+        # Check if they are deactivating or demoting the sole active admin
+        will_deactivate = update_data.get("is_active") is False
+        new_role = update_data.get("role")
+        will_demote = new_role is not None and new_role != UserRole.ADMIN
+
+        if (will_deactivate or will_demote) and user.role == UserRole.ADMIN and user.is_active:
+            from sqlalchemy import select, func
+            active_admins_count = db.scalar(
+                select(func.count(User.id)).where(
+                    User.role == UserRole.ADMIN,
+                    User.is_active == True
+                )
+            ) or 0
+            if active_admins_count <= 1:
+                raise SoleAdminConstraintError("Cannot deactivate or demote the sole active administrator.")
+
         pump_uuids = update_data.pop("pump_uuids", None)
 
         for field, value in update_data.items():
@@ -133,21 +151,30 @@ class UserService:
 
         return self._enrich_with_pumps(db, user)
 
-    def deactivate(
+    def delete(
         self,
         db: Session,
         user_uuid: str,
-    ) -> User:
+    ) -> None:
 
         user = self.repository.get_by_uuid(db, user_uuid)
 
         if user is None:
             raise UserNotFoundError(user_uuid)
 
-        user.is_active = False
+        # Check if they are deleting the sole active admin
+        if user.role == UserRole.ADMIN and user.is_active:
+            from sqlalchemy import select, func
+            active_admins_count = db.scalar(
+                select(func.count(User.id)).where(
+                    User.role == UserRole.ADMIN,
+                    User.is_active == True
+                )
+            ) or 0
+            if active_admins_count <= 1:
+                raise SoleAdminConstraintError("Cannot delete the sole active administrator.")
 
-        user = self.repository.update(db, user)
-        return self._enrich_with_pumps(db, user)
+        self.repository.delete(db, user)
 
     def change_password(
         self,

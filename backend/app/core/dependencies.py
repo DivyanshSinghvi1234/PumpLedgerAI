@@ -56,6 +56,18 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    # Track user's last active time (throttle updates to every 30 seconds for efficiency)
+    from datetime import datetime, timezone, timedelta
+    now_naive = datetime.utcnow()
+    last_active = user.last_active_at
+    if last_active and last_active.tzinfo is not None:
+        last_active = last_active.replace(tzinfo=None)
+
+    if last_active is None or (now_naive - last_active) > timedelta(seconds=30):
+        user.last_active_at = datetime.now(timezone.utc)
+        db.add(user)
+        db.commit()
+
     return user
 
 

@@ -23,12 +23,16 @@ from app.schemas.nozzle import (
 )
 
 
+from app.services.audit_log_service import AuditLogService
+
+
 class NozzleService:
 
     def __init__(self):
         self.dispenser_repo = FuelDispenserRepository()
         self.nozzle_repo = NozzleRepository()
         self.reading_repo = NozzleReadingRepository()
+        self.audit_service = AuditLogService()
 
     def create_dispenser(self, db: Session, data: FuelDispenserCreate) -> FuelDispenser:
         existing = self.dispenser_repo.get_by_name(db, data.name)
@@ -206,6 +210,7 @@ class NozzleService:
         self,
         db: Session,
         data: BulkNozzleReadingCreate,
+        actor_id: int | None = None,
     ) -> list[NozzleReading]:
         readings = []
         r_date = data.reading_date
@@ -249,6 +254,19 @@ class NozzleService:
             self.nozzle_repo.update(db, nozzle)
 
             readings.append(reading)
+
+        if readings:
+            self.audit_service.log_action(
+                db,
+                action="Saved Meter Readings",
+                target_table="nozzle_readings",
+                target_id=str(readings[0].id),
+                actor_id=actor_id,
+                new_values={
+                    "reading_date": str(r_date),
+                    "count": len(readings),
+                }
+            )
 
         return readings
 

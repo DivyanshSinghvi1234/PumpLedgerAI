@@ -205,7 +205,7 @@ class VoucherService:
             # Log audit log
             self.audit_service.log_action(
                 db,
-                action="CREATE_VOUCHER",
+                action="Uploaded Invoice",
                 target_table="vouchers",
                 target_id=str(voucher.id),
                 actor_id=actor_id,
@@ -229,7 +229,7 @@ class VoucherService:
         # Log audit log
         self.audit_service.log_action(
             db,
-            action="CREATE_VOUCHER",
+            action="Uploaded Invoice",
             target_table="vouchers",
             target_id=str(voucher.id),
             actor_id=actor_id,
@@ -471,7 +471,7 @@ class VoucherService:
         # Log audit log
         self.audit_service.log_action(
             db,
-            action="UPDATE_VOUCHER",
+            action="Verified Invoice",
             target_table="vouchers",
             target_id=str(voucher.id),
             actor_id=actor_id,
@@ -505,6 +505,7 @@ class VoucherService:
         db: Session,
         voucher_uuid: str,
         status: VerificationStatus,
+        actor_id: int | None = None,
     ) -> Voucher:
 
         voucher = self.repository.get_by_uuid(
@@ -517,11 +518,24 @@ class VoucherService:
                 voucher_uuid,
             )
 
+        old_status = voucher.verification_status
         voucher.verification_status = status
 
         voucher = self.repository.update(
             db,
             voucher,
+        )
+
+        # Log audit log
+        action_label = "Verified Invoice" if status == VerificationStatus.VERIFIED else "Rejected Invoice"
+        self.audit_service.log_action(
+            db,
+            action=action_label,
+            target_table="vouchers",
+            target_id=str(voucher.id),
+            actor_id=actor_id,
+            old_values={"verification_status": old_status.value},
+            new_values={"verification_status": status.value},
         )
 
         # Send credit alert if payment mode is credit and verified
@@ -571,7 +585,7 @@ class VoucherService:
             # Log audit log
             self.audit_service.log_action(
                 db,
-                action="DELETE_VOUCHER",
+                action="Deleted Invoice",
                 target_table="vouchers",
                 target_id=str(voucher.id),
                 actor_id=actor_id,
@@ -595,7 +609,7 @@ class VoucherService:
         # Log audit log
         self.audit_service.log_action(
             db,
-            action="DELETE_VOUCHER",
+            action="Deleted Invoice",
             target_table="vouchers",
             target_id=str(voucher.id),
             actor_id=actor_id,

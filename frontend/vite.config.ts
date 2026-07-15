@@ -21,6 +21,10 @@ export default defineConfig({
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
       },
+      "/storage": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
     },
     // Ensure SPA fallback works for all routes when accessed via network IP
     fs: {

@@ -9,6 +9,7 @@ export interface User {
   role: UserRole;
   is_active: boolean;
   pump_access: Pump[];
+  last_active_at?: string;
 }
 
 export interface CreateUserRequest {

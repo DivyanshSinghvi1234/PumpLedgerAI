@@ -6,8 +6,6 @@
  * serves the `storage/` directory at `/storage`. We normalize slashes,
  * ensure the path is rooted at `/storage`, and prefix the API origin.
  */
-const API_ORIGIN = "http://127.0.0.1:8000";
-
 export function invoiceImageUrl(
   imagePath: string | null | undefined
 ): string | null {
@@ -22,5 +20,6 @@ export function invoiceImageUrl(
     p = p.slice(idx);
   }
 
-  return `${API_ORIGIN}/${p}`;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+  return baseUrl ? `${baseUrl}/${p}` : `/${p}`;
 }

@@ -38,15 +38,16 @@ export default function AuditLogPage() {
       log.action.toLowerCase().includes(term) ||
       log.target_table.toLowerCase().includes(term) ||
       log.target_id.toLowerCase().includes(term) ||
-      (log.actor_id && String(log.actor_id).includes(term))
+      (log.actor_name && log.actor_name.toLowerCase().includes(term))
     );
   });
 
   const getActionBadgeColor = (action: string) => {
-    if (action.startsWith("CREATE_")) return "bg-success/10 text-success border-success/20";
-    if (action.startsWith("DELETE_")) return "bg-destructive/10 text-destructive border-destructive/20";
-    if (action.startsWith("UPDATE_")) return "bg-fuel-amber/10 text-fuel-amber border-fuel-amber/20";
-    if (action.includes("REVERSE_")) return "bg-destructive/15 text-destructive border-destructive/20";
+    const a = action.toLowerCase();
+    if (a.includes("deleted") || a.includes("reversed")) return "bg-destructive/10 text-destructive border-destructive/20";
+    if (a.includes("uploaded") || a.includes("recorded") || a.includes("received") || a.includes("set") || a.includes("posted")) return "bg-success/10 text-success border-success/20";
+    if (a.includes("verified") || a.includes("updated")) return "bg-fuel-amber/10 text-fuel-amber border-fuel-amber/20";
+    if (a.includes("generated") || a.includes("saved")) return "bg-brand/10 text-brand border-brand/20";
     return "bg-surface-3 text-ink-subtle border-hairline";
   };
 
@@ -144,7 +145,7 @@ export default function AuditLogPage() {
                         <TableCell className="text-xs font-medium">
                           <Badge
                             variant="outline"
-                            className={`text-[9px] font-mono font-bold tracking-wide uppercase px-2 py-0.5 border ${getActionBadgeColor(
+                            className={`text-[9px] font-bold tracking-wide px-2 py-0.5 border ${getActionBadgeColor(
                               log.action
                             )}`}
                           >
@@ -157,11 +158,18 @@ export default function AuditLogPage() {
                         <TableCell className="text-xs font-mono text-ink-muted">
                           {log.target_id}
                         </TableCell>
-                        <TableCell className="text-xs font-semibold text-ink-muted">
-                          <div className="flex items-center gap-1.5">
-                            <User size={13} className="text-ink-tertiary" />
-                            <span>{log.actor_id ? `User ${log.actor_id}` : "System"}</span>
-                          </div>
+                        <TableCell className="text-xs">
+                          {log.actor_name ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                              <User size={11} />
+                              {log.actor_name}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wide uppercase bg-surface-3 text-ink-subtle border border-hairline">
+                              <User size={11} />
+                              System
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="px-5 text-right">
                           {changes ? (

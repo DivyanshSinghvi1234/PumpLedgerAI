@@ -323,8 +323,8 @@ export default function TallyExportPage() {
                             {v.fuel_type}
                           </span>
                         </td>
-                        <td className="p-4 text-right font-mono">{v.quantity_liters.toFixed(2)} L</td>
-                        <td className="p-4 text-right font-semibold font-mono">₹{v.total_amount.toFixed(2)}</td>
+                        <td className="p-4 text-right font-mono">{Number(v.quantity_liters).toFixed(2)} L</td>
+                        <td className="p-4 text-right font-semibold font-mono">₹{Number(v.total_amount).toFixed(2)}</td>
                         <td className="p-4">
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                             v.payment_mode === "CREDIT"
@@ -371,7 +371,7 @@ export default function TallyExportPage() {
                             {p.payment_mode}
                           </span>
                         </td>
-                        <td className="p-4 text-right font-semibold font-mono">₹{p.amount.toFixed(2)}</td>
+                        <td className="p-4 text-right font-semibold font-mono">₹{Number(p.amount).toFixed(2)}</td>
                         <td className="p-4 font-mono text-xs text-muted-foreground">{p.reference_number || "—"}</td>
                         <td className="p-4 font-medium text-muted-foreground">{debitLedger}</td>
                         <td className="p-4 font-medium text-muted-foreground">{p.customer_name}</td>

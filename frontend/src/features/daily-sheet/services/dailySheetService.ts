@@ -84,6 +84,11 @@ export const dailySheetService = {
     );
     return response.data;
   },
+
+  getBaseUrl(): string {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+    return baseUrl ? `${baseUrl}/storage/` : "/storage/";
+  },
 };
 
 export default dailySheetService;

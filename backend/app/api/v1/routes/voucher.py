@@ -8,7 +8,8 @@ from fastapi import (
 from sqlalchemy.orm import Session
 from datetime import date, datetime
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_db, require_roles, get_current_user
+from app.models.user import User
 from app.core.enums import (
     FuelType,
     PaymentMode,
@@ -51,11 +52,13 @@ service = VoucherService()
 def create_voucher(
     voucher: VoucherCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return service.create(
             db,
             voucher,
+            actor_id=current_user.id,
         )
 
     except DuplicateInvoiceError as exc:
@@ -208,12 +211,14 @@ def update_voucher(
     voucher_uuid: str,
     voucher: VoucherUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return service.update(
             db,
             voucher_uuid,
             voucher,
+            actor_id=current_user.id,
         )
 
     except VoucherNotFoundError as exc:
@@ -237,12 +242,14 @@ def update_voucher(
 def verify_voucher(
     voucher_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return service.set_status(
             db,
             voucher_uuid,
             VerificationStatus.VERIFIED,
+            actor_id=current_user.id,
         )
 
     except VoucherNotFoundError as exc:
@@ -260,12 +267,14 @@ def verify_voucher(
 def reject_voucher(
     voucher_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return service.set_status(
             db,
             voucher_uuid,
             VerificationStatus.REJECTED,
+            actor_id=current_user.id,
         )
 
     except VoucherNotFoundError as exc:
@@ -283,11 +292,13 @@ def reject_voucher(
 def delete_voucher(
     voucher_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         service.delete(
             db,
             voucher_uuid,
+            actor_id=current_user.id,
         )
 
     except VoucherNotFoundError as exc:

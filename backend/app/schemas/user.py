@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import UserRole
@@ -30,6 +29,7 @@ class UserResponse(BaseModel):
     role: UserRole
     is_active: bool
     pump_access: list[PumpResponse] = []
+    last_active_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

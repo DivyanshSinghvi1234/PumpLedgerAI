@@ -68,6 +68,7 @@ class VoucherPaymentService:
         db: Session,
         voucher_uuid: str,
         data: VoucherSettleRequest,
+        actor_id: int | None = None,
     ):
         voucher = self.voucher_repository.get_by_uuid(db, voucher_uuid)
 
@@ -105,6 +106,7 @@ class VoucherPaymentService:
                 reference_id=payment.id,
                 remarks=payment.remarks,
                 extra_objects=[voucher],
+                actor_id=actor_id,
             )
         else:
             db.add(voucher)
@@ -121,6 +123,7 @@ class VoucherPaymentService:
         self,
         db: Session,
         data: PaymentAllocationCreate,
+        actor_id: int | None = None,
     ) -> Payment:
         customer = self.customer_repository.get_by_uuid(
             db,
@@ -175,6 +178,7 @@ class VoucherPaymentService:
             reference_id=payment.id,
             remarks=payment.remarks,
             extra_objects=touched,
+            actor_id=actor_id,
         )
 
         db.refresh(payment)
@@ -189,6 +193,7 @@ class VoucherPaymentService:
         payment_date: date,
         reference_number: str | None = None,
         remarks: str | None = None,
+        actor_id: int | None = None,
     ) -> Payment:
         """
         Apply a payment to the customer's oldest outstanding vouchers first (FIFO).
@@ -249,6 +254,7 @@ class VoucherPaymentService:
             reference_id=payment.id,
             remarks=payment.remarks,
             extra_objects=touched,
+            actor_id=actor_id,
         )
 
         db.refresh(payment)

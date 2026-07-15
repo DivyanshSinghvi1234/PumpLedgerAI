@@ -8,6 +8,7 @@ from app.core.dependencies import get_db, require_roles
 from app.core.enums import UserRole
 from app.schemas.audit_log import AuditLogResponse
 from app.models.audit_log import AuditLog
+from app.models.user import User
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Trails"])
 
@@ -20,9 +21,17 @@ router = APIRouter(prefix="/audit-logs", tags=["Audit Trails"])
 def list_audit_logs(
     db: Session = Depends(get_db),
 ):
-    # Fetch audit logs sorted by newest first
-    return list(
-        db.scalars(
-            select(AuditLog).order_by(AuditLog.created_at.desc())
-        ).all()
+    # Join with users to resolve actor username
+    stmt = (
+        select(AuditLog, User.username)
+        .outerjoin(User, AuditLog.actor_id == User.id)
+        .order_by(AuditLog.created_at.desc())
     )
+    rows = db.execute(stmt).all()
+
+    results = []
+    for log, username in rows:
+        resp = AuditLogResponse.model_validate(log)
+        resp.actor_name = username
+        results.append(resp)
+    return results

@@ -8,8 +8,9 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_db, require_roles, get_current_user
 from app.core.enums import UserRole
+from app.models.user import User
 from app.core.exceptions import (
     DailySheetNotFoundError,
     DuplicateDailySheetError,
@@ -60,6 +61,7 @@ def get_daily_sheet(
 def create_daily_sheet(
     data: DailySheetCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return service.create_daily_sheet(
@@ -68,6 +70,7 @@ def create_daily_sheet(
             data.remarks,
             period_start=data.period_start,
             period_end=data.period_end,
+            actor_id=current_user.id,
         )
     except DuplicateDailySheetError as exc:
         # Return 409 Conflict so the frontend can detect the duplicate and
@@ -87,6 +90,7 @@ def update_daily_sheet(
     uuid: str,
     data: DailySheetUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return service.update_daily_sheet(
@@ -97,6 +101,7 @@ def update_daily_sheet(
             date_val=data.date,
             period_start=data.period_start,
             period_end=data.period_end,
+            actor_id=current_user.id,
         )
     except DailySheetNotFoundError as exc:
         raise HTTPException(
@@ -120,6 +125,7 @@ async def upload_manual_sheet_image(
     uuid: str,
     file: UploadFile,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
@@ -136,7 +142,7 @@ async def upload_manual_sheet_image(
             shutil.copyfileobj(file.file, buffer)
 
         relative_path = f"daily-sheets/{filename}"
-        return service.update_daily_sheet(db, uuid, manual_sheet_image=relative_path)
+        return service.update_daily_sheet(db, uuid, manual_sheet_image=relative_path, actor_id=current_user.id)
     except DailySheetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

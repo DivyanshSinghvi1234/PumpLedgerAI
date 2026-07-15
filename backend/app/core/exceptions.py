@@ -94,6 +94,11 @@ class InvalidPasswordError(AppException):
         super().__init__("Current password is incorrect.")
 
 
+class SoleAdminConstraintError(AppException):
+    def __init__(self, message: str = "Cannot delete, deactivate, or demote the sole active administrator.") -> None:
+        super().__init__(message)
+
+
 # -------------------------
 # Employee Exceptions
 # -------------------------

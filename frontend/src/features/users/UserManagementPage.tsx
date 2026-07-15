@@ -6,12 +6,13 @@ import {
   Shield,
   ShieldCheck,
   ShieldAlert,
-  UserX,
+  Trash2,
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import api, { extractApiError } from "@/api/client";
+import { extractApiError } from "@/api/client";
+import userService from "./services/userService";
 
 import UserDialog from "./components/UserDialog";
 import { useUserList } from "./hooks/useUserList";
@@ -47,20 +48,65 @@ export default function UserManagementPage() {
     ? extractApiError(queryError, "Failed to load users.")
     : "";
 
-  /* ---- Deactivate / reactivate ---- */
-  async function handleToggleActive(user: User) {
+  /* ---- User Deletion ---- */
+  async function handleDelete(user: User) {
+    if (!window.confirm(`Are you sure you want to permanently delete user "${user.username}"?`)) {
+      return;
+    }
     try {
-      if (user.is_active) {
-        await api.post(`/v1/users/${user.uuid}/deactivate`);
-        toast.success("User deactivated.");
-      } else {
-        await api.put(`/v1/users/${user.uuid}`, { is_active: true });
-        toast.success("User reactivated.");
-      }
+      await userService.deleteUser(user.uuid);
+      toast.success("User deleted successfully.");
       queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch (err) {
-      toast.error(extractApiError(err, "Failed to update user status."));
+      toast.error(extractApiError(err, "Failed to delete user."));
     }
+  }
+
+  /* ---- Get User Status info (Online / Last Active / Inactive) ---- */
+  function getUserStatus(user: User): { label: string; className: string; dotColor: string } {
+    if (!user.is_active) {
+      return {
+        label: "Inactive",
+        className: "text-ink-tertiary",
+        dotColor: "bg-ink-tertiary",
+      };
+    }
+    
+    if (!user.last_active_at) {
+      return {
+        label: "Offline",
+        className: "text-ink-subtle",
+        dotColor: "bg-ink-muted",
+      };
+    }
+
+    const lastActive = new Date(user.last_active_at).getTime();
+    const now = Date.now();
+    const differenceInMinutes = (now - lastActive) / 60000;
+
+    if (differenceInMinutes < 5) {
+      return {
+        label: "Online",
+        className: "text-success",
+        dotColor: "bg-success animate-pulse",
+      };
+    }
+
+    // Return a readable "Active X min/hours ago"
+    let timeLabel = "Offline";
+    if (differenceInMinutes < 60) {
+      timeLabel = `Active ${Math.round(differenceInMinutes)}m ago`;
+    } else if (differenceInMinutes < 1440) {
+      timeLabel = `Active ${Math.round(differenceInMinutes / 60)}h ago`;
+    } else {
+      timeLabel = `Active ${Math.round(differenceInMinutes / 1440)}d ago`;
+    }
+
+    return {
+      label: timeLabel,
+      className: "text-ink-subtle",
+      dotColor: "bg-ink-muted",
+    };
   }
 
   function handleCreate() {
@@ -205,17 +251,15 @@ export default function UserManagementPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        {user.is_active ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success">
-                            <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                            Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-tertiary">
-                            <span className="h-1.5 w-1.5 rounded-full bg-ink-tertiary" />
-                            Inactive
-                          </span>
-                        )}
+                        {(() => {
+                          const statusInfo = getUserStatus(user);
+                          return (
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusInfo.className}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dotColor}`} />
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1.5">
@@ -227,19 +271,11 @@ export default function UserManagementPage() {
                             <Pencil size={14} />
                           </button>
                           <button
-                            onClick={() => handleToggleActive(user)}
-                            className={`rounded-lg p-1.5 transition cursor-pointer ${
-                              user.is_active
-                                ? "text-ink-subtle hover:text-error hover:bg-error/10"
-                                : "text-ink-subtle hover:text-success hover:bg-success/10"
-                            }`}
-                            title={
-                              user.is_active
-                                ? "Deactivate user"
-                                : "Reactivate user"
-                            }
+                            onClick={() => handleDelete(user)}
+                            className="rounded-lg p-1.5 text-ink-subtle hover:text-error hover:bg-error/10 transition cursor-pointer"
+                            title="Delete user"
                           >
-                            <UserX size={14} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>

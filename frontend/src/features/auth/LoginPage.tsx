@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Fuel, Eye, EyeOff } from "lucide-react";
 import { login } from "./services/authService";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const formRef = useRef<HTMLFormElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -125,7 +127,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-ink-muted uppercase tracking-wide">
                   Username
@@ -134,6 +136,7 @@ export default function LoginPage() {
                   className="w-full rounded-2xl border border-hairline bg-surface-2 px-5 py-5 text-base text-ink outline-none transition input-glow focus:border-fuel-amber/50 focus:ring-2 focus:ring-fuel-amber/20 placeholder:text-ink-tertiary"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); passwordRef.current?.focus(); } }}
                   placeholder="Enter your username"
                   autoFocus
                   inputMode="text"
@@ -146,10 +149,12 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <input
+                    ref={passwordRef}
                     type={showPassword ? "text" : "password"}
                     className="w-full rounded-2xl border border-hairline bg-surface-2 px-5 py-5 text-base text-ink outline-none transition input-glow focus:border-fuel-amber/50 focus:ring-2 focus:ring-fuel-amber/20 placeholder:text-ink-tertiary pr-14"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); formRef.current?.requestSubmit(); } }}
                     placeholder="Enter your password"
                     autoComplete="current-password"
                   />

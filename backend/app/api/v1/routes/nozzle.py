@@ -4,8 +4,9 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_db, require_roles, get_current_user
 from app.core.enums import UserRole
+from app.models.user import User
 from app.schemas.nozzle import (
     NozzleCreate,
     NozzleUpdate,
@@ -135,9 +136,10 @@ def get_bulk_readings_form(
 def post_bulk_readings(
     data: BulkNozzleReadingCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.post_bulk_readings(db, data)
+        return service.post_bulk_readings(db, data, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
