@@ -254,19 +254,19 @@ export default function SheetPreview({
                     <Table>
                       <TableHeader>
                         <TableRow className="border-b border-hairline hover:bg-transparent">
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Invoice #
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Customer
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Vehicle / Ref
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Volume
                           </TableHead>
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle text-right">
                             Amount
                           </TableHead>
                         </TableRow>
@@ -319,16 +319,16 @@ export default function SheetPreview({
                     <Table>
                       <TableHeader>
                         <TableRow className="border-b border-hairline hover:bg-transparent">
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Ref / Time
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Customer
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Payment Mode
                           </TableHead>
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle text-right">
                             Amount
                           </TableHead>
                         </TableRow>

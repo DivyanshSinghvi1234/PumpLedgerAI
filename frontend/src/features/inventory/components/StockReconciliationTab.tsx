@@ -201,7 +201,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                   id="dipTankSelect"
                   value={selectedTankUuid}
                   onChange={(e) => setSelectedTankUuid(e.target.value)}
-                  className="w-full bg-surface-2 border border-hairline rounded-md outline-none text-xs text-ink px-3 py-2"
+                  className="w-full bg-surface-2 border border-hairline rounded-lg outline-none text-sm text-ink px-3 h-10 transition-colors focus:border-fuel-amber"
                   required
                 >
                   <option value="">-- Choose Tank --</option>
@@ -418,7 +418,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                   id="tankFuelTypeSelect"
                   value={tankFuelType}
                   onChange={(e) => setTankFuelType(e.target.value as FuelType)}
-                  className="w-full bg-surface-2 border border-hairline rounded-md outline-none text-xs text-ink px-3 py-2"
+                  className="w-full bg-surface-2 border border-hairline rounded-lg outline-none text-sm text-ink px-3 h-10 transition-colors focus:border-fuel-amber"
                   required
                 >
                   <option value="PETROL">PETROL</option>

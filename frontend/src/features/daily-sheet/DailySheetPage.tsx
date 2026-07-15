@@ -267,16 +267,16 @@ export default function DailySheetPage() {
           <div className="mt-6 space-y-6">
             <div className="grid gap-6 md:grid-cols-3">
               <Card className="glass border-hairline md:col-span-2 h-fit">
-                <CardContent className="p-4 space-y-4">
+                <CardContent className="p-5 space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <Label htmlFor="createDateInput" className="text-xs font-bold text-ink-muted">Select Date</Label>
                       <Input
                         id="createDateInput"
                         type="date"
                         value={createDate}
                         onChange={(e) => handleCreateDateChange(e.target.value)}
-                        className="bg-surface-2 border-hairline text-xs w-full sm:w-44 text-ink h-9"
+                        className="bg-surface-2 border-hairline text-sm w-full sm:w-48 text-ink h-10 px-3.5 rounded-lg"
                       />
                     </div>
 
@@ -286,9 +286,9 @@ export default function DailySheetPage() {
                         type="checkbox"
                         checked={useCustomWindow}
                         onChange={(e) => setUseCustomWindow(e.target.checked)}
-                        className="rounded accent-fuel-amber h-3.5 w-3.5 cursor-pointer"
+                        className="rounded accent-fuel-amber h-4 w-4 cursor-pointer"
                       />
-                      <Label htmlFor="customWindowToggle" className="text-xs text-ink font-semibold cursor-pointer">
+                      <Label htmlFor="customWindowToggle" className="text-sm text-ink font-semibold cursor-pointer">
                         Specify custom start/end times
                       </Label>
                     </div>
@@ -296,24 +296,24 @@ export default function DailySheetPage() {
 
                   {useCustomWindow && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-hairline pt-4 animate-fade-in">
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <Label htmlFor="periodStart" className="text-xs font-bold text-ink-muted">Period Start</Label>
                         <Input
                           id="periodStart"
                           type="datetime-local"
                           value={periodStart}
                           onChange={(e) => setPeriodStart(e.target.value)}
-                          className="bg-surface-2 border-hairline text-xs text-ink h-9"
+                          className="bg-surface-2 border-hairline text-sm text-ink h-10 px-3.5 rounded-lg"
                         />
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <Label htmlFor="periodEnd" className="text-xs font-bold text-ink-muted">Period End</Label>
                         <Input
                           id="periodEnd"
                           type="datetime-local"
                           value={periodEnd}
                           onChange={(e) => setPeriodEnd(e.target.value)}
-                          className="bg-surface-2 border-hairline text-xs text-ink h-9"
+                          className="bg-surface-2 border-hairline text-sm text-ink h-10 px-3.5 rounded-lg"
                         />
                       </div>
                     </div>
@@ -324,43 +324,43 @@ export default function DailySheetPage() {
                     <form onSubmit={handleSaveSettings} className="border-t border-hairline pt-4 space-y-4 animate-fade-in">
                       <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider font-mono">Configure Default Shift Window</h4>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <Label className="text-[10px] text-ink-subtle">Start Time</Label>
                           <Input
                             type="text"
                             value={defaultStartHour}
                             onChange={(e) => setDefaultStartHour(e.target.value)}
-                            className="bg-surface-2 border-hairline text-xs h-8 text-ink"
+                            className="bg-surface-2 border-hairline text-sm h-10 px-3 rounded-lg text-ink"
                             placeholder="12:00"
                           />
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <Label className="text-[10px] text-ink-subtle">Start Day Offset</Label>
                           <select
                             value={defaultStartOffset}
                             onChange={(e) => setDefaultStartOffset(Number(e.target.value))}
-                            className="w-full bg-surface-2 border border-hairline rounded-md outline-none text-xs text-ink px-2 py-1 h-8"
+                            className="w-full bg-surface-2 border border-hairline rounded-lg outline-none text-sm text-ink px-3 h-10 transition-colors focus:border-fuel-amber"
                           >
                             <option value={-1}>Yesterday (-1)</option>
                             <option value={0}>Same Day (0)</option>
                           </select>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <Label className="text-[10px] text-ink-subtle">End Time</Label>
                           <Input
                             type="text"
                             value={defaultEndHour}
                             onChange={(e) => setDefaultEndHour(e.target.value)}
-                            className="bg-surface-2 border-hairline text-xs h-8 text-ink"
+                            className="bg-surface-2 border-hairline text-sm h-10 px-3 rounded-lg text-ink"
                             placeholder="12:00"
                           />
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <Label className="text-[10px] text-ink-subtle">End Day Offset</Label>
                           <select
                             value={defaultEndOffset}
                             onChange={(e) => setDefaultEndOffset(Number(e.target.value))}
-                            className="w-full bg-surface-2 border border-hairline rounded-md outline-none text-xs text-ink px-2 py-1 h-8"
+                            className="w-full bg-surface-2 border border-hairline rounded-lg outline-none text-sm text-ink px-3 h-10 transition-colors focus:border-fuel-amber"
                           >
                             <option value={0}>Same Day (0)</option>
                             <option value={1}>Tomorrow (+1)</option>
@@ -372,13 +372,13 @@ export default function DailySheetPage() {
                           type="button"
                           variant="ghost"
                           onClick={() => setShowSettings(false)}
-                          className="h-7 text-xs text-ink-subtle"
+                          className="h-9 px-4 text-xs text-ink-subtle"
                         >
                           Cancel
                         </Button>
                         <Button
                           type="submit"
-                          className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold h-7 text-xs"
+                          className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold h-9 px-4 text-xs rounded-lg"
                         >
                           Apply Defaults
                         </Button>

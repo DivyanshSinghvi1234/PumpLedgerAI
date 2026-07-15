@@ -166,7 +166,7 @@ export default function PriceSchedulesTab({ isAdminOrManager }: { isAdminOrManag
                   id="priceFuelType"
                   value={priceFuelType}
                   onChange={(e) => setPriceFuelType(e.target.value as FuelType)}
-                  className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+                  className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
                 >
                   <option value="PETROL">PETROL</option>
                   <option value="SPEED">SPEED</option>

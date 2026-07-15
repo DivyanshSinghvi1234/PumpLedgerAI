@@ -183,40 +183,40 @@ export default function SheetDetail({ sheet, onClose, hideBackButton }: SheetDet
               <h4 className="text-xs font-bold text-ink">Edit Sheet Timing & Date</h4>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-mono text-ink-subtle font-bold">Accounting Date</Label>
                 <Input
                   type="date"
                   value={editDate}
                   onChange={(e) => setEditDate(e.target.value)}
-                  className="bg-surface-1 border-hairline text-xs h-8 text-ink"
+                  className="bg-surface-1 border-hairline text-sm h-10 px-3 rounded-lg text-ink"
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-mono text-ink-subtle font-bold">Period Start</Label>
                 <Input
                   type="datetime-local"
                   value={editPeriodStart ? toDatetimeLocal(new Date(editPeriodStart)) : ""}
                   onChange={(e) => setEditPeriodStart(new Date(e.target.value).toISOString())}
-                  className="bg-surface-1 border-hairline text-xs h-8 text-ink"
+                  className="bg-surface-1 border-hairline text-sm h-10 px-3 rounded-lg text-ink"
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-mono text-ink-subtle font-bold">Period End</Label>
                 <Input
                   type="datetime-local"
                   value={editPeriodEnd ? toDatetimeLocal(new Date(editPeriodEnd)) : ""}
                   onChange={(e) => setEditPeriodEnd(new Date(e.target.value).toISOString())}
-                  className="bg-surface-1 border-hairline text-xs h-8 text-ink"
+                  className="bg-surface-1 border-hairline text-sm h-10 px-3 rounded-lg text-ink"
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-1 border-t border-hairline">
+            <div className="flex justify-end gap-2 pt-2 border-t border-hairline">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setEditingPeriod(false)}
-                className="h-7 text-xs text-ink-subtle"
+                className="h-8 text-xs text-ink-subtle"
               >
                 Cancel
               </Button>
@@ -229,7 +229,7 @@ export default function SheetDetail({ sheet, onClose, hideBackButton }: SheetDet
                     period_end: editPeriodEnd,
                   })
                 }
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold h-7 text-xs"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold h-8 text-xs rounded-lg px-3"
               >
                 Save Timeline
               </Button>
@@ -508,19 +508,19 @@ export default function SheetDetail({ sheet, onClose, hideBackButton }: SheetDet
                     <Table>
                       <TableHeader>
                         <TableRow className="border-b border-hairline hover:bg-transparent">
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Invoice #
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Customer
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Vehicle / Ref
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Volume
                           </TableHead>
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle text-right">
                             Amount
                           </TableHead>
                         </TableRow>
@@ -573,16 +573,16 @@ export default function SheetDetail({ sheet, onClose, hideBackButton }: SheetDet
                     <Table>
                       <TableHeader>
                         <TableRow className="border-b border-hairline hover:bg-transparent">
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Ref / Time
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Customer
                           </TableHead>
-                          <TableHead className="py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">
+                          <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
                             Payment Mode
                           </TableHead>
-                          <TableHead className="px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                          <TableHead className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle text-right">
                             Amount
                           </TableHead>
                         </TableRow>

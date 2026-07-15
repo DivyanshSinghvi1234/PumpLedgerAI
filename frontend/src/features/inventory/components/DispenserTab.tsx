@@ -215,17 +215,21 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
 
   return (
     <div className="space-y-6">
-      {/* Header Add Button (Mounted inside the main page, but triggers dispenser dialog) */}
-      {isAdminOrManager && (
-        <div className="flex justify-end -mt-12 mb-6">
+      {/* Section Header with action button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-hairline/50 pb-4">
+        <div>
+          <h3 className="text-sm font-mono uppercase tracking-wider text-ink-muted font-bold">Dispenser Inventory</h3>
+          <p className="text-xs text-ink-subtle mt-0.5">Manage physical pump dispensers and their nozzle configurations.</p>
+        </div>
+        {isAdminOrManager && (
           <Button
             onClick={() => setDispenserDialogOpen(true)}
-            className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15 cursor-pointer"
+            className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15 cursor-pointer h-9 px-4 rounded-lg self-start sm:self-auto"
           >
             <Plus size={16} className="mr-2" /> Add Fuel Dispenser
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Dispensers Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -367,15 +371,15 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
 
       {/* 1. Add Dispenser Dialog */}
       <Dialog open={dispenserDialogOpen} onOpenChange={setDispenserDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+        <DialogContent className="glass border border-hairline sm:max-w-[460px] p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
               <Fuel size={18} className="text-fuel-amber" /> Create Fuel Dispenser
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateDispenser} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="dispenserName" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="dispenserName" className="text-xs font-bold text-ink-muted">
                 Dispenser Name / Label
               </Label>
               <Input
@@ -383,24 +387,24 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 placeholder="e.g. Dispenser 1"
                 value={dispenserName}
                 onChange={(e) => setDispenserName(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink h-10 px-3.5 rounded-lg"
                 required
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="pt-4 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setDispenserDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold h-9 px-4 rounded-lg cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={createDispenserMutation.isPending}
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer"
               >
                 {createDispenserMutation.isPending ? "Creating..." : "Create Dispenser"}
               </Button>
@@ -411,15 +415,15 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
 
       {/* 1b. Edit Dispenser Dialog */}
       <Dialog open={editDispenserDialogOpen} onOpenChange={setEditDispenserDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+        <DialogContent className="glass border border-hairline sm:max-w-[460px] p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
               <Edit2 size={18} className="text-fuel-amber" /> Edit Fuel Dispenser
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleUpdateDispenser} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="editDispenserName" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="editDispenserName" className="text-xs font-bold text-ink-muted">
                 Dispenser Name / Label
               </Label>
               <Input
@@ -427,20 +431,20 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 placeholder="e.g. Dispenser A"
                 value={editDispenserName}
                 onChange={(e) => setEditDispenserName(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink h-10 px-3.5 rounded-lg"
                 required
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editDispenserStatus" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="editDispenserStatus" className="text-xs font-bold text-ink-muted">
                 Dispenser Status
               </Label>
               <select
                 id="editDispenserStatus"
                 value={editDispenserStatus}
                 onChange={(e) => setEditDispenserStatus(e.target.value)}
-                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+                className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
               >
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="MAINTENANCE">MAINTENANCE</option>
@@ -448,19 +452,19 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
               </select>
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="pt-4 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setEditDispenserDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold h-9 px-4 rounded-lg cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={updateDispenserMutation.isPending}
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer"
               >
                 {updateDispenserMutation.isPending ? "Updating..." : "Save Changes"}
               </Button>
@@ -504,15 +508,15 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
 
       {/* 2. Add Nozzle Dialog */}
       <Dialog open={nozzleDialogOpen} onOpenChange={setNozzleDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[425px]">
+        <DialogContent className="glass border border-hairline sm:max-w-[480px] p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
               <Calculator size={18} className="text-fuel-amber" /> Configure Nozzle
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateNozzle} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="nozzleName" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="nozzleName" className="text-xs font-bold text-ink-muted">
                 Nozzle Custom Name
               </Label>
               <Input
@@ -520,20 +524,20 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 placeholder="e.g. Nozzle 1A"
                 value={nozzleName}
                 onChange={(e) => setNozzleName(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink h-10 px-3.5 rounded-lg"
                 required
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="nozzleFuel" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="nozzleFuel" className="text-xs font-bold text-ink-muted">
                 Fuel Type
               </Label>
               <select
                 id="nozzleFuel"
                 value={nozzleFuelType}
                 onChange={(e) => setNozzleFuelType(e.target.value as FuelType)}
-                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+                className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
               >
                 <option value="PETROL">PETROL</option>
                 <option value="SPEED">SPEED</option>
@@ -542,8 +546,8 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="nozzleInitial" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="nozzleInitial" className="text-xs font-bold text-ink-muted">
                 Initial Meter Reading (Liters)
               </Label>
               <Input
@@ -553,24 +557,24 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 placeholder="e.g. 1000.00"
                 value={nozzleInitialReading}
                 onChange={(e) => setNozzleInitialReading(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink h-10 px-3.5 rounded-lg"
                 required
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="pt-4 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setNozzleDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold h-9 px-4 rounded-lg cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={createNozzleMutation.isPending}
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer"
               >
                 {createNozzleMutation.isPending ? "Configuring..." : "Configure Nozzle"}
               </Button>
@@ -581,15 +585,15 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
 
       {/* 2b. Edit Nozzle Dialog */}
       <Dialog open={editNozzleDialogOpen} onOpenChange={setEditNozzleDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[425px]">
+        <DialogContent className="glass border border-hairline sm:max-w-[480px] p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
               <Edit2 size={18} className="text-fuel-amber" /> Edit Nozzle Configuration
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleUpdateNozzle} className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="editNozzleName" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="editNozzleName" className="text-xs font-bold text-ink-muted">
                 Nozzle Name
               </Label>
               <Input
@@ -597,20 +601,20 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 placeholder="e.g. Nozzle 1A"
                 value={editNozzleName}
                 onChange={(e) => setEditNozzleName(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink h-10 px-3.5 rounded-lg"
                 required
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editNozzleFuel" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="editNozzleFuel" className="text-xs font-bold text-ink-muted">
                 Fuel Type
               </Label>
               <select
                 id="editNozzleFuel"
                 value={editNozzleFuelType}
                 onChange={(e) => setEditNozzleFuelType(e.target.value as FuelType)}
-                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-sm text-ink outline-none"
+                className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
               >
                 <option value="PETROL">PETROL</option>
                 <option value="SPEED">SPEED</option>
@@ -619,8 +623,8 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="editNozzleInitial" className="text-xs font-semibold text-ink-muted">
+            <div className="space-y-2">
+              <Label htmlFor="editNozzleInitial" className="text-xs font-bold text-ink-muted">
                 Initial Meter Reading (Liters)
               </Label>
               <Input
@@ -630,24 +634,24 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 placeholder="e.g. 1000.00"
                 value={editNozzleInitialReading}
                 onChange={(e) => setEditNozzleInitialReading(e.target.value)}
-                className="bg-surface-2 border-hairline outline-none text-sm text-ink"
+                className="bg-surface-2 border-hairline outline-none text-sm text-ink h-10 px-3.5 rounded-lg"
                 required
               />
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="pt-4 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setEditNozzleDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold h-9 px-4 rounded-lg cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={updateNozzleMutation.isPending}
-                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer"
               >
                 {updateNozzleMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>

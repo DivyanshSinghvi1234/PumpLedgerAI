@@ -62,11 +62,11 @@ export default function StoredSheetsList({ allSheets, sheetsLoading, onGoToCreat
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-hairline hover:bg-transparent">
-                  <TableHead className="px-4 py-2.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">Date</TableHead>
-                  <TableHead className="py-2.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">Period Start</TableHead>
-                  <TableHead className="py-2.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">Period End</TableHead>
-                  <TableHead className="py-2.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">Remarks</TableHead>
-                  <TableHead className="py-2.5 text-[9px] font-mono uppercase tracking-wider text-ink-subtle">Scan</TableHead>
+                  <TableHead className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">Date</TableHead>
+                  <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">Period Start</TableHead>
+                  <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">Period End</TableHead>
+                  <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">Remarks</TableHead>
+                  <TableHead className="py-2 text-[11px] font-bold uppercase tracking-wider text-ink-subtle">Scan</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
