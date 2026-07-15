@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -90,6 +90,10 @@ class VoucherResponse(VoucherBase):
 
     is_active: bool
 
+    # Timestamp fields — when the voucher was first saved and last modified.
+    created_at: datetime
+    updated_at: datetime
+
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="before")
@@ -133,6 +137,8 @@ class VoucherResponse(VoucherBase):
             "ocr_confidence": data.ocr_confidence,
             "image_path": data.image_path,
             "is_active": data.is_active,
+            "created_at": data.created_at,
+            "updated_at": data.updated_at,
         }
 
 

@@ -65,6 +65,8 @@ class VoucherSortField(str, Enum):
     fuel_type = "fuel_type"
     payment_mode = "payment_mode"
     total_amount = "total_amount"
+    created_at = "created_at"
+    updated_at = "updated_at"
 
 
 class SortOrder(str, Enum):

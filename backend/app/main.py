@@ -33,6 +33,7 @@ from app.api.v1.routes.shift import router as shift_router
 from app.api.v1.routes.audit_log import router as audit_log_router
 from app.api.v1.routes.employee import router as employee_router
 from app.api.v1.routes.pump import router as pump_router
+from app.api.v1.routes.daily_sheet import router as daily_sheet_router
 
 # Configure logging
 setup_logging()
@@ -194,6 +195,11 @@ app.include_router(
 )
 app.include_router(
     pump_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    daily_sheet_router,
     prefix="/api/v1",
     dependencies=protected,
 )

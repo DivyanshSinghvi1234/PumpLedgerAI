@@ -29,8 +29,11 @@ def login(username="admin", password="admin123"):
     return r.json()["access_token"]
 
 
-def auth(token):
-    return {"Authorization": f"Bearer {token}"}
+def auth(token, pump_uuid=None):
+    headers = {"Authorization": f"Bearer {token}"}
+    if pump_uuid:
+        headers["X-Pump-UUID"] = pump_uuid
+    return headers
 
 
 results = []
@@ -46,7 +49,13 @@ check("login rejects bad password", r.status_code in (400, 401), r.status_code)
 
 token = login()
 check("login admin ok", bool(token))
-H = auth(token)
+
+r_pumps = client.get(f"{P}/pumps", headers={"Authorization": f"Bearer {token}"})
+check("get pumps ok", r_pumps.status_code == 200, r_pumps.text)
+pumps = r_pumps.json()
+pump_uuid = pumps[0]["uuid"] if pumps else None
+
+H = auth(token, pump_uuid)
 
 # Protected route without token -> 401
 r = client.get(f"{P}/customers")
@@ -247,6 +256,33 @@ check("voucher tally status updated to SYNCED", r.json()["tally_status"] == "SYN
 tally_req["mark_as_synced"] = False
 r = client.post(f"{P}/tally/preview", headers=H, json=tally_req)
 check("tally preview empty after sync", r.json()["total_vouchers"] == 0 and r.json()["total_payments"] == 0, r.json())
+
+# ---- Daily Sheets ----
+r = client.get(f"{P}/daily-sheets/2026-07-15", headers=H)
+check("get nonexistent daily sheet 200 (null)", r.status_code == 200 and r.json() is None, r.text)
+
+r = client.post(f"{P}/daily-sheets", headers=H, json={
+    "date": "2026-07-15",
+    "remarks": "Test daily sheet remarks"
+})
+check("create daily sheet 201", r.status_code == 201, r.text)
+ds_uuid = r.json()["uuid"]
+
+r = client.get(f"{P}/daily-sheets/2026-07-15", headers=H)
+check("get created daily sheet 200", r.status_code == 200 and r.json()["uuid"] == ds_uuid, r.text)
+
+r = client.put(f"{P}/daily-sheets/{ds_uuid}", headers=H, json={
+    "remarks": "Updated remarks from test",
+    "manual_sheet_image": None
+})
+check("update daily sheet remarks 200", r.status_code == 200 and r.json()["remarks"] == "Updated remarks from test", r.text)
+
+r = client.post(
+    f"{P}/daily-sheets/{ds_uuid}/upload",
+    headers=H,
+    files={"file": ("test.png", b"fakeimagebytes", "image/png")}
+)
+check("upload manual sheet image 200", r.status_code == 200 and "daily-sheets" in r.json()["manual_sheet_image"], r.text)
 
 # ---- Summary ----
 passed = sum(1 for _, c, _ in results if c)

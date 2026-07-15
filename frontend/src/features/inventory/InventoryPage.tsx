@@ -47,6 +47,9 @@ export default function InventoryPage() {
   const [selectedDispenserUuid, setSelectedDispenserUuid] = useState("");
   const [selectedNozzleUuid, setSelectedNozzleUuid] = useState("");
 
+  const [deletePriceScheduleDialogOpen, setDeletePriceScheduleDialogOpen] = useState(false);
+  const [selectedPriceScheduleUuid, setSelectedPriceScheduleUuid] = useState("");
+
   const [dispenserName, setDispenserName] = useState("");
   const [editDispenserName, setEditDispenserName] = useState("");
   const [editDispenserStatus, setEditDispenserStatus] = useState("ACTIVE");
@@ -90,6 +93,38 @@ export default function InventoryPage() {
     queryKey: ["nozzleReadingsHistory"],
     queryFn: () => inventoryService.getNozzleReadings(),
     enabled: activeTab === "history",
+  });
+
+  const { data: activeRates, isLoading: activeRatesLoading } = useQuery({
+    queryKey: ["activeRates"],
+    queryFn: async () => {
+      const fuelTypes: FuelType[] = ["PETROL", "SPEED", "DIESEL", "LUBRICANT"];
+      const rates: Record<FuelType, number> = {
+        PETROL: 104.20,
+        SPEED: 108.50,
+        DIESEL: 95.50,
+        LUBRICANT: 320.00,
+      };
+      
+      await Promise.all(
+        fuelTypes.map(async (ft) => {
+          try {
+            const res = await inventoryService.getActiveRate(ft);
+            rates[ft] = Number(res.rate);
+          } catch (err) {
+            console.error(`Error loading rate for ${ft}:`, err);
+          }
+        })
+      );
+      return rates;
+    },
+    enabled: activeTab === "prices",
+  });
+
+  const { data: priceSchedules, isLoading: priceSchedulesLoading } = useQuery({
+    queryKey: ["priceSchedules"],
+    queryFn: () => inventoryService.getPriceSchedules(),
+    enabled: activeTab === "prices",
   });
 
   // Lookup map to translate nozzle ID into nozzle & dispenser details
@@ -268,12 +303,56 @@ export default function InventoryPage() {
     onSuccess: () => {
       toast.success("Fuel price schedule added successfully!");
       setPriceRate("");
+      queryClient.invalidateQueries({ queryKey: ["activeRates"] });
+      queryClient.invalidateQueries({ queryKey: ["priceSchedules"] });
     },
     onError: (err) => {
       toast.error("Failed to create price schedule.");
       console.error(err);
     },
   });
+
+  const syncPricesMutation = useMutation({
+    mutationFn: () => inventoryService.syncLiveRates(),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["activeRates"] });
+      queryClient.invalidateQueries({ queryKey: ["priceSchedules"] });
+      if (data.live) {
+        toast.success(
+          `Successfully synced live rates! Petrol: ₹${data.PETROL}, Speed: ₹${data.SPEED}, Diesel: ₹${data.DIESEL}`
+        );
+      } else {
+        toast.warning(
+          `Failed to scrape live rates, fell back to default prices. Petrol: ₹${data.PETROL}, Speed: ₹${data.SPEED}, Diesel: ₹${data.DIESEL}`
+        );
+      }
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to sync prices.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
+  const deletePriceScheduleMutation = useMutation({
+    mutationFn: (uuid: string) => inventoryService.deletePriceSchedule(uuid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activeRates"] });
+      queryClient.invalidateQueries({ queryKey: ["priceSchedules"] });
+      setDeletePriceScheduleDialogOpen(false);
+      toast.success("Price schedule deleted successfully!");
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || "Failed to delete price schedule.";
+      toast.error(msg);
+      console.error(err);
+    },
+  });
+
+  const handleDeletePriceSchedule = (e: React.FormEvent) => {
+    e.preventDefault();
+    deletePriceScheduleMutation.mutate(selectedPriceScheduleUuid);
+  };
 
   // Form Submissions
   const handleCreateDispenser = (e: React.FormEvent) => {
@@ -1033,7 +1112,7 @@ export default function InventoryPage() {
           {/* Active rates & Schedules list */}
           <div className="md:col-span-2 space-y-6">
             <Card className="glass border-hairline">
-              <CardHeader className="pb-3 border-b border-hairline">
+              <CardHeader className="pb-3 border-b border-hairline flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
                     <Calendar size={15} />
@@ -1047,24 +1126,146 @@ export default function InventoryPage() {
                     </CardDescription>
                   </div>
                 </div>
+                {isAdminOrManager && (
+                  <Button
+                    type="button"
+                    onClick={() => syncPricesMutation.mutate()}
+                    disabled={syncPricesMutation.isPending}
+                    className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs px-3 py-1.5 shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    {syncPricesMutation.isPending ? "Syncing..." : "Sync Prices"}
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="pt-4">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {(["PETROL", "SPEED", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => (
-                    <Card key={ft} className="bg-surface-2 border border-hairline p-4 flex flex-col justify-between">
-                      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">{ft}</p>
-                      <div className="flex items-baseline gap-1 mt-2.5">
-                        <span className="text-xl font-bold tracking-tight text-ink">
-                          ₹{ft === "PETROL" ? "104.20" : ft === "SPEED" ? "108.50" : ft === "DIESEL" ? "95.50" : "320.00"}
-                        </span>
-                        <span className="text-[10px] text-ink-subtle">/L</span>
-                      </div>
-                      <p className="text-[9px] text-success mt-1.5 flex items-center gap-1 font-medium">
-                        <span className="h-1.5 w-1.5 rounded-full bg-success inline-block" /> Active
-                      </p>
-                    </Card>
-                  ))}
+                {activeRatesLoading ? (
+                  <div className="py-6 text-center text-xs text-ink-subtle">Loading active rates...</div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {(["PETROL", "SPEED", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => {
+                      const rate = activeRates ? activeRates[ft] : 0;
+                      return (
+                        <Card key={ft} className="bg-surface-2 border border-hairline p-4 flex flex-col justify-between">
+                          <p className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">{ft}</p>
+                          <div className="flex items-baseline gap-1 mt-2.5">
+                            <span className="text-xl font-bold tracking-tight text-ink">
+                              ₹{Number(rate).toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-ink-subtle">/L</span>
+                          </div>
+                          <p className="text-[9px] text-success mt-1.5 flex items-center gap-1 font-medium">
+                            <span className="h-1.5 w-1.5 rounded-full bg-success inline-block" /> Active
+                          </p>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Price Schedule History Card */}
+            <Card className="glass border-hairline">
+              <CardHeader className="pb-3 border-b border-hairline">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
+                    <TrendingUp size={15} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-bold tracking-tight text-ink">
+                      Pricing Schedules & History
+                    </CardTitle>
+                    <CardDescription className="text-xs text-ink-subtle">
+                      Log of all manual and automated historical fuel rate changes.
+                    </CardDescription>
+                  </div>
                 </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {priceSchedulesLoading ? (
+                  <div className="p-6 text-center text-xs text-ink-subtle">Loading schedules...</div>
+                ) : priceSchedules && priceSchedules.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b border-hairline hover:bg-transparent">
+                          <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Fuel Type
+                          </TableHead>
+                          <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                            New Rate
+                          </TableHead>
+                          <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
+                            Effective Date & Time
+                          </TableHead>
+                          <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">
+                            Status
+                          </TableHead>
+                          {isAdminOrManager && (
+                            <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right w-20">
+                              Actions
+                            </TableHead>
+                          )}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {priceSchedules.map((schedule) => {
+                          const isApplied = schedule.is_applied || new Date(schedule.effective_from).getTime() <= Date.now();
+                          return (
+                            <TableRow key={schedule.uuid} className="border-b border-hairline hover:bg-surface-3/15">
+                              <TableCell className="px-5 text-xs font-semibold text-ink-muted">
+                                <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
+                                  {schedule.fuel_type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs text-ink font-bold">
+                                ₹{Number(schedule.rate).toFixed(2)} / L
+                              </TableCell>
+                              <TableCell className="text-xs text-ink-muted font-medium">
+                                {new Date(schedule.effective_from).toLocaleString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </TableCell>
+                              <TableCell className="px-5 text-right">
+                                <Badge
+                                  className={`text-[9px] uppercase font-mono font-bold border-transparent ${
+                                    isApplied
+                                      ? "bg-success/15 text-success hover:bg-success/15"
+                                      : "bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15"
+                                  }`}
+                                >
+                                  {isApplied ? "Applied" : "Scheduled"}
+                                </Badge>
+                              </TableCell>
+                              {isAdminOrManager && (
+                                <TableCell className="px-5 text-right">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedPriceScheduleUuid(schedule.uuid);
+                                      setDeletePriceScheduleDialogOpen(true);
+                                    }}
+                                    className="text-ink-subtle hover:text-destructive transition-colors p-1 rounded hover:bg-surface-3 cursor-pointer"
+                                    title="Delete Price Schedule"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-ink-subtle italic">
+                    No pricing schedules configured yet.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1438,6 +1639,39 @@ export default function InventoryPage() {
               Confirm & Unlock
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 4. Delete Price Schedule Dialog */}
+      <Dialog open={deletePriceScheduleDialogOpen} onOpenChange={setDeletePriceScheduleDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2 text-destructive">
+              <AlertTriangle size={18} /> Delete Price Schedule
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleDeletePriceSchedule} className="space-y-4 py-2">
+            <p className="text-xs text-ink-muted">
+              Are you sure you want to delete this price schedule? This action is permanent and will prevent it from applying to future transactions. It has no effect on past vouchers.
+            </p>
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeletePriceScheduleDialogOpen(false)}
+                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={deletePriceScheduleMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90 text-canvas font-semibold text-xs cursor-pointer"
+              >
+                {deletePriceScheduleMutation.isPending ? "Deleting..." : "Delete Schedule"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

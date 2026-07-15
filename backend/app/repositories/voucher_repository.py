@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
@@ -19,6 +19,8 @@ class VoucherRepository(BaseRepository[Voucher]):
         "fuel_type": Voucher.fuel_type,
         "payment_mode": Voucher.payment_mode,
         "total_amount": Voucher.total_amount,
+        "created_at": Voucher.created_at,
+        "updated_at": Voucher.updated_at,
     }
 
     def __init__(self):
@@ -97,6 +99,8 @@ class VoucherRepository(BaseRepository[Voucher]):
         verification_status: str | None = None,
         from_date: date | None = None,
         to_date: date | None = None,
+        from_datetime: datetime | None = None,
+        to_datetime: datetime | None = None,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "invoice_date",
@@ -159,6 +163,17 @@ class VoucherRepository(BaseRepository[Voucher]):
         if to_date:
             statement = statement.where(
                 Voucher.invoice_date <= to_date
+            )
+
+        # Time-of-save filters (based on created_at — wall-clock timestamp)
+        if from_datetime:
+            statement = statement.where(
+                Voucher.created_at >= from_datetime
+            )
+
+        if to_datetime:
+            statement = statement.where(
+                Voucher.created_at <= to_datetime
             )
 
         # -------------------------

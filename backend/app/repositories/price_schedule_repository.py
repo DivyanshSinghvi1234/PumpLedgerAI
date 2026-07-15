@@ -52,3 +52,19 @@ class PriceScheduleRepository(BaseRepository[PriceSchedule]):
                 )
             ).all()
         )
+
+    def get_all_schedules(
+        self,
+        db: Session,
+    ) -> list[PriceSchedule]:
+        """
+        Get all active price schedules ordered by effective_from descending.
+        """
+        return list(
+            db.scalars(
+                select(PriceSchedule)
+                .where(PriceSchedule.is_active == True)
+                .order_by(PriceSchedule.effective_from.desc())
+            ).all()
+        )
+

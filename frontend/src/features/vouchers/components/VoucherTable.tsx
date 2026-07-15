@@ -63,6 +63,8 @@ export default function VoucherTable({
 
           <TableHead>Status</TableHead>
 
+          <TableHead className="text-nowrap">Saved At</TableHead>
+
           <TableHead className="w-20">
             Actions
           </TableHead>
@@ -117,6 +119,15 @@ export default function VoucherTable({
               <VoucherPaymentStatusBadge
                 status={voucher.payment_status}
               />
+            </TableCell>
+
+            <TableCell className="text-xs text-ink-muted whitespace-nowrap">
+              {voucher.created_at
+                ? new Date(voucher.created_at).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                : "—"}
             </TableCell>
 
             <TableCell>

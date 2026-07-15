@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Upload,
   Camera,
-  Image as ImageIcon,
   Sparkles,
   FileImage,
   X,
@@ -189,7 +188,7 @@ export default function UploadPage() {
 
       {/* Drop zone */}
       <div
-        className={`relative flex h-64 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all duration-200 ${
+        className={`relative flex h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-all duration-200 ${
           dragActive
             ? "drag-zone-active border-fuel-amber"
             : "border-hairline-strong hover:border-ink-tertiary bg-surface-1/50"
@@ -202,44 +201,31 @@ export default function UploadPage() {
         }}
         onDragLeave={() => setDragActive(false)}
       >
-        <div className={`flex h-14 w-14 items-center justify-center rounded-xl transition-colors ${
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
           dragActive ? "bg-fuel-amber/15 text-fuel-amber" : "bg-surface-3 border border-hairline text-ink-subtle"
         }`}>
-          <Upload size={24} />
+          <Upload size={20} />
         </div>
 
-        <p className="mt-4 text-sm font-semibold text-ink">
-          Drag & drop your invoice here
+        <p className="mt-3 text-sm font-semibold text-ink">
+          Drag & drop or click to upload your invoice
         </p>
 
-        <p className="mt-1 text-xs text-ink-subtle">
-          or use the buttons below to select a file
-        </p>
-
-        <p className="mt-3 text-[10px] font-mono text-ink-tertiary uppercase tracking-wider">
+        <p className="mt-2 text-[10px] font-mono text-ink-tertiary uppercase tracking-wider">
           Supports JPG, PNG, WEBP · Max 10MB
         </p>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex flex-1 items-center justify-center gap-2.5 rounded-xl border border-hairline bg-surface-1 px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-2 hover:text-ink transition cursor-pointer"
-        >
-          <ImageIcon size={18} />
-          Choose from device
-        </button>
-
+      {/* Scan with camera button */}
+      <div className="w-full">
         <button
           type="button"
           onClick={openCamera}
           disabled={cameraLoading}
-          className="flex flex-1 items-center justify-center gap-2.5 rounded-xl border border-hairline bg-surface-1 px-4 py-3 text-sm font-medium text-ink-muted hover:bg-surface-2 hover:text-ink transition cursor-pointer disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-4 rounded-xl border border-fuel-amber/30 bg-fuel-amber/5 hover:bg-fuel-amber/10 text-fuel-amber px-5 py-5 text-lg font-bold transition cursor-pointer disabled:opacity-50 shadow-sm shadow-fuel-amber/5"
         >
-          {cameraLoading ? <Loader size={18} className="animate-spin" /> : <Camera size={18} />}
-          {cameraLoading ? "Opening camera..." : "Scan with camera"}
+          {cameraLoading ? <Loader size={24} className="animate-spin" /> : <Camera size={24} />}
+          {cameraLoading ? "Opening camera..." : "Scan with Camera"}
         </button>
       </div>
 
@@ -361,7 +347,7 @@ export default function UploadPage() {
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Process with AI
+                  PROCESS INVOICE
                 </>
               )}
             </button>

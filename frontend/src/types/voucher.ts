@@ -61,6 +61,12 @@ export interface Voucher {
   remarks: string | null;
 
   is_active: boolean;
+
+  /** ISO 8601 datetime string — when the voucher record was first created/saved. */
+  created_at: string;
+
+  /** ISO 8601 datetime string — when the voucher record was last modified. */
+  updated_at: string;
 }
 
 export interface PaginationResponse {

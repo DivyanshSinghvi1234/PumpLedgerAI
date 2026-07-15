@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session
@@ -260,6 +260,8 @@ class VoucherService:
         verification_status: str | None = None,
         from_date: date | None = None,
         to_date: date | None = None,
+        from_datetime: datetime | None = None,
+        to_datetime: datetime | None = None,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "invoice_date",
@@ -276,6 +278,8 @@ class VoucherService:
             verification_status=verification_status,
             from_date=from_date,
             to_date=to_date,
+            from_datetime=from_datetime,
+            to_datetime=to_datetime,
             page=page,
             page_size=page_size,
             sort_by=sort_by,

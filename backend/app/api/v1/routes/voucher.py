@@ -6,7 +6,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, datetime
 
 from app.core.dependencies import get_db, require_roles
 from app.core.enums import (
@@ -111,6 +111,16 @@ def get_vouchers(
         default=None,
     ),
 
+    from_datetime: datetime | None = Query(
+        default=None,
+        description="Filter vouchers saved/created on or after this UTC datetime (ISO 8601, e.g. 2024-01-15T09:00:00)",
+    ),
+
+    to_datetime: datetime | None = Query(
+        default=None,
+        description="Filter vouchers saved/created on or before this UTC datetime (ISO 8601, e.g. 2024-01-15T18:00:00)",
+    ),
+
     page: int = Query(
         default=1,
         ge=1,
@@ -143,6 +153,8 @@ def get_vouchers(
         verification_status=verification_status or None,
         from_date=from_date,
         to_date=to_date,
+        from_datetime=from_datetime,
+        to_datetime=to_datetime,
         page=page,
         page_size=page_size,
         sort_by=sort_by.value,

@@ -102,6 +102,22 @@ class InventoryService {
   async deleteNozzle(nozzleUuid: string): Promise<void> {
     await api.delete(`/v1/nozzles/${nozzleUuid}`);
   }
+
+  async syncLiveRates(): Promise<{ PETROL: number; SPEED: number; DIESEL: number; live: boolean }> {
+    const response = await api.post<{ PETROL: number; SPEED: number; DIESEL: number; live: boolean }>(
+      "/v1/price-schedules/sync"
+    );
+    return response.data;
+  }
+
+  async getPriceSchedules(): Promise<PriceSchedule[]> {
+    const response = await api.get<PriceSchedule[]>("/v1/price-schedules");
+    return response.data;
+  }
+
+  async deletePriceSchedule(uuid: string): Promise<void> {
+    await api.delete(`/v1/price-schedules/${uuid}`);
+  }
 }
 
 const inventoryService = new InventoryService();

@@ -106,3 +106,21 @@ class EmployeeNotFoundError(AppException):
 class DuplicateEmployeeEmailError(AppException):
     def __init__(self, email: str):
         super().__init__(f"Employee email '{email}' already exists.")
+
+
+class PriceScheduleNotFoundError(AppException):
+    def __init__(self, schedule_uuid: str):
+        self.schedule_uuid = schedule_uuid
+        super().__init__(f"Price schedule '{schedule_uuid}' not found.")
+
+
+class DailySheetNotFoundError(AppException):
+    def __init__(self, date_or_uuid: str):
+        self.date_or_uuid = date_or_uuid
+        super().__init__(f"Daily sheet '{date_or_uuid}' not found.")
+
+
+class DuplicateDailySheetError(AppException):
+    def __init__(self, date_str: str):
+        self.date_str = date_str
+        super().__init__(f"Daily sheet for date '{date_str}' already exists.")

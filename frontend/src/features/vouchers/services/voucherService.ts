@@ -15,6 +15,10 @@ export interface VoucherSearchParams {
   customer_uuid?: string;
   from_date?: string;
   to_date?: string;
+  /** ISO 8601 datetime string — filter vouchers saved on or after this time. */
+  from_datetime?: string;
+  /** ISO 8601 datetime string — filter vouchers saved on or before this time. */
+  to_datetime?: string;
   page?: number;
   page_size?: number;
   sort_by?: string;

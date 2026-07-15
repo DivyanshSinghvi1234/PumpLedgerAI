@@ -11,6 +11,7 @@ from app.schemas.price_schedule import (
     PriceScheduleResponse,
 )
 from app.services.price_schedule_service import PriceScheduleService
+from app.core.exceptions import PriceScheduleNotFoundError
 
 router = APIRouter(prefix="/price-schedules", tags=["Price Schedules"])
 service = PriceScheduleService()
@@ -56,3 +57,51 @@ def get_active_rate(
         "fuel_type": fuel_type,
         "rate": rate,
     }
+
+
+@router.post(
+    "/sync",
+    response_model=dict,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def sync_prices(
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.sync_rajasthan_prices(db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync live rates: {str(e)}",
+        )
+
+
+@router.get(
+    "",
+    response_model=list[PriceScheduleResponse],
+)
+def list_schedules(
+    db: Session = Depends(get_db),
+):
+    # Perform pending applications
+    service.apply_pending_schedules(db)
+    return service.get_all_schedules(db)
+
+
+@router.delete(
+    "/{uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def delete_schedule(
+    uuid: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service.delete_schedule(db, uuid)
+    except PriceScheduleNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+
