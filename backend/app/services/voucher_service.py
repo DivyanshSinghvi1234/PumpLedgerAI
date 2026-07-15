@@ -242,6 +242,14 @@ class VoucherService:
                 "payment_mode": voucher.payment_mode.value,
             }
         )
+        # Send credit alert if payment mode is credit
+        if voucher.payment_mode == PaymentMode.CREDIT:
+            try:
+                from app.services.notification_service import NotificationService
+                NotificationService().send_credit_alert(db, voucher)
+            except Exception:
+                pass
+
         return voucher
 
     # -----------------------------------
@@ -478,6 +486,14 @@ class VoucherService:
             }
         )
 
+        # Send credit alert if payment mode is credit
+        if voucher.payment_mode == PaymentMode.CREDIT:
+            try:
+                from app.services.notification_service import NotificationService
+                NotificationService().send_credit_alert(db, voucher)
+            except Exception:
+                pass
+
         return voucher
 
     # -----------------------------------
@@ -503,10 +519,20 @@ class VoucherService:
 
         voucher.verification_status = status
 
-        return self.repository.update(
+        voucher = self.repository.update(
             db,
             voucher,
         )
+
+        # Send credit alert if payment mode is credit and verified
+        if status == VerificationStatus.VERIFIED and voucher.payment_mode == PaymentMode.CREDIT:
+            try:
+                from app.services.notification_service import NotificationService
+                NotificationService().send_credit_alert(db, voucher)
+            except Exception:
+                pass
+
+        return voucher
 
     # -----------------------------------
     # Delete

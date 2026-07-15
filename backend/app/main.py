@@ -16,6 +16,7 @@ from app.modules.dashboard.router import (
 )
 
 from app.core.config import settings
+import os
 from app.core.dependencies import get_current_user, require_roles
 from app.core.enums import UserRole
 from app.core.logging import get_logger, setup_logging
@@ -61,25 +62,34 @@ app = FastAPI(
 # Register pump scoping middleware
 app.add_middleware(PumpScopingMiddleware)
 
-# Allow the Vite dev frontend to call the API during development.
+# CORS: reads ALLOWED_ORIGINS env-var (comma-separated) so Render frontend URL
+# can be injected at runtime without code changes.  Falls back to localhost dev URLs.
+_default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    "http://localhost:5176",
+    "http://127.0.0.1:5176",
+    "http://localhost:5177",
+    "http://127.0.0.1:5177",
+    "http://localhost:5178",
+    "http://127.0.0.1:5178",
+    "http://localhost:5179",
+    "http://127.0.0.1:5179",
+]
+_extra = os.getenv("ALLOWED_ORIGINS", "")
+_allowed_origins = (
+    [o.strip() for o in _extra.split(",") if o.strip()] + _default_origins
+    if _extra
+    else _default_origins
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-        "http://localhost:5176",
-        "http://127.0.0.1:5176",
-        "http://localhost:5177",
-        "http://127.0.0.1:5177",
-        "http://localhost:5178",
-        "http://127.0.0.1:5178",
-        "http://localhost:5179",
-        "http://127.0.0.1:5179",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

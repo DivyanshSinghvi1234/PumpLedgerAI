@@ -1,0 +1,90 @@
+# ─────────────────────────────────────────────
+# PumpLedgerAI – Render Blueprint
+# ─────────────────────────────────────────────
+# Two services:
+#   1. pumpledger-backend  (FastAPI / Python web service)
+#   2. pumpledger-frontend (React / Static Site)
+#
+# Environment variables are NOT committed here.
+# Set them in the Render dashboard under each service.
+# ─────────────────────────────────────────────
+
+services:
+  # ─── 1. FastAPI Backend ───────────────────
+  - type: web
+    name: pumpledger-backend
+    runtime: python
+    region: singapore          # closest to Neon ap-southeast-1
+    plan: free                 # upgrade when ready
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # ── Database (Neon PostgreSQL) ──────────
+      - key: DATABASE_URL
+        sync: false            # set manually in Render dashboard
+
+      # ── AI Keys ────────────────────────────
+      - key: GOOGLE_API_KEY
+        sync: false
+
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+      # ── Security ───────────────────────────
+      - key: SECRET_KEY
+        generateValue: true    # Render auto-generates a secure secret
+
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+
+      - key: ALGORITHM
+        value: "HS256"
+
+      # ── App ────────────────────────────────
+      - key: APP_NAME
+        value: "PumpLedger API"
+
+      - key: APP_VERSION
+        value: "1.0.0"
+
+      - key: DEBUG
+        value: "False"         # Always False in production
+
+      - key: AI_PROVIDER
+        value: "gemini"
+
+      - key: GEMINI_MODEL
+        value: "gemini-2.5-flash"
+
+      - key: DEFAULT_ADMIN_USERNAME
+        value: "admin"
+
+      - key: DEFAULT_ADMIN_PASSWORD
+        sync: false            # set a strong password in dashboard
+
+      - key: DEFAULT_ADMIN_FULL_NAME
+        value: "Administrator"
+
+  # ─── 2. React Frontend (Static Site) ──────
+  - type: web
+    name: pumpledger-frontend
+    runtime: static
+    region: singapore
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: "no-cache"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Point to the backend Web Service URL (set in Render dashboard after backend deploys)
+      - key: VITE_API_BASE_URL
+        sync: false
