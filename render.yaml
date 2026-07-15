@@ -72,7 +72,7 @@ services:
     name: pumpledger-frontend
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npx vite build
     staticPublishPath: dist
     headers:
       - path: /*
