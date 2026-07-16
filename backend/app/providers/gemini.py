@@ -26,7 +26,6 @@ class GeminiProvider(VisionProvider):
         self,
         image_path: str,
     ) -> OCRExtraction:
-
         try:
             # Validate image
             ImageValidator.validate(image_path)
@@ -36,10 +35,22 @@ class GeminiProvider(VisionProvider):
 
             # Detect MIME type automatically
             mime_type, _ = mimetypes.guess_type(image_path)
-
             if mime_type is None:
                 mime_type = "image/jpeg"
 
+            return await self.extract_data_from_bytes(image_bytes, mime_type)
+
+        except Exception as exc:
+            raise OCRProviderException(
+                f"Gemini OCR failed: {exc}"
+            ) from exc
+
+    async def extract_data_from_bytes(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+    ) -> OCRExtraction:
+        try:
             # Call Gemini
             response = self.client.models.generate_content(
                 model=settings.GEMINI_MODEL,

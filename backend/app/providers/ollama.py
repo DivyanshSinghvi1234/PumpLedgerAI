@@ -22,9 +22,22 @@ class OllamaProvider(VisionProvider):
             # Validate image
             ImageValidator.validate(image_path)
 
-            # Read and encode image to base64
-            image_path_obj = Path(image_path)
-            image_bytes = image_path_obj.read_bytes()
+            # Read image bytes
+            image_bytes = Path(image_path).read_bytes()
+
+            return await self.extract_data_from_bytes(image_bytes)
+
+        except Exception as exc:
+            raise OCRProviderException(
+                f"Ollama OCR failed: {exc}"
+            ) from exc
+
+    async def extract_data_from_bytes(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+    ) -> OCRExtraction:
+        try:
             base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
             # Prepare prompt

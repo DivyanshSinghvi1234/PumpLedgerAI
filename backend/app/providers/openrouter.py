@@ -16,26 +16,45 @@ from app.utils.image_validator import ImageValidator
 
 class OpenRouterProvider(VisionProvider):
 
+    def __init__(self):
+        self._client = httpx.AsyncClient(
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            timeout=httpx.Timeout(30.0)
+        )
+
     async def extract_data(
         self,
         image_path: str,
     ) -> OCRExtraction:
-        if not settings.OPENROUTER_API_KEY:
-            raise OCRProviderException("OpenRouter API key is not configured.")
-
         try:
             # Validate image
             ImageValidator.validate(image_path)
 
-            # Read and encode image to base64
-            image_path_obj = Path(image_path)
-            image_bytes = image_path_obj.read_bytes()
-            base64_image = base64.b64encode(image_bytes).decode("utf-8")
+            # Read image bytes
+            image_bytes = Path(image_path).read_bytes()
 
             # Detect MIME type
             mime_type, _ = mimetypes.guess_type(image_path)
             if mime_type is None:
                 mime_type = "image/jpeg"
+
+            return await self.extract_data_from_bytes(image_bytes, mime_type)
+
+        except Exception as exc:
+            raise OCRProviderException(
+                f"OpenRouter OCR failed: {exc}"
+            ) from exc
+
+    async def extract_data_from_bytes(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+    ) -> OCRExtraction:
+        if not settings.OPENROUTER_API_KEY:
+            raise OCRProviderException("OpenRouter API key is not configured.")
+
+        try:
+            base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
             # Prepare prompt
             prompt = f"{SYSTEM_PROMPT}\n\n{VOUCHER_PROMPT}\n\nReturn a JSON object conforming exactly to the OCRExtraction schema."
@@ -68,14 +87,13 @@ class OpenRouterProvider(VisionProvider):
                 "temperature": 0,
             }
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                response.raise_for_status()
-                result = response.json()
+            response = await self._client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            result = response.json()
 
             # Extract response text and parse
             choices = result.get("choices", [])

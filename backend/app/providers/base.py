@@ -13,3 +13,11 @@ class VisionProvider(ABC):
         image_path: str,
     ) -> OCRExtraction:
         ...
+
+    @abstractmethod
+    async def extract_data_from_bytes(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+    ) -> OCRExtraction:
+        ...

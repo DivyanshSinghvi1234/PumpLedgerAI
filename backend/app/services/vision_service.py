@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.core.enums import AIProvider
 from app.core.logging import get_logger
 from app.providers.gemini import GeminiProvider
-from app.providers.ollama import OllamaProvider
 from app.providers.openrouter import OpenRouterProvider
 from app.schemas.vision import OCRResult
 from app.services.ocr_parser import OCRParser
+from app.utils.image_preprocessor import ImagePreprocessor
 
 logger = get_logger(__name__)
 
@@ -14,57 +16,50 @@ logger = get_logger(__name__)
 class VisionService:
 
     def __init__(self):
-        # Instantiate the providers in the fallback sequence
+        self.preprocessor = ImagePreprocessor()
+        # Instantiate the providers in the fallback sequence (Gemini primary -> OpenRouter fallback)
         self.providers = [
             (AIProvider.GEMINI, GeminiProvider()),
-            (AIProvider.OPENROUTER, OpenRouterProvider()),
-            (AIProvider.OLLAMA, OllamaProvider())
+            (AIProvider.OPENROUTER, OpenRouterProvider())
         ]
 
     async def extract(
         self,
         image_path: str,
     ) -> OCRResult:
-        last_exception = None
-        best_result = None
-
-        for provider_enum, provider_inst in self.providers:
-            try:
-                logger.info(f"Attempting OCR extraction using provider: {provider_enum.value}")
-                extraction = await provider_inst.extract_data(image_path)
-                
-                result = OCRParser.parse(
-                    extraction,
-                    image_path=image_path,
-                )
-                # Assign the actual provider enum that succeeded
-                result.provider = provider_enum
-
-                # Check confidence calibration
-                if result.confidence is not None and result.confidence >= 0.85:
-                    logger.info(
-                        f"Successful high-confidence ({result.confidence:.2f}) extraction with {provider_enum.value}"
-                    )
-                    return result
-
-                logger.warning(
-                    f"Provider {provider_enum.value} returned low confidence ({result.confidence if result.confidence else 0.0}). Trying next provider..."
-                )
-                if best_result is None or (result.confidence or 0.0) > (best_result.confidence or 0.0):
-                    best_result = result
-
-            except Exception as exc:
-                logger.warning(f"OCR provider {provider_enum.value} failed: {exc}")
-                last_exception = exc
-
-        # If we got at least one result, return the best candidate
-        if best_result is not None:
+        # Preprocess the image in memory
+        try:
+            image_bytes, mime_type = self.preprocessor.preprocess_to_bytes(image_path)
+        except Exception as preprocess_exc:
             logger.warning(
-                f"No provider achieved high confidence. Returning best candidate from {best_result.provider.value} with confidence {best_result.confidence}"
+                f"Image preprocessing failed for {image_path}: {preprocess_exc}. Falling back to original file bytes."
             )
-            return best_result
+            import mimetypes
+            image_bytes = Path(image_path).read_bytes()
+            mime_type, _ = mimetypes.guess_type(image_path)
+            if mime_type is None:
+                mime_type = "image/jpeg"
 
-        if last_exception:
-            raise last_exception
-
-        raise ValueError("No OCR providers configured or available.")
+        # Try Primary Provider (Gemini)
+        primary_enum, primary_inst = self.providers[0]
+        try:
+            logger.info(f"Attempting OCR extraction using primary provider: {primary_enum.value}")
+            extraction = await primary_inst.extract_data_from_bytes(image_bytes, mime_type)
+            result = OCRParser.parse(extraction, image_path=image_path)
+            result.provider = primary_enum
+            return result
+        except Exception as primary_exc:
+            logger.warning(f"Primary provider {primary_enum.value} failed: {primary_exc}. Trying fallback...")
+            
+            if len(self.providers) > 1:
+                fallback_enum, fallback_inst = self.providers[1]
+                try:
+                    logger.info(f"Attempting OCR extraction using fallback provider: {fallback_enum.value}")
+                    extraction = await fallback_inst.extract_data_from_bytes(image_bytes, mime_type)
+                    result = OCRParser.parse(extraction, image_path=image_path)
+                    result.provider = fallback_enum
+                    return result
+                except Exception as fallback_exc:
+                    logger.error(f"Fallback provider {fallback_enum.value} failed: {fallback_exc}")
+                    raise fallback_exc
+            raise primary_exc
