@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
 
     # -------------------------------
+    # Cloudflare R2 Storage
+    # -------------------------------
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET_NAME: str = ""
+    R2_PUBLIC_URL: str = ""
+
+    # -------------------------------
     # Security
     # -------------------------------
     SECRET_KEY: str = "CHANGE_THIS_IN_PRODUCTION"
