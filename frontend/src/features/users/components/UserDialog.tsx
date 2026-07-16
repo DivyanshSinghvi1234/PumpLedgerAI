@@ -58,7 +58,7 @@ export default function UserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-card p-6 shadow-xl">
+      <DialogContent className="sm:max-w-[480px] w-full bg-card p-6 shadow-xl">
         <DialogTitle className="mb-6 text-xl font-semibold">
           {user ? (
             <>
