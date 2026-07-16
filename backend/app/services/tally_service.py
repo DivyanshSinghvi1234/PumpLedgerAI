@@ -168,7 +168,12 @@ class TallyService:
             ET.SubElement(v_element, "PARTYLEDGERNAME").text = party_ledger
             ET.SubElement(v_element, "PERSISTEDVIEW").text = "Accounting Voucher"
             
-            remarks_parts = [f"Fuel: {v.fuel_type.value} @ {v.rate_per_liter}/L x {v.quantity_liters}L"]
+            if v.items:
+                item_remarks = [f"{item.fuel_type.value}: {item.quantity_liters}L @ {item.rate_per_liter}" for item in v.items]
+                remarks_parts = [f"Items: {', '.join(item_remarks)}"]
+            else:
+                remarks_parts = [f"Fuel: {v.fuel_type.value if v.fuel_type else ''} @ {v.rate_per_liter}/L x {v.quantity_liters}L"]
+
             if v.vehicle_number:
                 remarks_parts.append(f"Vehicle: {v.vehicle_number}")
             if v.remarks:
@@ -183,11 +188,19 @@ class TallyService:
             ET.SubElement(party_entry, "AMOUNT").text = f"-{v.total_amount:.2f}" # Debit value is negative in Tally XML
 
             # Entry 2: Sales Credit (negative amount represents CREDIT in Tally XML but uses positive number for value)
-            sales_ledger = get_sales_ledger(v.fuel_type)
-            sales_entry = ET.SubElement(v_element, "ALLLEDGERENTRIES.LIST")
-            ET.SubElement(sales_entry, "LEDGERNAME").text = sales_ledger
-            ET.SubElement(sales_entry, "ISDEEMEDPOSITIVE").text = "No" # NO = Credit
-            ET.SubElement(sales_entry, "AMOUNT").text = f"{v.total_amount:.2f}" # Credit value is positive in Tally XML
+            if v.items:
+                for item in v.items:
+                    sales_ledger = get_sales_ledger(item.fuel_type)
+                    sales_entry = ET.SubElement(v_element, "ALLLEDGERENTRIES.LIST")
+                    ET.SubElement(sales_entry, "LEDGERNAME").text = sales_ledger
+                    ET.SubElement(sales_entry, "ISDEEMEDPOSITIVE").text = "No" # NO = Credit
+                    ET.SubElement(sales_entry, "AMOUNT").text = f"{item.total_amount:.2f}" # Credit value is positive in Tally XML
+            else:
+                sales_ledger = get_sales_ledger(v.fuel_type)
+                sales_entry = ET.SubElement(v_element, "ALLLEDGERENTRIES.LIST")
+                ET.SubElement(sales_entry, "LEDGERNAME").text = sales_ledger
+                ET.SubElement(sales_entry, "ISDEEMEDPOSITIVE").text = "No" # NO = Credit
+                ET.SubElement(sales_entry, "AMOUNT").text = f"{v.total_amount:.2f}" # Credit value is positive in Tally XML
 
         # 2. Generate XML for Payments (Tally Receipt Vouchers)
         for p in payments:

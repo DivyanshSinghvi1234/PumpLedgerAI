@@ -129,20 +129,31 @@ class VoucherService:
             data.customer_name,
         )
 
-        total = (
-            Decimal(data.quantity_liters)
-            * Decimal(data.rate_per_liter)
-        ).quantize(
-            Decimal("0.01"),
-            rounding=ROUND_HALF_UP,
-        )
+        total = data.total_amount
+
+        from app.models.voucher_item import VoucherItem
 
         voucher = Voucher(
             **data.model_dump(
-                exclude={"customer_uuid"},
+                exclude={"customer_uuid", "items"},
             ),
             customer_id=customer.id if customer else None,
         )
+
+        voucher.items = [
+            VoucherItem(
+                fuel_type=item.fuel_type,
+                quantity_liters=item.quantity_liters,
+                rate_per_liter=item.rate_per_liter,
+                total_amount=item.total_amount,
+            )
+            for item in data.items
+        ]
+
+        if data.items:
+            voucher.fuel_type = data.items[0].fuel_type
+            voucher.quantity_liters = data.items[0].quantity_liters
+            voucher.rate_per_liter = data.items[0].rate_per_liter
 
         # Seed settlement state: cash/UPI/card sales are paid on the spot;
         # a CREDIT sale starts fully unpaid and is settled via payments.
@@ -199,7 +210,8 @@ class VoucherService:
                     actor_id=actor_id,
                 )
 
-            self.tank_service.deduct_stock(db, voucher.fuel_type, voucher.quantity_liters)
+            for item in voucher.items:
+                self.tank_service.deduct_stock(db, item.fuel_type, item.quantity_liters)
             
             # Log audit log
             self.audit_service.log_action(
@@ -212,8 +224,6 @@ class VoucherService:
                     "invoice_number": voucher.invoice_number,
                     "invoice_date": str(voucher.invoice_date),
                     "total_amount": str(voucher.total_amount),
-                    "fuel_type": voucher.fuel_type.value,
-                    "quantity_liters": str(voucher.quantity_liters),
                     "payment_mode": voucher.payment_mode.value,
                 }
             )
@@ -223,7 +233,8 @@ class VoucherService:
             db,
             voucher,
         )
-        self.tank_service.deduct_stock(db, voucher.fuel_type, voucher.quantity_liters)
+        for item in voucher.items:
+            self.tank_service.deduct_stock(db, item.fuel_type, item.quantity_liters)
         
         # Log audit log
         self.audit_service.log_action(
@@ -358,6 +369,8 @@ class VoucherService:
                 voucher_uuid,
             )
 
+        # Store old stock configurations to restore
+        old_items = list(voucher.items)
         old_fuel_type = voucher.fuel_type
         old_quantity = voucher.quantity_liters
 
@@ -365,8 +378,6 @@ class VoucherService:
             "invoice_number": voucher.invoice_number,
             "invoice_date": str(voucher.invoice_date),
             "total_amount": str(voucher.total_amount),
-            "fuel_type": voucher.fuel_type.value,
-            "quantity_liters": str(voucher.quantity_liters),
             "payment_mode": voucher.payment_mode.value,
         }
 
@@ -396,6 +407,40 @@ class VoucherService:
                 new_customer.id if new_customer else None
             )
 
+        # Handle items list update explicitly
+        items_updated = False
+        if "items" in update_data:
+            items_data = update_data.pop("items")
+            items_updated = True
+            
+            # Restore stock of old items
+            for item in old_items:
+                self.tank_service.restore_stock(db, item.fuel_type, item.quantity_liters)
+                
+            voucher.items.clear()
+            
+            from app.models.voucher_item import VoucherItem
+            voucher.items = [
+                VoucherItem(
+                    fuel_type=item.fuel_type,
+                    quantity_liters=item.quantity_liters,
+                    rate_per_liter=item.rate_per_liter,
+                    total_amount=item.total_amount,
+                )
+                for item in items_data
+            ]
+            
+            # Deduct stock of new items
+            for item in voucher.items:
+                self.tank_service.deduct_stock(db, item.fuel_type, item.quantity_liters)
+                
+            # Maintain legacy compatibility and grand total
+            if voucher.items:
+                voucher.fuel_type = voucher.items[0].fuel_type
+                voucher.quantity_liters = voucher.items[0].quantity_liters
+                voucher.rate_per_liter = voucher.items[0].rate_per_liter
+                voucher.total_amount = sum(item.total_amount for item in voucher.items)
+
         for field, value in update_data.items():
             setattr(
                 voucher,
@@ -403,11 +448,10 @@ class VoucherService:
                 value,
             )
 
-        if (
+        if not items_updated and (
             ("quantity_liters" in update_data or "rate_per_liter" in update_data)
             and "total_amount" not in update_data
         ):
-
             voucher.total_amount = (
                 Decimal(voucher.quantity_liters)
                 * Decimal(voucher.rate_per_liter)
@@ -421,13 +465,14 @@ class VoucherService:
             voucher,
         )
 
-        self.tank_service.update_stock(
-            db,
-            old_fuel_type,
-            old_quantity,
-            voucher.fuel_type,
-            voucher.quantity_liters,
-        )
+        if not items_updated:
+            self.tank_service.update_stock(
+                db,
+                old_fuel_type,
+                old_quantity,
+                voucher.fuel_type,
+                voucher.quantity_liters,
+            )
 
         # Re-post from the new state if it still affects the ledger.
         if self._affects_ledger(voucher):
@@ -579,7 +624,8 @@ class VoucherService:
                 extra_deletes=[voucher],
                 actor_id=actor_id,
             )
-            self.tank_service.restore_stock(db, voucher.fuel_type, voucher.quantity_liters)
+            for item in voucher.items:
+                self.tank_service.restore_stock(db, item.fuel_type, item.quantity_liters)
             
             # Log audit log
             self.audit_service.log_action(
@@ -592,14 +638,13 @@ class VoucherService:
                     "invoice_number": voucher.invoice_number,
                     "invoice_date": str(voucher.invoice_date),
                     "total_amount": str(voucher.total_amount),
-                    "fuel_type": voucher.fuel_type.value,
-                    "quantity_liters": str(voucher.quantity_liters),
                     "payment_mode": voucher.payment_mode.value,
                 }
             )
             return
 
-        self.tank_service.restore_stock(db, voucher.fuel_type, voucher.quantity_liters)
+        for item in voucher.items:
+            self.tank_service.restore_stock(db, item.fuel_type, item.quantity_liters)
         self.repository.delete(
             db,
             voucher,
@@ -616,8 +661,6 @@ class VoucherService:
                 "invoice_number": voucher.invoice_number,
                 "invoice_date": str(voucher.invoice_date),
                 "total_amount": str(voucher.total_amount),
-                "fuel_type": voucher.fuel_type.value,
-                "quantity_liters": str(voucher.quantity_liters),
                 "payment_mode": voucher.payment_mode.value,
             }
         )

@@ -34,19 +34,20 @@ export default function OCRReviewForm({
 
   const [showImage, setShowImage] = useState(false);
 
-  // The backend returns { ocr, validation, ready_to_save }.
-  const ocr = data?.ocr ?? {};
-
-  const validation = data?.validation ?? {
-    warnings: [],
-    errors: [],
-  };
-
-  // Path to the uploaded invoice image, carried through so the saved
-  // voucher keeps its source image.
-  const imagePath: string | null = ocr.image_path ?? null;
-
-  const imageUrl = invoiceImageUrl(imagePath);
+  // Fallback to construct items list from legacy fields if ocr.items is empty
+  const initialItems = ocr.items && ocr.items.length > 0
+    ? ocr.items.map((it: any) => ({
+        fuel_type: it.fuel_type || "DIESEL",
+        quantity_liters: it.quantity_liters ?? 0,
+        rate_per_liter: it.rate_per_liter ?? 0,
+        total_amount: it.total_amount ?? 0,
+      }))
+    : [{
+        fuel_type: ocr.fuel_type || "DIESEL",
+        quantity_liters: ocr.quantity_liters ?? 0,
+        rate_per_liter: ocr.rate_per_liter ?? 0,
+        total_amount: ocr.total_amount ?? 0,
+      }];
 
   const [formData, setFormData] = useState({
     invoice_number: ocr.invoice_number ?? "",
@@ -54,21 +55,16 @@ export default function OCRReviewForm({
     vehicle_number: ocr.vehicle_number ?? "",
     customer_name: ocr.customer_name ?? "",
     customer_uuid: null as string | null,
-    fuel_type: ocr.fuel_type ?? "",
-    quantity_liters: ocr.quantity_liters ?? 0,
-    rate_per_liter: ocr.rate_per_liter ?? 0,
-    total_amount: ocr.total_amount ?? 0,
     payment_mode: ocr.payment_mode ?? "",
     remarks: ocr.remarks ?? "",
+    total_amount: ocr.total_amount ?? initialItems.reduce((sum: number, it: any) => sum + (Number(it.total_amount) || 0), 0),
+    items: initialItems,
   });
 
-  const qty = Number(formData.quantity_liters) || 0;
-  const rate = Number(formData.rate_per_liter) || 0;
+  const expectedAmount = formData.items.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
   const totalAmount = Number(formData.total_amount) || 0;
-
-  const expectedAmount = Number((qty * rate).toFixed(2));
   const diff = Number(Math.abs(totalAmount - expectedAmount).toFixed(2));
-  const isMismatch = qty > 0 && rate > 0 && diff > 0.05;
+  const isMismatch = diff > 0.05;
 
   function updateField(
     field: string,
@@ -88,6 +84,57 @@ export default function OCRReviewForm({
     });
   }
 
+  function updateItem(index: number, field: string, value: any) {
+    setFormData((prev) => {
+      const nextItems = [...prev.items];
+      nextItems[index] = {
+        ...nextItems[index],
+        [field]: value,
+      };
+
+      if (field === "quantity_liters" || field === "rate_per_liter") {
+        const q = Number(nextItems[index].quantity_liters) || 0;
+        const r = Number(nextItems[index].rate_per_liter) || 0;
+        nextItems[index].total_amount = Number((q * r).toFixed(2));
+      }
+
+      const newGrandTotal = nextItems.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
+
+      return {
+        ...prev,
+        items: nextItems,
+        total_amount: Number(newGrandTotal.toFixed(2)),
+      };
+    });
+  }
+
+  function addItem() {
+    setFormData((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          fuel_type: "DIESEL",
+          quantity_liters: 0,
+          rate_per_liter: 0,
+          total_amount: 0,
+        },
+      ],
+    }));
+  }
+
+  function removeItem(index: number) {
+    setFormData((prev) => {
+      const nextItems = prev.items.filter((_, i) => i !== index);
+      const newGrandTotal = nextItems.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
+      return {
+        ...prev,
+        items: nextItems,
+        total_amount: Number(newGrandTotal.toFixed(2)),
+      };
+    });
+  }
+
   /**
    * Validate the required fields. Returns a map of field → message; empty
    * means the form is good to save.
@@ -103,22 +150,8 @@ export default function OCRReviewForm({
       errors.invoice_date = "Invoice date is required.";
     }
 
-    if (!String(formData.fuel_type).trim()) {
-      errors.fuel_type = "Fuel type is required.";
-    }
-
     if (!String(formData.payment_mode).trim()) {
       errors.payment_mode = "Payment mode is required.";
-    }
-
-    if (!(Number(formData.quantity_liters) > 0)) {
-      errors.quantity_liters =
-        "Quantity must be greater than 0.";
-    }
-
-    if (!(Number(formData.rate_per_liter) > 0)) {
-      errors.rate_per_liter =
-        "Rate must be greater than 0.";
     }
 
     if (!(Number(formData.total_amount) > 0)) {
@@ -134,6 +167,25 @@ export default function OCRReviewForm({
       errors.customer_name =
         "Customer is required for a credit sale.";
     }
+
+    if (formData.items.length === 0) {
+      errors.items = "At least one product line item is required.";
+    }
+
+    formData.items.forEach((item, i) => {
+      if (!item.fuel_type) {
+        errors[`item_${i}_fuel_type`] = "Required";
+      }
+      if (!(Number(item.quantity_liters) > 0)) {
+        errors[`item_${i}_quantity`] = "Must be > 0";
+      }
+      if (!(Number(item.rate_per_liter) > 0)) {
+        errors[`item_${i}_rate`] = "Must be > 0";
+      }
+      if (!(Number(item.total_amount) > 0)) {
+        errors[`item_${i}_amount`] = "Must be > 0";
+      }
+    });
 
     return errors;
   }
@@ -289,28 +341,100 @@ export default function OCRReviewForm({
           />
         </div>
 
-        <div>
-          <label>Fuel Type *</label>
+        <div className="sm:col-span-2 space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-2 mt-4">
+            <h3 className="text-base font-bold text-ink">Product Line Items</h3>
+            <button
+              type="button"
+              onClick={addItem}
+              className="rounded bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+            >
+              ➕ Add Product Line
+            </button>
+          </div>
 
-          <select
-            className={inputClass("fuel_type")}
-            value={formData.fuel_type}
-            onChange={(e) =>
-              updateField(
-                "fuel_type",
-                e.target.value
-              )
-            }
-          >
-            <option value="" className="bg-surface-2 text-ink">Select fuel type</option>
+          <div className="overflow-x-auto rounded border border-border bg-card">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30 text-muted-foreground font-semibold">
+                  <th className="p-3 w-1/4">Product Name *</th>
+                  <th className="p-3 w-1/4">Quantity (L/Units) *</th>
+                  <th className="p-3 w-1/4">Rate (₹/Unit) *</th>
+                  <th className="p-3 w-1/4">Line Total (₹) *</th>
+                  <th className="p-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {formData.items.map((item, index) => {
+                  const fuelErr = fieldErrors[`item_${index}_fuel_type`];
+                  const qtyErr = fieldErrors[`item_${index}_quantity`];
+                  const rateErr = fieldErrors[`item_${index}_rate`];
+                  const amtErr = fieldErrors[`item_${index}_amount`];
 
-            {FUEL_TYPES.map((type) => (
-              <option key={type} value={type} className="bg-surface-2 text-ink">
-                {type}
-              </option>
-            ))}
-          </select>
-          <FieldError field="fuel_type" />
+                  return (
+                    <tr key={index} className="border-b border-border hover:bg-muted/10">
+                      <td className="p-3">
+                        <select
+                          className={`rounded border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink w-full ${fuelErr ? "border-red-500" : ""}`}
+                          value={item.fuel_type}
+                          onChange={(e) => updateItem(index, "fuel_type", e.target.value)}
+                        >
+                          {FUEL_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          step="0.001"
+                          className={`rounded border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink w-full ${qtyErr ? "border-red-500" : ""}`}
+                          value={item.quantity_liters || ""}
+                          onChange={(e) => updateItem(index, "quantity_liters", Number(e.target.value))}
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={`rounded border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink w-full ${rateErr ? "border-red-500" : ""}`}
+                          value={item.rate_per_liter || ""}
+                          onChange={(e) => updateItem(index, "rate_per_liter", Number(e.target.value))}
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          className={`rounded border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink w-full ${amtErr ? "border-red-500" : ""}`}
+                          value={item.total_amount || ""}
+                          onChange={(e) => updateItem(index, "total_amount", Number(e.target.value))}
+                        />
+                      </td>
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(index)}
+                          disabled={formData.items.length <= 1}
+                          className="rounded p-2 text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent transition-colors flex items-center justify-center mx-auto min-w-[36px] min-h-[36px]"
+                          title="Remove product line"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {fieldErrors.items && (
+            <p className="text-sm text-red-600 font-semibold">{fieldErrors.items}</p>
+          )}
         </div>
 
         <div>
@@ -338,44 +462,11 @@ export default function OCRReviewForm({
         </div>
 
         <div>
-          <label>Quantity (L) *</label>
+          <label>Total Invoice Amount (Grand Total) *</label>
 
           <input
             type="number"
-            className={inputClass("quantity_liters")}
-            value={formData.quantity_liters}
-            onChange={(e) =>
-              updateField(
-                "quantity_liters",
-                Number(e.target.value)
-              )
-            }
-          />
-          <FieldError field="quantity_liters" />
-        </div>
-
-        <div>
-          <label>Rate Per Liter *</label>
-
-          <input
-            type="number"
-            className={inputClass("rate_per_liter")}
-            value={formData.rate_per_liter}
-            onChange={(e) =>
-              updateField(
-                "rate_per_liter",
-                Number(e.target.value)
-              )
-            }
-          />
-          <FieldError field="rate_per_liter" />
-        </div>
-
-        <div>
-          <label>Total Amount *</label>
-
-          <input
-            type="number"
+            step="0.01"
             className={inputClass("total_amount")}
             value={formData.total_amount}
             onChange={(e) =>
@@ -388,7 +479,7 @@ export default function OCRReviewForm({
           <FieldError field="total_amount" />
           {isMismatch && (
             <p className="mt-1.5 text-xs font-semibold text-amber-500">
-              ⚠️ Amount Mismatch: Calculated expected amount is ₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Difference: ₹{diff.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+              ⚠️ Amount Mismatch: Sum of items is ₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Difference: ₹{diff.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
             </p>
           )}
         </div>

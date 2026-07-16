@@ -6,6 +6,8 @@ from decimal import Decimal
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 
+from app.models.voucher_item import VoucherItem
+
 from sqlalchemy import (
     Date,
     Enum as SqlEnum,
@@ -137,24 +139,30 @@ class Voucher(
     # Fuel
     # ======================================================
 
-    fuel_type: Mapped[FuelType] = mapped_column(
+    fuel_type: Mapped[FuelType | None] = mapped_column(
         SqlEnum(FuelType),
-        nullable=False,
+        nullable=True,
     )
 
-    quantity_liters: Mapped[Decimal] = mapped_column(
+    quantity_liters: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 3),
-        nullable=False,
+        nullable=True,
     )
 
-    rate_per_liter: Mapped[Decimal] = mapped_column(
+    rate_per_liter: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2),
-        nullable=False,
+        nullable=True,
     )
 
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(12, 2),
         nullable=False,
+    )
+
+    items: Mapped[list[VoucherItem]] = relationship(
+        "VoucherItem",
+        back_populates="voucher",
+        cascade="all, delete-orphan",
     )
 
     # ======================================================

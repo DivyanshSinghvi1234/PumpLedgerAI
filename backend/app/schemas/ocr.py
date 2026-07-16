@@ -4,6 +4,21 @@ from pydantic import BaseModel, Field
 from app.core.enums import FuelType, PaymentMode
 
 
+class OCRExtractionItem(BaseModel):
+    fuel_type: FuelType = Field(
+        description="Fuel type: PETROL, SPEED, DIESEL, or LUBRICANT only."
+    )
+    quantity_liters: Decimal = Field(
+        description="Quantity in liters/units. Handle stacked decimals."
+    )
+    rate_per_liter: Decimal = Field(
+        description="Rate per liter/unit in INR. Handle stacked decimals."
+    )
+    total_amount: Decimal = Field(
+        description="Total amount in INR for this product line item. Must equal quantity * rate."
+    )
+
+
 class OCRExtraction(BaseModel):
     invoice_number: str | None = Field(
         default=None, 
@@ -23,22 +38,9 @@ class OCRExtraction(BaseModel):
         description="Vehicle registration number (uppercase, no spaces, e.g., 'DL01AB1234')."
     )
 
-    fuel_type: FuelType | None = Field(
-        default=None, 
-        description="Fuel type: PETROL, SPEED, DIESEL, or LUBRICANT only."
-    )
-
-    quantity_liters: Decimal | None = Field(
-        default=None, 
-        description="Quantity in liters. Handle stacked decimals: '25' over '50' = 25.50"
-    )
-    rate_per_liter: Decimal | None = Field(
-        default=None, 
-        description="Rate per liter in INR. Handle stacked decimals."
-    )
     total_amount: Decimal | None = Field(
         default=None, 
-        description="Total amount in INR. Must equal quantity × rate (±₹1)."
+        description="Grand total amount in INR for the entire bill. Must equal the sum of all item amounts (±₹1)."
     )
 
     payment_mode: PaymentMode | None = Field(
@@ -56,4 +58,9 @@ class OCRExtraction(BaseModel):
         ge=0.0, 
         le=1.0,
         description="Overall extraction confidence 0.0-1.0. 1.0 = certain, 0.5 = unsure, 0.0 = not found."
+    )
+
+    items: list[OCRExtractionItem] = Field(
+        default_factory=list,
+        description="List of individual items/products scanned from the bill. Can be empty if no items found."
     )

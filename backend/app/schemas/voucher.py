@@ -23,6 +23,23 @@ from app.core.enums import (
 )
 
 
+class VoucherItemCreate(BaseModel):
+    fuel_type: FuelType
+    quantity_liters: Decimal = Field(..., gt=0)
+    rate_per_liter: Decimal = Field(..., gt=0)
+    total_amount: Decimal = Field(..., gt=0)
+
+
+class VoucherItemResponse(BaseModel):
+    uuid: UUID
+    fuel_type: FuelType
+    quantity_liters: Decimal
+    rate_per_liter: Decimal
+    total_amount: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class VoucherBase(BaseModel):
     invoice_number: str = Field(..., min_length=1, max_length=50)
     invoice_date: date
@@ -35,10 +52,10 @@ class VoucherBase(BaseModel):
     # OCR / walk-in sales with no linked account.
     customer_uuid: UUID | None = None
 
-    fuel_type: FuelType
-
-    quantity_liters: Decimal = Field(..., gt=0)
-    rate_per_liter: Decimal = Field(..., gt=0)
+    # Keep optional for backward compatibility
+    fuel_type: FuelType | None = None
+    quantity_liters: Decimal | None = None
+    rate_per_liter: Decimal | None = None
     total_amount: Decimal = Field(..., gt=0)
 
     payment_mode: PaymentMode
@@ -50,6 +67,7 @@ class VoucherCreate(VoucherBase):
     # Path to the stored invoice image, set when the voucher is created from
     # the OCR upload flow. Absent for manually-entered vouchers.
     image_path: str | None = None
+    items: list[VoucherItemCreate] = Field(default_factory=list)
 
 
 class VoucherUpdate(BaseModel):
@@ -70,6 +88,7 @@ class VoucherUpdate(BaseModel):
     payment_mode: PaymentMode | None = None
 
     remarks: str | None = None
+    items: list[VoucherItemCreate] | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -97,6 +116,8 @@ class VoucherResponse(VoucherBase):
     created_at: datetime
     updated_at: datetime
 
+    items: list[VoucherItemResponse] = Field(default_factory=list)
+
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode="before")
@@ -109,10 +130,15 @@ class VoucherResponse(VoucherBase):
         """
         # Only transform ORM objects (attribute access), not dicts.
         if isinstance(data, dict):
-            qty = Decimal(str(data.get("quantity_liters") or 0))
-            rate = Decimal(str(data.get("rate_per_liter") or 0))
+            items = data.get("items", [])
+            if items:
+                calc_amt = sum(Decimal(str(item.get("quantity_liters") or 0)) * Decimal(str(item.get("rate_per_liter") or 0)) for item in items)
+            else:
+                qty = Decimal(str(data.get("quantity_liters") or 0))
+                rate = Decimal(str(data.get("rate_per_liter") or 0))
+                calc_amt = (qty * rate)
+            calc_amt = Decimal(calc_amt).quantize(Decimal("0.01"))
             total = Decimal(str(data.get("total_amount") or 0))
-            calc_amt = (qty * rate).quantize(Decimal("0.01"))
             mismatch = abs(calc_amt - total) > Decimal("0.05")
             data.setdefault("is_amount_mismatch", mismatch)
             data.setdefault("calculated_amount", calc_amt)
@@ -122,12 +148,27 @@ class VoucherResponse(VoucherBase):
             return data
 
         customer = getattr(data, "customer", None)
+        items = getattr(data, "items", [])
 
-        qty = Decimal(str(data.quantity_liters))
-        rate = Decimal(str(data.rate_per_liter))
-        total = Decimal(str(data.total_amount))
-        calc_amt = (qty * rate).quantize(Decimal("0.01"))
+        if items:
+            calc_amt = sum(Decimal(str(item.quantity_liters or 0)) * Decimal(str(item.rate_per_liter or 0)) for item in items)
+        else:
+            qty = Decimal(str(data.quantity_liters or 0))
+            rate = Decimal(str(data.rate_per_liter or 0))
+            calc_amt = (qty * rate)
+        calc_amt = Decimal(calc_amt).quantize(Decimal("0.01"))
+        total = Decimal(str(data.total_amount or 0))
         mismatch = abs(calc_amt - total) > Decimal("0.05")
+
+        item_responses = []
+        for item in items:
+            item_responses.append({
+                "uuid": item.uuid,
+                "fuel_type": item.fuel_type,
+                "quantity_liters": item.quantity_liters,
+                "rate_per_liter": item.rate_per_liter,
+                "total_amount": item.total_amount,
+            })
 
         return {
             "uuid": data.uuid,
@@ -157,6 +198,7 @@ class VoucherResponse(VoucherBase):
             "updated_at": data.updated_at,
             "is_amount_mismatch": mismatch,
             "calculated_amount": calc_amt,
+            "items": item_responses,
         }
 
 

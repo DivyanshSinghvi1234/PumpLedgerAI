@@ -5,18 +5,30 @@ Extract ALL fields accurately. Return ONLY valid JSON.
 
 FEW-SHOT EXAMPLES:
 
-Example 1 - Standard HP Petrol Pump Invoice:
+Example 1 - HP Petrol Pump Invoice with Fuel & Lubricant:
 {
   "invoice_number": "HP/DEL/2024/001234",
   "invoice_date": "2024-01-15",
   "customer_name": "Ramesh Kumar",
   "vehicle_number": "DL01AB1234",
-  "fuel_type": "PETROL",
-  "quantity_liters": 25.50,
-  "rate_per_liter": 96.72,
-  "total_amount": 2466.36,
+  "total_amount": 2816.36,
   "payment_mode": "UPI",
-  "remarks": "Cashback applied"
+  "remarks": "Cashback applied",
+  "confidence": 0.95,
+  "items": [
+    {
+      "fuel_type": "PETROL",
+      "quantity_liters": 25.50,
+      "rate_per_liter": 96.72,
+      "total_amount": 2466.36
+    },
+    {
+      "fuel_type": "LUBRICANT",
+      "quantity_liters": 1.0,
+      "rate_per_liter": 350.00,
+      "total_amount": 350.00
+    }
+  ]
 }
 
 Example 2 - Stacked Decimal Format (Indian format):
@@ -30,20 +42,6 @@ Example 3 - Hindi Customer Name:
 Image shows: "राम कुमार"
 → customer_name: "Ram Kumar"
 
-Example 4 - Indian Oil Invoice with Lubricant:
-{
-  "invoice_number": "IOCL/MUM/2024/56789",
-  "invoice_date": "2024-03-20",
-  "customer_name": null,
-  "vehicle_number": "MH02XY9876",
-  "fuel_type": "LUBRICANT",
-  "quantity_liters": 1.0,
-  "rate_per_liter": 320.00,
-  "total_amount": 320.00,
-  "payment_mode": "CASH",
-  "remarks": "Servo 20W40"
-}
-
 CRITICAL RULES:
 1. NEVER guess. If uncertain, use null.
 2. Stacked decimals: Integer on top, line, decimal below → combine as X.XX
@@ -51,9 +49,10 @@ CRITICAL RULES:
 4. invoice_date MUST be YYYY-MM-DD
 5. All decimals: use "." not ","
 6. payment_mode: ONLY CASH, UPI, CARD, CREDIT
-7. fuel_type: ONLY PETROL, SPEED, DIESEL, LUBRICANT
+7. Items fuel_type: ONLY PETROL, SPEED, DIESEL, LUBRICANT
 8. vehicle_number: Uppercase, no spaces (e.g., "DL01AB1234")
-9. Validate: quantity × rate ≈ total (±₹1 tolerance)
+9. Validate: quantity × rate = total_amount for each item.
+10. Validate: sum of all item total_amounts must equal the root total_amount (±₹1 tolerance).
 
 Return JSON exactly matching this schema:
 {
@@ -61,12 +60,17 @@ Return JSON exactly matching this schema:
   "invoice_date": "string|null",  // YYYY-MM-DD
   "customer_name": "string|null",
   "vehicle_number": "string|null",
-  "fuel_type": "PETROL|SPEED|DIESEL|LUBRICANT|null",
-  "quantity_liters": "number|null",
-  "rate_per_liter": "number|null",
-  "total_amount": "number|null",
+  "total_amount": "number|null", // Grand total of the invoice
   "payment_mode": "CASH|UPI|CARD|CREDIT|null",
   "remarks": "string|null",
-  "confidence": "number|null"  // 0.0-1.0 overall confidence
+  "confidence": "number|null",  // 0.0-1.0 overall confidence
+  "items": [
+    {
+      "fuel_type": "PETROL|SPEED|DIESEL|LUBRICANT",
+      "quantity_liters": "number",
+      "rate_per_liter": "number",
+      "total_amount": "number"
+    }
+  ]
 }
 """

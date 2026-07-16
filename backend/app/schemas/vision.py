@@ -11,6 +11,13 @@ from app.core.enums import (
 )
 
 
+class OCRResultItem(BaseModel):
+    fuel_type: FuelType
+    quantity_liters: Decimal = Decimal("0")
+    rate_per_liter: Decimal = Decimal("0")
+    total_amount: Decimal = Decimal("0")
+
+
 class OCRResult(BaseModel):
     provider: AIProvider
 
@@ -26,9 +33,9 @@ class OCRResult(BaseModel):
 
     fuel_type: FuelType | None = None
 
-    quantity_liters: Decimal = Decimal("0")
+    quantity_liters: Decimal | None = None
 
-    rate_per_liter: Decimal = Decimal("0")
+    rate_per_liter: Decimal | None = None
 
     total_amount: Decimal = Decimal("0")
 
@@ -37,3 +44,5 @@ class OCRResult(BaseModel):
     remarks: str | None = None
 
     image_path: str
+
+    items: list[OCRResultItem] = []

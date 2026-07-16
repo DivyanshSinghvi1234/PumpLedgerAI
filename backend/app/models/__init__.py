@@ -1,4 +1,5 @@
 from app.models.voucher import Voucher
+from app.models.voucher_item import VoucherItem
 from app.models.customer import Customer
 from app.models.vehicle import Vehicle
 from app.models.user import User
@@ -20,6 +21,7 @@ from app.models.daily_sheet import DailySheet
 
 __all__ = [
     "Voucher",
+    "VoucherItem",
     "Customer",
     "Vehicle",
     "User",

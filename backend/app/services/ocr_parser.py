@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from app.core.enums import AIProvider
 from app.schemas.ocr import OCRExtraction
-from app.schemas.vision import OCRResult
+from app.schemas.vision import OCRResult, OCRResultItem
 from app.utils.date_parser import normalize_date
 
 
@@ -22,6 +22,17 @@ class OCRParser:
         extraction: OCRExtraction,
         image_path: str,
     ) -> OCRResult:
+
+        parsed_items = []
+        for item in (extraction.items or []):
+            parsed_items.append(
+                OCRResultItem(
+                    fuel_type=item.fuel_type,
+                    quantity_liters=_to_decimal(item.quantity_liters),
+                    rate_per_liter=_to_decimal(item.rate_per_liter),
+                    total_amount=_to_decimal(item.total_amount),
+                )
+            )
 
         return OCRResult(
             provider=AIProvider.GEMINI,
@@ -53,15 +64,9 @@ class OCRParser:
                 else None
             ),
 
-            fuel_type=extraction.fuel_type,
-
-            quantity_liters=_to_decimal(
-                extraction.quantity_liters
-            ),
-
-            rate_per_liter=_to_decimal(
-                extraction.rate_per_liter
-            ),
+            fuel_type=None,
+            quantity_liters=None,
+            rate_per_liter=None,
 
             total_amount=_to_decimal(
                 extraction.total_amount
@@ -76,4 +81,5 @@ class OCRParser:
             ),
 
             image_path=image_path,
+            items=parsed_items,
         )
