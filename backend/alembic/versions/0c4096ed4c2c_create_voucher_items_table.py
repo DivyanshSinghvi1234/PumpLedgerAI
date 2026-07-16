@@ -26,6 +26,7 @@ def upgrade() -> None:
     bind.execute(sa.text("DELETE FROM payments"))
     bind.execute(sa.text("DELETE FROM ledger_entries"))
     bind.execute(sa.text("DELETE FROM vouchers"))
+    bind.execute(sa.text("UPDATE users SET last_active_at = NULL"))
 
     # Create the table
     op.create_table('voucher_items',
