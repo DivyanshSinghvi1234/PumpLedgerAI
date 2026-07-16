@@ -158,7 +158,9 @@ export default function UploadPage() {
       setLoading(true);
       setError("");
 
-      const result = await uploadInvoice(image);
+      // Compress and resize image client-side to save bandwidth and reduce upload latency
+      const resizedImage = await resizeImage(image, 1600);
+      const result = await uploadInvoice(resizedImage);
 
       // Clean storage on successful upload
       sessionStorage.removeItem("saved_image_base64");
@@ -370,4 +372,69 @@ export default function UploadPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Client-side image resizing and compression utility.
+ * Shrinks images to a maximum dimension while maintaining aspect ratio
+ * and compresses them to JPEG to save upload bandwidth.
+ */
+function resizeImage(file: File, maxDimension: number): Promise<File> {
+  return new Promise((resolve) => {
+    // If the file is not an image or is already small, skip resizing
+    if (!file.type.startsWith("image/") || file.size < 200 * 1024) {
+      resolve(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const name = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            const resizedFile = new File([blob], name, {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            });
+            resolve(resizedFile);
+          },
+          "image/jpeg",
+          0.85 // 85% JPEG quality gives optimal clarity vs file size ratio
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
 }
