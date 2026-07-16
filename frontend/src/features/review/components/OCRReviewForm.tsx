@@ -34,6 +34,20 @@ export default function OCRReviewForm({
 
   const [showImage, setShowImage] = useState(false);
 
+  // The backend returns { ocr, validation, ready_to_save }.
+  const ocr = data?.ocr ?? {};
+
+  const validation = data?.validation ?? {
+    warnings: [],
+    errors: [],
+  };
+
+  // Path to the uploaded invoice image, carried through so the saved
+  // voucher keeps its source image.
+  const imagePath: string | null = ocr.image_path ?? null;
+
+  const imageUrl = invoiceImageUrl(imagePath);
+
   // Fallback to construct items list from legacy fields if ocr.items is empty
   const initialItems = ocr.items && ocr.items.length > 0
     ? ocr.items.map((it: any) => ({
