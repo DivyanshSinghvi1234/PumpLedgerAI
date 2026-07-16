@@ -53,7 +53,7 @@ class OCRExtraction(BaseModel):
         description="Any remarks/notes. Transliterate Hindi to English."
     )
 
-    confidence: float = Field(
+    confidence: float | None = Field(
         default=0.0, 
         ge=0.0, 
         le=1.0,

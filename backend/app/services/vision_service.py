@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.core.config import settings
 from app.core.enums import AIProvider
 from app.core.logging import get_logger
 from app.providers.gemini import GeminiProvider
 from app.providers.openrouter import OpenRouterProvider
+from app.providers.ollama import OllamaProvider
+from app.providers.groq import GroqProvider
 from app.schemas.vision import OCRResult
 from app.services.ocr_parser import OCRParser
 from app.utils.image_preprocessor import ImagePreprocessor
@@ -17,11 +20,45 @@ class VisionService:
 
     def __init__(self):
         self.preprocessor = ImagePreprocessor()
-        # Instantiate the providers in the fallback sequence (Gemini primary -> OpenRouter fallback)
-        self.providers = [
-            (AIProvider.GEMINI, GeminiProvider()),
-            (AIProvider.OPENROUTER, OpenRouterProvider())
+        
+        # Instantiate all available providers
+        gemini = GeminiProvider()
+        openrouter = OpenRouterProvider()
+        ollama = OllamaProvider()
+        groq = GroqProvider()
+        
+        # Map of enum to provider instance
+        provider_map = {
+            AIProvider.GEMINI: gemini,
+            AIProvider.OPENROUTER: openrouter,
+            AIProvider.OLLAMA: ollama,
+            AIProvider.GROQ: groq,
+        }
+        
+        # Determine primary provider from settings
+        primary_str = settings.AI_PROVIDER.upper()
+        try:
+            primary_enum = AIProvider(primary_str)
+        except ValueError:
+            logger.warning(f"Unknown AI_PROVIDER setting '{settings.AI_PROVIDER}'. Defaulting to GEMINI.")
+            primary_enum = AIProvider.GEMINI
+
+        primary_inst = provider_map[primary_enum]
+        
+        # Construct the sequence of providers starting with the configured primary
+        self.providers = [(primary_enum, primary_inst)]
+        
+        # Sane default fallback sequence for remaining providers
+        fallback_order = [
+            AIProvider.GEMINI,
+            AIProvider.GROQ,
+            AIProvider.OPENROUTER,
+            AIProvider.OLLAMA,
         ]
+        
+        for provider_enum in fallback_order:
+            if provider_enum != primary_enum:
+                self.providers.append((provider_enum, provider_map[provider_enum]))
 
     async def extract(
         self,
@@ -40,26 +77,30 @@ class VisionService:
             if mime_type is None:
                 mime_type = "image/jpeg"
 
-        # Try Primary Provider (Gemini)
-        primary_enum, primary_inst = self.providers[0]
-        try:
-            logger.info(f"Attempting OCR extraction using primary provider: {primary_enum.value}")
-            extraction = await primary_inst.extract_data_from_bytes(image_bytes, mime_type)
-            result = OCRParser.parse(extraction, image_path=image_path)
-            result.provider = primary_enum
-            return result
-        except Exception as primary_exc:
-            logger.warning(f"Primary provider {primary_enum.value} failed: {primary_exc}. Trying fallback...")
-            
-            if len(self.providers) > 1:
-                fallback_enum, fallback_inst = self.providers[1]
-                try:
-                    logger.info(f"Attempting OCR extraction using fallback provider: {fallback_enum.value}")
-                    extraction = await fallback_inst.extract_data_from_bytes(image_bytes, mime_type)
-                    result = OCRParser.parse(extraction, image_path=image_path)
-                    result.provider = fallback_enum
-                    return result
-                except Exception as fallback_exc:
-                    logger.error(f"Fallback provider {fallback_enum.value} failed: {fallback_exc}")
-                    raise fallback_exc
-            raise primary_exc
+        last_exc = None
+        for i, (provider_enum, provider_inst) in enumerate(self.providers):
+            # Skip provider if required API keys are not configured
+            if provider_enum == AIProvider.GEMINI and not settings.GOOGLE_API_KEY:
+                logger.debug("Skipping Gemini: GOOGLE_API_KEY is not configured.")
+                continue
+            if provider_enum == AIProvider.OPENROUTER and not settings.OPENROUTER_API_KEY:
+                logger.debug("Skipping OpenRouter: OPENROUTER_API_KEY is not configured.")
+                continue
+            if provider_enum == AIProvider.GROQ and not settings.GROQ_API_KEY:
+                logger.debug("Skipping Groq: GROQ_API_KEY is not configured.")
+                continue
+
+            try:
+                role_str = "primary" if i == 0 else "fallback"
+                logger.info(f"Attempting OCR extraction using {role_str} provider: {provider_enum.value}")
+                extraction = await provider_inst.extract_data_from_bytes(image_bytes, mime_type)
+                result = OCRParser.parse(extraction, image_path=image_path)
+                result.provider = provider_enum
+                return result
+            except Exception as exc:
+                logger.warning(f"Provider {provider_enum.value} failed: {exc}")
+                last_exc = exc
+
+        if last_exc:
+            raise last_exc
+        raise Exception("No vision providers are configured or available.")

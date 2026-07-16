@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     # -------------------------------
     GOOGLE_API_KEY: str = ""
     OPENROUTER_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
 
     # -------------------------------
     # Cloudflare R2 Storage

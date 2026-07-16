@@ -44,6 +44,7 @@ class AIProvider(str, Enum):
     GEMINI = "GEMINI"
     OPENROUTER = "OPENROUTER"
     OLLAMA = "OLLAMA"
+    GROQ = "GROQ"
 
 
 class UserRole(str, Enum):
