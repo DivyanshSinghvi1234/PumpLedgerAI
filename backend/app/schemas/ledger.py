@@ -70,6 +70,8 @@ class LedgerEntryResponse(BaseModel):
 
     status: str | None = None
 
+    is_amount_mismatch: bool = False
+
     model_config = ConfigDict(
         from_attributes=True,
     )

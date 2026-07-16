@@ -139,9 +139,8 @@ class VoucherService:
 
         voucher = Voucher(
             **data.model_dump(
-                exclude={"total_amount", "customer_uuid"},
+                exclude={"customer_uuid"},
             ),
-            total_amount=total,
             customer_id=customer.id if customer else None,
         )
 
@@ -151,7 +150,7 @@ class VoucherService:
             voucher.amount_paid = Decimal("0.00")
             voucher.payment_status = PaymentStatus.UNPAID
         else:
-            voucher.amount_paid = total
+            voucher.amount_paid = data.total_amount
             voucher.payment_status = PaymentStatus.PAID
 
         # Any voucher linked to a customer is posted to the ledger.
@@ -405,8 +404,8 @@ class VoucherService:
             )
 
         if (
-            "quantity_liters" in update_data
-            or "rate_per_liter" in update_data
+            ("quantity_liters" in update_data or "rate_per_liter" in update_data)
+            and "total_amount" not in update_data
         ):
 
             voucher.total_amount = (

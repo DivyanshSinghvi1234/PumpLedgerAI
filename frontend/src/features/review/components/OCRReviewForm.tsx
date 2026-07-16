@@ -62,6 +62,14 @@ export default function OCRReviewForm({
     remarks: ocr.remarks ?? "",
   });
 
+  const qty = Number(formData.quantity_liters) || 0;
+  const rate = Number(formData.rate_per_liter) || 0;
+  const totalAmount = Number(formData.total_amount) || 0;
+
+  const expectedAmount = Number((qty * rate).toFixed(2));
+  const diff = Number(Math.abs(totalAmount - expectedAmount).toFixed(2));
+  const isMismatch = qty > 0 && rate > 0 && diff > 0.05;
+
   function updateField(
     field: string,
     value: string | number | null
@@ -378,6 +386,11 @@ export default function OCRReviewForm({
             }
           />
           <FieldError field="total_amount" />
+          {isMismatch && (
+            <p className="mt-1.5 text-xs font-semibold text-amber-500">
+              ⚠️ Amount Mismatch: Calculated expected amount is ₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Difference: ₹{diff.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+            </p>
+          )}
         </div>
 
         <div className="sm:col-span-2">

@@ -60,6 +60,9 @@ export interface Voucher {
 
   remarks: string | null;
 
+  is_amount_mismatch: boolean;
+  calculated_amount: number;
+
   is_active: boolean;
 
   /** ISO 8601 datetime string — when the voucher record was first created/saved. */

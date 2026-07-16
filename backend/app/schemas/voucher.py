@@ -88,6 +88,9 @@ class VoucherResponse(VoucherBase):
     ocr_confidence: float | None
     image_path: str | None
 
+    is_amount_mismatch: bool = False
+    calculated_amount: Decimal = Decimal("0.00")
+
     is_active: bool
 
     # Timestamp fields — when the voucher was first saved and last modified.
@@ -106,12 +109,25 @@ class VoucherResponse(VoucherBase):
         """
         # Only transform ORM objects (attribute access), not dicts.
         if isinstance(data, dict):
+            qty = Decimal(str(data.get("quantity_liters") or 0))
+            rate = Decimal(str(data.get("rate_per_liter") or 0))
+            total = Decimal(str(data.get("total_amount") or 0))
+            calc_amt = (qty * rate).quantize(Decimal("0.01"))
+            mismatch = abs(calc_amt - total) > Decimal("0.05")
+            data.setdefault("is_amount_mismatch", mismatch)
+            data.setdefault("calculated_amount", calc_amt)
             return data
 
         if not hasattr(data, "invoice_number"):
             return data
 
         customer = getattr(data, "customer", None)
+
+        qty = Decimal(str(data.quantity_liters))
+        rate = Decimal(str(data.rate_per_liter))
+        total = Decimal(str(data.total_amount))
+        calc_amt = (qty * rate).quantize(Decimal("0.01"))
+        mismatch = abs(calc_amt - total) > Decimal("0.05")
 
         return {
             "uuid": data.uuid,
@@ -139,6 +155,8 @@ class VoucherResponse(VoucherBase):
             "is_active": data.is_active,
             "created_at": data.created_at,
             "updated_at": data.updated_at,
+            "is_amount_mismatch": mismatch,
+            "calculated_amount": calc_amt,
         }
 
 

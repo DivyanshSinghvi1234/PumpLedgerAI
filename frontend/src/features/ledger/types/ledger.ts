@@ -31,6 +31,8 @@ export interface LedgerEntry {
   invoice_number?: string | null;
 
   status?: string | null;
+
+  is_amount_mismatch?: boolean;
 }
 
 export interface Pagination {

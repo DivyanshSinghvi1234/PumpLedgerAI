@@ -257,8 +257,11 @@ class LedgerService:
 
             # Determine entry status (Pending or Completed)
             status_val = None
+            is_mismatch = False
             if entry.entry_type == LedgerEntryType.VOUCHER and voucher:
                 status_val = "Completed" if voucher.payment_status == PaymentStatus.PAID else "Pending"
+                calc = (Decimal(str(voucher.quantity_liters)) * Decimal(str(voucher.rate_per_liter))).quantize(Decimal("0.01"))
+                is_mismatch = abs(calc - Decimal(str(voucher.total_amount))) > Decimal("0.05")
             elif entry.entry_type == LedgerEntryType.PAYMENT:
                 status_val = "Completed"
 
@@ -275,6 +278,7 @@ class LedgerService:
                     image_path=image_path,
                     invoice_number=invoice_number,
                     status=status_val,
+                    is_amount_mismatch=is_mismatch,
                 )
             )
 

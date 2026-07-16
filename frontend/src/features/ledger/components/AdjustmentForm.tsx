@@ -97,9 +97,9 @@ export default function AdjustmentForm({
       className="space-y-6"
     >
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-        <div className="col-span-2">
+        <div className="col-span-1 sm:col-span-2">
           <FormSelect
             label="Adjustment Type"
             options={TYPE_OPTIONS}

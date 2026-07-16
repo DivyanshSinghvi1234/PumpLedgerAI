@@ -113,6 +113,14 @@ export default function VoucherForm({
   const customerName = watch("customer_name") ?? "";
   const customerUuid = watch("customer_uuid") ?? "";
 
+  const qty = watch("quantity_liters") ?? 0;
+  const rate = watch("rate_per_liter") ?? 0;
+  const totalAmount = watch("total_amount") ?? 0;
+
+  const expectedAmount = Number((Number(qty) * Number(rate)).toFixed(2));
+  const diff = Number(Math.abs(Number(totalAmount) - expectedAmount).toFixed(2));
+  const isMismatch = Number(qty) > 0 && Number(rate) > 0 && diff > 0.05;
+
   function submitForm(
     data: VoucherFormData
   ) {
@@ -131,7 +139,7 @@ export default function VoucherForm({
       className="space-y-6"
     >
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
         <FormInput
           label="Invoice Number"
@@ -207,14 +215,21 @@ export default function VoucherForm({
           {...register("rate_per_liter")}
         />
 
-        <FormInput
-          type="number"
-          step="0.01"
-          label="Total Amount"
-          required
-          error={errors.total_amount?.message}
-          {...register("total_amount")}
-        />
+        <div>
+          <FormInput
+            type="number"
+            step="0.01"
+            label="Total Amount"
+            required
+            error={errors.total_amount?.message}
+            {...register("total_amount")}
+          />
+          {isMismatch && (
+            <p className="mt-1.5 text-xs font-semibold text-amber-500">
+              ⚠️ Amount Mismatch: Calculated expected amount is ₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Difference: ₹{diff.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+            </p>
+          )}
+        </div>
 
       </div>
 

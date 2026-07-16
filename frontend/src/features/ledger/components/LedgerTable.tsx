@@ -96,8 +96,16 @@ export default function LedgerTable({
                   </td>
 
                   <td className="px-4 py-3">
-                    {TYPE_LABELS[entry.entry_type] ??
-                      entry.entry_type}
+                    <div className="flex flex-col">
+                      <span>
+                        {TYPE_LABELS[entry.entry_type] ?? entry.entry_type}
+                      </span>
+                      {entry.is_amount_mismatch && (
+                        <span className="text-[10px] text-amber-500 font-semibold uppercase tracking-wider mt-0.5" title="Quantity * Rate does not match Total Amount">
+                          ⚠️ Mismatch
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-4 py-3">

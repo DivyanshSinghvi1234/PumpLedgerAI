@@ -57,7 +57,7 @@ export default function TallySettingsDialog({
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Voucher Type Names
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormInput
                 label="Sales Voucher Type"
                 required
@@ -77,7 +77,7 @@ export default function TallySettingsDialog({
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Cash/Bank Ledgers
             </h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <FormInput
                 label="Cash Ledger"
                 required
@@ -103,7 +103,7 @@ export default function TallySettingsDialog({
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Revenue (Sales) Ledgers
             </h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <FormInput
                 label="Petrol Sales"
                 required

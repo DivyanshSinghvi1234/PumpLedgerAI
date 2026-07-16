@@ -10,7 +10,7 @@ export default function LedgerSummary({
   closingBalance,
 }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div className="rounded-lg border border-border bg-card p-4">
         <p className="text-sm text-muted-foreground">
           Customer

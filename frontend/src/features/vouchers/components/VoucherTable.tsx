@@ -112,7 +112,14 @@ export default function VoucherTable({
             </TableCell>
 
             <TableCell className="text-sm font-semibold text-ink font-mono">
-              {formatCurrency(voucher.total_amount)}
+              <div className="flex flex-col">
+                <span>{formatCurrency(voucher.total_amount)}</span>
+                {voucher.is_amount_mismatch && (
+                  <span className="text-[10px] text-amber-500 font-semibold uppercase tracking-wider mt-0.5" title="Quantity * Rate does not match Total Amount">
+                    ⚠️ Mismatch
+                  </span>
+                )}
+              </div>
             </TableCell>
 
             <TableCell>
