@@ -31,14 +31,21 @@ class StorageService:
         if self._r2_enabled:
             import boto3  # lazy import
 
+            # Automatically support full S3 endpoints like Backblaze B2 (e.g. s3.us-west-004.backblazeb2.com)
+            if "." in settings.R2_ACCOUNT_ID or settings.R2_ACCOUNT_ID.startswith("http"):
+                endpoint_url = settings.R2_ACCOUNT_ID if settings.R2_ACCOUNT_ID.startswith("http") else f"https://{settings.R2_ACCOUNT_ID}"
+                logger.info(f"StorageService: using custom S3 endpoint: {endpoint_url}")
+            else:
+                endpoint_url = f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+                logger.info("StorageService: using Cloudflare R2")
+
             self._client = boto3.client(
                 "s3",
-                endpoint_url=f"https://{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+                endpoint_url=endpoint_url,
                 aws_access_key_id=settings.R2_ACCESS_KEY_ID,
                 aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
                 region_name="auto",
             )
-            logger.info("StorageService: using Cloudflare R2")
         else:
             self._local_dir = Path("storage/invoices")
             self._local_dir.mkdir(parents=True, exist_ok=True)
