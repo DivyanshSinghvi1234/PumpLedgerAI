@@ -25,31 +25,35 @@ class OCRReviewService:
                 "Invoice number missing."
             )
 
-        if not ocr.fuel_type:
-            errors.append(
-                "Fuel type missing."
-            )
-
-        if ocr.quantity_liters <= Decimal("0"):
-            errors.append(
-                "Quantity must be greater than zero."
-            )
-
-        if ocr.rate_per_liter <= Decimal("0"):
-            errors.append(
-                "Rate must be greater than zero."
-            )
-
-        calculated_total = (
-            ocr.quantity_liters
-            * ocr.rate_per_liter
-        )
+        if ocr.items:
+            for i, item in enumerate(ocr.items):
+                if not item.fuel_type:
+                    errors.append(f"Fuel type missing for item {i + 1}.")
+                if item.quantity_liters <= Decimal("0"):
+                    errors.append(f"Quantity must be greater than zero for item {i + 1}.")
+                if item.rate_per_liter <= Decimal("0"):
+                    errors.append(f"Rate must be greater than zero for item {i + 1}.")
+            
+            calculated_total = sum(item.total_amount for item in ocr.items)
+        else:
+            if not ocr.fuel_type:
+                errors.append("Fuel type missing.")
+            
+            qty = ocr.quantity_liters if ocr.quantity_liters is not None else Decimal("0")
+            rate = ocr.rate_per_liter if ocr.rate_per_liter is not None else Decimal("0")
+            
+            if qty <= Decimal("0"):
+                errors.append("Quantity must be greater than zero.")
+            if rate <= Decimal("0"):
+                errors.append("Rate must be greater than zero.")
+            
+            calculated_total = qty * rate
 
         if abs(
             calculated_total - ocr.total_amount
         ) > Decimal("2.00"):
             warnings.append(
-                "Calculated total differs from OCR total."
+                "Calculated total differs from invoice total."
             )
 
         if ocr.confidence < 0.85:
