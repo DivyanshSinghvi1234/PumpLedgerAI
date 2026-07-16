@@ -32,8 +32,10 @@ class OCRParser:
             ),
 
             invoice_number=(
-                extraction.invoice_number or ""
-            ).strip(),
+                extraction.invoice_number.strip()
+                if extraction.invoice_number
+                else None
+            ),
 
             invoice_date=normalize_date(
                 extraction.invoice_date

@@ -51,7 +51,7 @@ CRITICAL RULES:
 4. invoice_date MUST be YYYY-MM-DD
 5. All decimals: use "." not ","
 6. payment_mode: ONLY CASH, UPI, CARD, CREDIT
-7. fuel_type: ONLY PETROL, DIESEL, LUBRICANT
+7. fuel_type: ONLY PETROL, SPEED, DIESEL, LUBRICANT
 8. vehicle_number: Uppercase, no spaces (e.g., "DL01AB1234")
 9. Validate: quantity × rate ≈ total (±₹1 tolerance)
 
@@ -61,7 +61,7 @@ Return JSON exactly matching this schema:
   "invoice_date": "string|null",  // YYYY-MM-DD
   "customer_name": "string|null",
   "vehicle_number": "string|null",
-  "fuel_type": "PETROL|DIESEL|LUBRICANT|null",
+  "fuel_type": "PETROL|SPEED|DIESEL|LUBRICANT|null",
   "quantity_liters": "number|null",
   "rate_per_liter": "number|null",
   "total_amount": "number|null",
