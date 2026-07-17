@@ -51,8 +51,8 @@ CRITICAL RULES:
 6. payment_mode: ONLY CASH, UPI, CARD, CREDIT
 7. Items fuel_type: ONLY PETROL, SPEED, DIESEL, LUBRICANT
 8. vehicle_number: Uppercase, no spaces (e.g., "DL01AB1234")
-9. Validate: quantity × rate = total_amount for each item.
-10. Validate: sum of all item total_amounts must equal the root total_amount (±₹1 tolerance).
+9. Extract the actual printed total_amount for each item and the invoice from the image. Do NOT mathematically calculate or force total_amount = quantity * rate if there is a discrepancy; always prioritize the printed numbers.
+10. Extract the actual printed grand total. Do NOT calculate or adjust the grand total mathematically; always prioritize the printed numbers from the image.
 
 Return JSON exactly matching this schema:
 {

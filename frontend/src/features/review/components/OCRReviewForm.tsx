@@ -75,7 +75,7 @@ export default function OCRReviewForm({
     items: initialItems,
   });
 
-  const expectedAmount = formData.items.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
+  const expectedAmount = formData.items.reduce((sum: number, item: any) => sum + (Number(item.total_amount) || 0), 0);
   const totalAmount = Number(formData.total_amount) || 0;
   const diff = Number(Math.abs(totalAmount - expectedAmount).toFixed(2));
   const isMismatch = diff > 0.05;
@@ -139,8 +139,8 @@ export default function OCRReviewForm({
 
   function removeItem(index: number) {
     setFormData((prev) => {
-      const nextItems = prev.items.filter((_, i) => i !== index);
-      const newGrandTotal = nextItems.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
+      const nextItems = prev.items.filter((_: any, i: number) => i !== index);
+      const newGrandTotal = nextItems.reduce((sum: number, item: any) => sum + (Number(item.total_amount) || 0), 0);
       return {
         ...prev,
         items: nextItems,
@@ -186,7 +186,7 @@ export default function OCRReviewForm({
       errors.items = "At least one product line item is required.";
     }
 
-    formData.items.forEach((item, i) => {
+    formData.items.forEach((item: any, i: number) => {
       if (!item.fuel_type) {
         errors[`item_${i}_fuel_type`] = "Required";
       }
@@ -379,7 +379,7 @@ export default function OCRReviewForm({
                 </tr>
               </thead>
               <tbody>
-                {formData.items.map((item, index) => {
+                {formData.items.map((item: any, index: number) => {
                   const fuelErr = fieldErrors[`item_${index}_fuel_type`];
                   const qtyErr = fieldErrors[`item_${index}_quantity`];
                   const rateErr = fieldErrors[`item_${index}_rate`];

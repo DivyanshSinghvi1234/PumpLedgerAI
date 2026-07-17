@@ -1,8 +1,6 @@
 import io
 import os
 import mimetypes
-import cv2
-import numpy as np
 from PIL import Image, ImageEnhance
 from app.core.logging import get_logger
 
@@ -38,29 +36,6 @@ class ImagePreprocessor:
             if img.mode != "RGB":
                 img = img.convert("RGB")
 
-            # 1. OpenCV-based Deskewing (rotation correction)
-            try:
-                img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-                thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-                
-                coords = np.column_stack(np.where(thresh > 0))
-                if len(coords) > 0:
-                    angle = cv2.minAreaRect(coords)[-1]
-                    if angle < -45:
-                        angle = -(90 + angle)
-                    else:
-                        angle = -angle
-                    
-                    if abs(angle) > 0.5:
-                        h_cv, w_cv = img_cv.shape[:2]
-                        center = (w_cv // 2, h_cv // 2)
-                        M = cv2.getRotationMatrix2D(center, angle, 1.0)
-                        img_cv = cv2.warpAffine(img_cv, M, (w_cv, h_cv), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-                        img = Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
-                        logger.info(f"Deskewed image by {angle:.2f} degrees")
-            except Exception as deskew_exc:
-                logger.warning(f"Deskewing failed (skipping): {deskew_exc}")
 
             # 2. Downscale if too large to save network upload time (free tier latency)
             w, h = img.size

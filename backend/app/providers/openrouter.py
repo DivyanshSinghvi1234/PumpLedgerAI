@@ -9,12 +9,11 @@ from app.core.config import settings
 from app.core.vision_exceptions import OCRProviderException
 from app.prompts.system_prompt import SYSTEM_PROMPT
 from app.prompts.voucher_prompt import VOUCHER_PROMPT
-from app.providers.base import VisionProvider
 from app.schemas.ocr import OCRExtraction
 from app.utils.image_validator import ImageValidator
 
 
-class OpenRouterProvider(VisionProvider):
+class OpenRouterProvider:
 
     def __init__(self):
         self._client = httpx.AsyncClient(

@@ -6,9 +6,8 @@ from app.core.config import settings
 from app.core.enums import AIProvider
 from app.core.logging import get_logger
 from app.providers.gemini import GeminiProvider
-from app.providers.openrouter import OpenRouterProvider
-from app.providers.ollama import OllamaProvider
 from app.providers.groq import GroqProvider
+from app.providers.openrouter import OpenRouterProvider
 from app.schemas.vision import OCRResult
 from app.services.ocr_parser import OCRParser
 from app.utils.image_preprocessor import ImagePreprocessor
@@ -21,44 +20,40 @@ class VisionService:
     def __init__(self):
         self.preprocessor = ImagePreprocessor()
         
-        # Instantiate all available providers
+        # Instantiate available providers
         gemini = GeminiProvider()
         openrouter = OpenRouterProvider()
-        ollama = OllamaProvider()
         groq = GroqProvider()
         
         # Map of enum to provider instance
-        provider_map = {
+        self.provider_map = {
             AIProvider.GEMINI: gemini,
             AIProvider.OPENROUTER: openrouter,
-            AIProvider.OLLAMA: ollama,
             AIProvider.GROQ: groq,
         }
         
-        # Determine primary provider from settings
-        primary_str = settings.AI_PROVIDER.upper()
+        # Sane default fallback sequence: Gemini -> Groq -> OpenRouter
+        primary_str = settings.AI_PROVIDER.upper() if settings.AI_PROVIDER else "GEMINI"
         try:
             primary_enum = AIProvider(primary_str)
         except ValueError:
             logger.warning(f"Unknown AI_PROVIDER setting '{settings.AI_PROVIDER}'. Defaulting to GEMINI.")
             primary_enum = AIProvider.GEMINI
 
-        primary_inst = provider_map[primary_enum]
+        primary_inst = self.provider_map[primary_enum]
         
-        # Construct the sequence of providers starting with the configured primary
+        # Sequence of providers starting with configured primary
         self.providers = [(primary_enum, primary_inst)]
         
-        # Sane default fallback sequence for remaining providers
         fallback_order = [
             AIProvider.GEMINI,
             AIProvider.GROQ,
             AIProvider.OPENROUTER,
-            AIProvider.OLLAMA,
         ]
         
         for provider_enum in fallback_order:
             if provider_enum != primary_enum:
-                self.providers.append((provider_enum, provider_map[provider_enum]))
+                self.providers.append((provider_enum, self.provider_map[provider_enum]))
 
     async def extract(
         self,

@@ -103,11 +103,11 @@ export interface CreateVoucherRequest {
 
   customer_uuid?: string | null;
 
-  fuel_type: FuelType;
+  fuel_type?: FuelType | null;
 
-  quantity_liters: number;
+  quantity_liters?: number | null;
 
-  rate_per_liter: number;
+  rate_per_liter?: number | null;
 
   total_amount: number;
 
@@ -116,6 +116,13 @@ export interface CreateVoucherRequest {
   remarks?: string | null;
 
   image_path?: string | null;
+
+  items?: {
+    fuel_type: FuelType;
+    quantity_liters: number;
+    rate_per_liter: number;
+    total_amount: number;
+  }[] | null;
 }
 
 export interface UpdateVoucherRequest
