@@ -60,3 +60,10 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Graphify and Agent Cache/Outputs
+graphify-out/
+.kilo/
+.agents/
+.opencode/
+AGENTS.md
