@@ -33,8 +33,6 @@ class OCRReviewService:
                     errors.append(f"Quantity must be greater than zero for item {i + 1}.")
                 if item.rate_per_liter <= Decimal("0"):
                     errors.append(f"Rate must be greater than zero for item {i + 1}.")
-            
-            calculated_total = sum(item.total_amount for item in ocr.items)
         else:
             if not ocr.fuel_type:
                 errors.append("Fuel type missing.")
@@ -47,7 +45,11 @@ class OCRReviewService:
             if rate <= Decimal("0"):
                 errors.append("Rate must be greater than zero.")
             
-            calculated_total = qty * rate
+        calculated_total = (
+            sum(item.total_amount for item in ocr.items)
+            if ocr.items
+            else (ocr.quantity_liters or Decimal("0")) * (ocr.rate_per_liter or Decimal("0"))
+        )
 
         if abs(
             calculated_total - ocr.total_amount

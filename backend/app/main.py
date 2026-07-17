@@ -62,6 +62,23 @@ app = FastAPI(
 # Register pump scoping middleware
 app.add_middleware(PumpScopingMiddleware)
 
+
+from app.core.exceptions import AppException
+from fastapi import Request
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    status_code = 400
+    name = exc.__class__.__name__
+    if "NotFoundError" in name:
+        status_code = 404
+    elif "Duplicate" in name:
+        status_code = 409
+    return ORJSONResponse(
+        status_code=status_code,
+        content={"detail": str(exc)},
+    )
+
 # CORS: reads ALLOWED_ORIGINS env-var (comma-separated) so Render frontend URL
 # can be injected at runtime without code changes.  Falls back to localhost dev URLs.
 _default_origins = [

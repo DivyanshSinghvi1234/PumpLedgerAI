@@ -243,19 +243,23 @@ class VoucherPaymentService:
                 )
                 db.add(settlement)
 
-        # Post single ledger entry for total payment amount
-        self.ledger_service.post(
-            db,
-            customer,
-            LedgerEntryType.PAYMENT,
-            amount,
-            entry_date=payment_date,
-            reference_type="PAYMENT",
-            reference_id=payment.id,
-            remarks=payment.remarks,
-            extra_objects=touched,
-            actor_id=actor_id,
-        )
+        # Update payment amount to what was actually allocated
+        payment.amount = total_allocated
+
+        # Post single ledger entry for total allocated amount if it is greater than zero
+        if total_allocated > 0:
+            self.ledger_service.post(
+                db,
+                customer,
+                LedgerEntryType.PAYMENT,
+                total_allocated,
+                entry_date=payment_date,
+                reference_type="PAYMENT",
+                reference_id=payment.id,
+                remarks=payment.remarks,
+                extra_objects=touched,
+                actor_id=actor_id,
+            )
 
         db.refresh(payment)
         return payment

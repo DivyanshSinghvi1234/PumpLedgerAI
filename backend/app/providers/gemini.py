@@ -39,6 +39,8 @@ class GeminiProvider:
 
             return await self.extract_data_from_bytes(image_bytes, mime_type)
 
+        except (AttributeError, TypeError, NameError, ValueError, KeyError, IndexError):
+            raise
         except Exception as exc:
             raise OCRProviderException(
                 f"Gemini OCR failed: {exc}"
@@ -70,6 +72,8 @@ class GeminiProvider:
 
             return response.parsed
 
+        except (AttributeError, TypeError, NameError, ValueError, KeyError, IndexError):
+            raise
         except Exception as exc:
             raise OCRProviderException(
                 f"Gemini OCR failed: {exc}"

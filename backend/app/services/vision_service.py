@@ -5,6 +5,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.core.enums import AIProvider
 from app.core.logging import get_logger
+from app.core.vision_exceptions import OCRProviderException
 from app.providers.gemini import GeminiProvider
 from app.providers.groq import GroqProvider
 from app.providers.openrouter import OpenRouterProvider
@@ -92,7 +93,7 @@ class VisionService:
                 result = OCRParser.parse(extraction, image_path=image_path)
                 result.provider = provider_enum
                 return result
-            except Exception as exc:
+            except OCRProviderException as exc:
                 logger.warning(f"Provider {provider_enum.value} failed: {exc}")
                 last_exc = exc
 

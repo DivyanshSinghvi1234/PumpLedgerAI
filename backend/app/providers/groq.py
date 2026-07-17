@@ -39,6 +39,8 @@ class GroqProvider:
 
             return await self.extract_data_from_bytes(image_bytes, mime_type)
 
+        except (AttributeError, TypeError, NameError, ValueError, KeyError, IndexError):
+            raise
         except Exception as exc:
             raise OCRProviderException(
                 f"Groq OCR failed: {exc}"
@@ -103,6 +105,8 @@ class GroqProvider:
             content = choices[0].get("message", {}).get("content", "")
             return OCRExtraction.model_validate_json(content)
 
+        except (AttributeError, TypeError, NameError, ValueError, KeyError, IndexError):
+            raise
         except Exception as exc:
             raise OCRProviderException(
                 f"Groq OCR failed: {exc}"

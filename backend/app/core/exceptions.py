@@ -33,34 +33,34 @@ class SettlementError(AppException):
 # Customer Exceptions
 # -------------------------
 
-class CustomerNotFoundError(Exception):
+class CustomerNotFoundError(AppException):
     def __init__(self, customer_uuid: str):
         super().__init__(
             f"Customer '{customer_uuid}' not found."
         )
 
 
-class DuplicateCustomerPhoneError(Exception):
+class DuplicateCustomerPhoneError(AppException):
     def __init__(self, phone: str):
         super().__init__(
             f"Phone number '{phone}' already exists."
         )
 
 
-class DuplicateCustomerGSTError(Exception):
+class DuplicateCustomerGSTError(AppException):
     def __init__(self, gst_number: str):
         super().__init__(
             f"GST number '{gst_number}' already exists."
         )
 
-class VehicleNotFoundError(Exception):
+class VehicleNotFoundError(AppException):
     def __init__(self, vehicle_uuid: str):
         super().__init__(
             f"Vehicle '{vehicle_uuid}' not found."
         )
 
 
-class DuplicateVehicleNumberError(Exception):
+class DuplicateVehicleNumberError(AppException):
     def __init__(self, vehicle_number: str):
         super().__init__(
             f"Vehicle number '{vehicle_number}' already exists."

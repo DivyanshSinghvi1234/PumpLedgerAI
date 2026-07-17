@@ -22,6 +22,7 @@ from app.core.exceptions import (
     CustomerNotFoundError,
     DuplicateInvoiceError,
     VoucherNotFoundError,
+    SettlementError,
 )
 from app.schemas.voucher import (
     PaginationResponse,
@@ -325,7 +326,7 @@ def settle_voucher(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
-    except Exception as exc:
+    except SettlementError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
