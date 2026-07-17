@@ -8,6 +8,7 @@ import { invoiceImageUrl } from "../../vouchers/utils/invoiceImage";
 import CustomerAutocomplete from "../../customers/components/CustomerAutocomplete";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import { getTodayDateString } from "@/lib/utils";
+import AppDialog from "@/components/common/AppDialog";
 
 type Props = {
   data: any;
@@ -33,6 +34,7 @@ export default function OCRReviewForm({
   );
 
   const [showImage, setShowImage] = useState(false);
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
 
   // The backend returns { ocr, validation, ready_to_save }.
   const ocr = data?.ocr ?? {};
@@ -79,6 +81,8 @@ export default function OCRReviewForm({
   const totalAmount = Number(formData.total_amount) || 0;
   const diff = Number(Math.abs(totalAmount - expectedAmount).toFixed(2));
   const isMismatch = diff > 0.05;
+  const scannedTotal = Number(ocr.total_amount) || 0;
+  const isScannedMismatch = Math.abs(totalAmount - scannedTotal) > 0.05;
 
   function updateField(
     field: string,
@@ -214,6 +218,11 @@ export default function OCRReviewForm({
       return;
     }
 
+    setShowConfirmSave(true);
+  }
+
+  async function handleConfirmSave() {
+    setShowConfirmSave(false);
     try {
       setError("");
 
@@ -475,27 +484,48 @@ export default function OCRReviewForm({
           <FieldError field="payment_mode" />
         </div>
 
-        <div>
-          <label>Total Invoice Amount (Grand Total) *</label>
+        <div className="sm:col-span-2 border border-border/40 rounded-xl p-4 bg-muted/10">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium mb-1">Total Invoice Amount (Grand Total) *</label>
+              <input
+                type="number"
+                step="0.01"
+                className={inputClass("total_amount")}
+                value={formData.total_amount}
+                onChange={(e) =>
+                  updateField(
+                    "total_amount",
+                    Number(e.target.value)
+                  )
+                }
+              />
+              <FieldError field="total_amount" />
 
-          <input
-            type="number"
-            step="0.01"
-            className={inputClass("total_amount")}
-            value={formData.total_amount}
-            onChange={(e) =>
-              updateField(
-                "total_amount",
-                Number(e.target.value)
-              )
-            }
-          />
-          <FieldError field="total_amount" />
-          {isMismatch && (
-            <p className="mt-1.5 text-xs font-semibold text-amber-500">
-              ⚠️ Amount Mismatch: Sum of items is ₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} (Difference: ₹{diff.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
-            </p>
-          )}
+              <div className="mt-1.5 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Calculated Total (Qty × Rate): <span className="font-semibold text-foreground">₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                </p>
+                {isScannedMismatch && scannedTotal > 0 && (
+                  <p className="text-xs font-semibold text-amber-500 flex items-center gap-1">
+                    ⚠️ Mismatch: Edited total differs from scanned/handwritten total (₹{scannedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+                  </p>
+                )}
+                {isMismatch && (
+                  <p className="text-xs font-semibold text-amber-500 flex items-center gap-1">
+                    ⚠️ Mismatch: Edited total differs from items total (₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1 text-muted-foreground">Scanned or Handwritten Total</label>
+              <div className="w-full rounded border border-input bg-muted px-4 py-3 text-sm text-muted-foreground font-medium select-all flex items-center h-[46px]">
+                ₹{scannedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="sm:col-span-2">
@@ -537,6 +567,73 @@ export default function OCRReviewForm({
         imageUrl={imageUrl}
         invoiceNumber={formData.invoice_number}
       />
+
+      <AppDialog
+        open={showConfirmSave}
+        onOpenChange={setShowConfirmSave}
+        title="Confirm Save Voucher"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to save this voucher? Please verify the details below before proceeding:
+          </p>
+
+          <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-y-2 text-sm">
+              <span className="text-muted-foreground font-medium">Invoice Number:</span>
+              <span className="font-semibold text-foreground text-right">{formData.invoice_number || "(Empty)"}</span>
+
+              <span className="text-muted-foreground font-medium">Invoice Date:</span>
+              <span className="font-semibold text-foreground text-right">{formData.invoice_date}</span>
+
+              <span className="text-muted-foreground font-medium">Payment Mode:</span>
+              <span className="font-semibold text-foreground text-right">{formData.payment_mode || "(Empty)"}</span>
+
+              <span className="text-muted-foreground font-semibold text-foreground">Total Amount:</span>
+              <span className="font-bold text-foreground text-right">
+                ₹{Number(formData.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {/* Warn inside confirmation dialog if mismatches exist! */}
+            {(isMismatch || isScannedMismatch) && (
+              <div className="mt-3 rounded-md bg-amber-500/10 border border-amber-500/25 p-3 space-y-1">
+                <h4 className="text-xs font-bold text-amber-500 flex items-center gap-1">
+                  ⚠️ Verification Warnings
+                </h4>
+                {isScannedMismatch && scannedTotal > 0 && (
+                  <p className="text-xs text-amber-500/90">
+                    • Total amount differs from scanned/handwritten total (₹{scannedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+                  </p>
+                )}
+                {isMismatch && (
+                  <p className="text-xs text-amber-500/90">
+                    • Total amount differs from calculated items total (₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              type="button"
+              onClick={() => setShowConfirmSave(false)}
+              className="rounded border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmSave}
+              disabled={createMutation.isPending}
+              className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:bg-muted-foreground"
+            >
+              {createMutation.isPending ? "Saving..." : "Confirm & Save"}
+            </button>
+          </div>
+        </div>
+      </AppDialog>
     </div>
   );
 }
