@@ -94,7 +94,21 @@ export default function CustomerForm({
   function submitForm(
     data: CustomerFormData
   ) {
-    return onSubmit(data);
+    const cleaned: CreateCustomerRequest = {
+      name: data.name.trim(),
+      customer_code: data.customer_code?.trim() || undefined,
+      mobile: data.mobile?.trim() || undefined,
+      email: data.email?.trim() || undefined,
+      gst_number: data.gst_number?.trim() || undefined,
+      address: data.address?.trim() || undefined,
+      city: data.city?.trim() || undefined,
+      state: data.state?.trim() || undefined,
+      pincode: data.pincode?.trim() || undefined,
+      credit_limit: data.credit_limit || 0,
+      opening_balance: data.opening_balance || 0,
+      remarks: data.remarks?.trim() || undefined,
+    };
+    return onSubmit(cleaned);
   }
 
   return (

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy import asc, case, desc, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.voucher import Voucher
@@ -35,7 +36,10 @@ class VoucherRepository(BaseRepository[Voucher]):
         statement = (
             select(Voucher)
             .where(Voucher.uuid == voucher_uuid)
-            .options(joinedload(Voucher.customer))
+            .options(
+                joinedload(Voucher.customer),
+                joinedload(Voucher.vehicle),
+            )
         )
 
         return db.scalar(statement)
@@ -108,7 +112,8 @@ class VoucherRepository(BaseRepository[Voucher]):
     ) -> tuple[list[Voucher], int]:
 
         statement = select(Voucher).options(
-            joinedload(Voucher.customer)
+            joinedload(Voucher.customer),
+            joinedload(Voucher.vehicle),
         )
 
         # -------------------------
@@ -234,9 +239,16 @@ class VoucherRepository(BaseRepository[Voucher]):
         self,
         db: Session,
         customer_id: int,
+        vehicle_id: int | None = None,
+        normalized_vehicle_number: str | None = None,
     ) -> list[Voucher]:
-        """Return customer's active vouchers with balance due, oldest first (FIFO)."""
+        """Return customer's active vouchers with balance due, oldest first
+        (FIFO). When ``vehicle_id`` or ``normalized_vehicle_number`` is given,
+        restrict to that vehicle's vouchers so a payment can be scoped to a
+        single vehicle."""
         from app.core.enums import PaymentStatus
+        from app.common.normalization import normalize_vehicle_number
+
         statement = (
             select(Voucher)
             .where(
@@ -247,4 +259,93 @@ class VoucherRepository(BaseRepository[Voucher]):
             .order_by(Voucher.invoice_date.asc(), Voucher.id.asc())
             .options(joinedload(Voucher.customer))
         )
+
+        vouchers = list(db.scalars(statement).all())
+
+        if vehicle_id is not None or normalized_vehicle_number:
+            filtered = []
+            for v in vouchers:
+                if vehicle_id is not None and v.vehicle_id == vehicle_id:
+                    filtered.append(v)
+                elif normalized_vehicle_number and normalize_vehicle_number(v.vehicle_number) == normalized_vehicle_number:
+                    filtered.append(v)
+            return filtered
+
+        return vouchers
+
+    def list_for_vehicle(
+        self,
+        db: Session,
+        vehicle_id: int,
+    ) -> list[Voucher]:
+        """All active vouchers tagged with a vehicle, newest first — the
+        vehicle-ledger equivalent of ``list_for_customer``."""
+
+        statement = (
+            select(Voucher)
+            .where(
+                Voucher.vehicle_id == vehicle_id,
+                Voucher.is_active.is_(True),
+            )
+            .order_by(desc(Voucher.invoice_date), desc(Voucher.id))
+            .options(
+                joinedload(Voucher.customer),
+                joinedload(Voucher.vehicle),
+            )
+        )
         return list(db.scalars(statement).all())
+
+    def outstanding_for_vehicle(
+        self,
+        db: Session,
+        vehicle_id: int,
+    ) -> Decimal:
+        """Live vehicle outstanding = SUM(balance_due) over the vehicle's
+        active vouchers. ``balance_due`` is total_amount − amount_paid floored
+        at 0, so paid/cash vouchers contribute nothing. Computed in SQL so it
+        always agrees with the customer view over the same rows."""
+
+        raw_due = Voucher.total_amount - Voucher.amount_paid
+        # Floor each voucher's balance at zero (portable across SQLite/Postgres,
+        # unlike two-arg MAX/GREATEST) so overpaid vouchers can't net negative.
+        due = case((raw_due > 0, raw_due), else_=0)
+
+        total = db.scalar(
+            select(func.coalesce(func.sum(due), 0)).where(
+                Voucher.vehicle_id == vehicle_id,
+                Voucher.is_active.is_(True),
+            )
+        )
+        return Decimal(str(total or "0.00"))
+
+    def outstanding_for_vehicles(
+        self,
+        db: Session,
+        vehicle_ids: list[int],
+    ) -> dict[int, Decimal]:
+        """Bulk version of ``outstanding_for_vehicle`` — one grouped query for
+        a page of vehicles so the list view avoids an N+1. Missing ids (no
+        vouchers) default to 0.00."""
+
+        if not vehicle_ids:
+            return {}
+
+        raw_due = Voucher.total_amount - Voucher.amount_paid
+        due = case((raw_due > 0, raw_due), else_=0)
+
+        rows = db.execute(
+            select(
+                Voucher.vehicle_id,
+                func.coalesce(func.sum(due), 0),
+            )
+            .where(
+                Voucher.vehicle_id.in_(vehicle_ids),
+                Voucher.is_active.is_(True),
+            )
+            .group_by(Voucher.vehicle_id)
+        ).all()
+
+        totals = {vid: Decimal(str(total or "0.00")) for vid, total in rows}
+        return {
+            vid: totals.get(vid, Decimal("0.00")) for vid in vehicle_ids
+        }

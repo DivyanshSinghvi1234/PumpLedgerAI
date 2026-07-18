@@ -125,6 +125,38 @@ def check_and_update_schema() -> None:
             db.execute(text("ALTER TABLE users ADD COLUMN last_active_at TIMESTAMP WITH TIME ZONE"))
             db.commit()
             print("Successfully added last_active_at column to users table.")
+
+        # vehicles.normalized_number — canonical plate for matching. Backfill
+        # existing rows so historical vehicles resolve on the next voucher.
+        try:
+            db.execute(text("SELECT normalized_number FROM vehicles LIMIT 1"))
+        except Exception:
+            db.rollback()
+            db.execute(text("ALTER TABLE vehicles ADD COLUMN normalized_number VARCHAR(20)"))
+            db.commit()
+
+            from app.common.normalization import normalize_vehicle_number
+
+            rows = db.execute(
+                text("SELECT id, vehicle_number FROM vehicles")
+            ).fetchall()
+            for row in rows:
+                normalized = normalize_vehicle_number(row.vehicle_number)
+                db.execute(
+                    text(
+                        "UPDATE vehicles SET normalized_number = :n WHERE id = :id"
+                    ),
+                    {"n": normalized, "id": row.id},
+                )
+            db.commit()
+            print("Successfully added normalized_number column to vehicles table.")
+
+        # Auto-convert any legacy PENDING vouchers to VERIFIED
+        try:
+            db.execute(text("UPDATE vouchers SET verification_status = 'VERIFIED' WHERE verification_status = 'PENDING'"))
+            db.commit()
+        except Exception:
+            db.rollback()
     finally:
         db.close()
 

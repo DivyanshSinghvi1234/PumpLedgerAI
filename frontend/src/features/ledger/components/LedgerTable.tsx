@@ -109,17 +109,21 @@ export default function LedgerTable({
                   </td>
 
                   <td className="px-4 py-3">
-                    {entry.status === "Completed" && (
+                    {(entry.status === "Paid" || entry.status === "Completed") && (
                       <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
-                        Completed
+                        Paid
                       </span>
                     )}
-                    {entry.status === "Pending" && (
-                      <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2.5 py-0.5 text-xs font-semibold text-yellow-500 ring-1 ring-inset ring-yellow-500/10">
-                        Pending
+                    {entry.status === "Partially Paid" && (
+                      <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-400 ring-1 ring-inset ring-amber-500/20">
+                        Partially Paid
                       </span>
                     )}
-                    {!entry.status && "-"}
+                    {(entry.status === "Unpaid" || entry.status === "Pending" || !entry.status) && (
+                      <span className="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-400 ring-1 ring-inset ring-red-500/20">
+                        Unpaid
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-4 py-3 text-muted-foreground">

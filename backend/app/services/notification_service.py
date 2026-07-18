@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.voucher import Voucher
 from app.models.customer import Customer
 from app.models.pump import Pump
+from app.services.balance_service import BalanceService
 from sqlalchemy import select
 
 logger = logging.getLogger("app.notification")
@@ -32,7 +33,9 @@ class NotificationService:
         liters = float(voucher.quantity_liters)
         fuel = voucher.fuel_type.value
         amount = float(voucher.total_amount)
-        outstanding = float(customer.outstanding_balance)
+        outstanding = float(
+            BalanceService().customer_outstanding(db, customer.id)
+        )
 
         # Structure the SMS/WhatsApp alert template
         message = (

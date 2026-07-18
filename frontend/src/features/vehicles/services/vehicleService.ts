@@ -3,6 +3,7 @@ import api from "@/api/client";
 import type {
   Vehicle,
   VehicleListResponse,
+  VehicleLedgerResponse,
   CreateVehicleRequest,
   UpdateVehicleRequest,
 } from "../types/vehicle";
@@ -72,6 +73,17 @@ class VehicleService {
     await api.delete(
       `/v1/vehicles/${uuid}`
     );
+  }
+
+  async getVehicleLedger(
+    uuid: string
+  ): Promise<VehicleLedgerResponse> {
+    const response =
+      await api.get<VehicleLedgerResponse>(
+        `/v1/vehicles/${uuid}/ledger`
+      );
+
+    return response.data;
   }
 }
 

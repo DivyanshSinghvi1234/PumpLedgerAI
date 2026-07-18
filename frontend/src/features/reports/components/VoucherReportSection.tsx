@@ -5,7 +5,7 @@ import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import FormSelect from "@/components/forms/FormSelect";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 
-import VoucherStatusBadge from "@/features/vouchers/components/VoucherStatusBadge";
+import { VoucherPaymentStatusBadge } from "@/features/vouchers/components/VoucherStatusBadge";
 
 import { useVoucherReport } from "../hooks/useVoucherReport";
 import reportService from "../services/reportService";
@@ -144,8 +144,8 @@ export default function VoucherReportSection() {
                   </td>
                   <td className="px-3 py-2">{r.payment_mode}</td>
                   <td className="px-3 py-2">
-                    <VoucherStatusBadge
-                      status={r.verification_status}
+                    <VoucherPaymentStatusBadge
+                      status={r.payment_status}
                     />
                   </td>
                 </tr>

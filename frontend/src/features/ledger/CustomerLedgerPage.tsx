@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import LedgerSummary from "./components/LedgerSummary";
 import LedgerTable from "./components/LedgerTable";
 import AdjustmentDialog from "./components/AdjustmentDialog";
+import CustomerVehicleVouchers from "./components/CustomerVehicleVouchers";
 
 import { useCustomerLedger } from "./hooks/useCustomerLedger";
 
@@ -76,6 +77,8 @@ export default function CustomerLedgerPage() {
       />
 
       <LedgerTable entries={data.items} />
+
+      <CustomerVehicleVouchers customerUuid={customerUuid} />
 
       <div className="flex items-center justify-end gap-2">
         <button

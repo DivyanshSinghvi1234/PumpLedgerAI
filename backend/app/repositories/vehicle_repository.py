@@ -37,6 +37,24 @@ class VehicleRepository(BaseRepository[Vehicle]):
             )
         )
 
+    def get_by_normalized(
+        self,
+        db: Session,
+        normalized_number: str,
+    ) -> Vehicle | None:
+        """Match an existing active vehicle by its canonical plate so
+        ``MP09 CD 1234`` / ``mp-09-cd-1234`` / ``MP09CD1234`` all resolve to
+        one record. See ``app.common.normalization``."""
+
+        return db.scalar(
+            select(Vehicle)
+            .where(
+                Vehicle.is_active.is_(True),
+                Vehicle.normalized_number == normalized_number,
+            )
+            .order_by(Vehicle.id)
+        )
+
     def get_all(
         self,
         db: Session,

@@ -1,7 +1,5 @@
 import {
   FileText,
-  Clock,
-  CheckCircle2,
   Users,
   Truck,
   Banknote,
@@ -55,21 +53,6 @@ export default function StatCards({
         iconBg="bg-petrol-blue/10"
       />
 
-      <StatCard
-        title="Pending Review"
-        value={summary.pending_review}
-        icon={Clock}
-        accent="text-warning"
-        iconBg="bg-warning/10"
-      />
-
-      <StatCard
-        title="Verified"
-        value={summary.verified}
-        icon={CheckCircle2}
-        accent="text-success"
-        iconBg="bg-success/10"
-      />
 
       <StatCard
         title="Customers"

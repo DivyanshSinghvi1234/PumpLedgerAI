@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
@@ -18,6 +19,8 @@ import { useCustomerOptions } from "./hooks/useCustomerOptions";
 import type { Vehicle } from "./types/vehicle";
 
 export default function VehicleListPage() {
+  const navigate = useNavigate();
+
   const { hasRole } = useCurrentUser();
   const canManage = hasRole("ADMIN", "MANAGER");
 
@@ -60,6 +63,10 @@ export default function VehicleListPage() {
   function handleCreate() {
     setSelectedVehicle(undefined);
     setDialogOpen(true);
+  }
+
+  function handleViewLedger(vehicle: Vehicle) {
+    navigate(`/dashboard/vehicles/${vehicle.uuid}/ledger`);
   }
 
   function handleEdit(vehicle: Vehicle) {
@@ -112,6 +119,7 @@ export default function VehicleListPage() {
       <VehicleTable
         vehicles={data?.items ?? []}
         canManage={canManage}
+        onViewLedger={handleViewLedger}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />

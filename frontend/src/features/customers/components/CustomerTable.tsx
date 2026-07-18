@@ -82,12 +82,12 @@ export default function CustomerTable({
               <td className="px-4 py-3 text-center">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${
-                    customer.outstanding_balance > 0
-                      ? "badge-warning"
-                      : "badge-success"
+                    customer.is_active
+                      ? "badge-success"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {customer.outstanding_balance > 0 ? "Pending" : "Completed"}
+                  {customer.is_active ? "Active" : "Inactive"}
                 </span>
               </td>
 

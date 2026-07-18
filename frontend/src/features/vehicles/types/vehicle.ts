@@ -1,3 +1,5 @@
+import type { Voucher } from "@/types/voucher";
+
 export interface Vehicle {
   uuid: string;
 
@@ -8,6 +10,27 @@ export interface Vehicle {
   vehicle_number: string;
 
   vehicle_type: string | null;
+
+  /** Live SUM(balance_due) for this vehicle. */
+  outstanding_balance: string;
+}
+
+export interface VehicleLedgerResponse {
+  vehicle_uuid: string;
+
+  vehicle_number: string;
+
+  vehicle_type: string | null;
+
+  customer_uuid: string;
+
+  customer_name: string;
+
+  outstanding: string;
+
+  voucher_count: number;
+
+  vouchers: Voucher[];
 }
 
 export interface Pagination {

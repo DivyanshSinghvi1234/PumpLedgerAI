@@ -13,6 +13,7 @@ from app.schemas.customer import (
     CustomerUpdate,
 )
 from app.services.ledger_service import LedgerService
+from app.services.balance_service import BalanceService
 from app.core.exceptions import (
     CustomerNotFoundError,
     DuplicateCustomerGSTError,
@@ -26,6 +27,21 @@ class CustomerService:
     def __init__(self) -> None:
         self.repository = CustomerRepository()
         self.ledger_service = LedgerService()
+        self.balance_service = BalanceService()
+
+    def _apply_live_balance(
+        self,
+        db: Session,
+        customer: Customer,
+    ) -> Customer:
+        """Overwrite the transient ``outstanding_balance`` with the live value
+        computed from the ledger, so every serializer reports the authoritative
+        figure regardless of the cached column. Assigning to the mapped
+        attribute here does not persist — callers of read paths never commit."""
+        customer.outstanding_balance = (
+            self.balance_service.customer_outstanding(db, customer.id)
+        )
+        return customer
 
     # -----------------------------------
     # Create
@@ -131,12 +147,21 @@ class CustomerService:
         page_size: int = 20,
     ) -> tuple[list[Customer], int]:
 
-        return self.repository.search(
+        customers, total = self.repository.search(
             db,
             search=search,
             page=page,
             page_size=page_size,
         )
+
+        balances = self.balance_service.customer_outstanding_bulk(
+            db,
+            [c.id for c in customers],
+        )
+        for c in customers:
+            c.outstanding_balance = balances[c.id]
+
+        return customers, total
 
     def search_autocomplete(
         self,
@@ -146,11 +171,14 @@ class CustomerService:
         limit: int = 10,
     ) -> list[Customer]:
         """Lightweight search for autocomplete dropdown."""
-        return self.repository.search_autocomplete(
+        customers = self.repository.search_autocomplete(
             db,
             search=search,
             limit=limit,
         )
+        for c in customers:
+            self._apply_live_balance(db, c)
+        return customers
 
     # -----------------------------------
     # Get By UUID
@@ -172,7 +200,7 @@ class CustomerService:
                 customer_uuid,
             )
 
-        return customer
+        return self._apply_live_balance(db, customer)
 
     # -----------------------------------
     # Update

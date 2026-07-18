@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from app.core.enums import (
     FuelType,
     PaymentMode,
+    PaymentStatus,
     VerificationStatus,
 )
 
@@ -57,6 +58,7 @@ class VoucherReportRow(BaseModel):
     total_amount: Decimal
 
     payment_mode: PaymentMode
+    payment_status: PaymentStatus = PaymentStatus.UNPAID
     verification_status: VerificationStatus
 
     model_config = ConfigDict(from_attributes=True)

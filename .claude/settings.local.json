@@ -21,7 +21,20 @@
       "Bash(alembic revision *)",
       "Bash(alembic stamp *)",
       "Bash(alembic current *)",
-      "Bash(alembic upgrade *)"
+      "Bash(alembic upgrade *)",
+      "Bash(python -m pytest -q)",
+      "Bash(python -m pytest tests/test_fifo_payment.py::TestVoucherSettle::test_settle_voucher_partial -q)",
+      "Bash(python -m pytest tests/test_fifo_payment.py::TestVehicleLedger -q)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(command -v graphify)",
+      "Bash(graphify --version)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(graphify update *)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/ -q)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(python -m pytest --version)",
+      "Bash(python -m pip install pytest -q)",
+      "Bash(uv pip *)"
     ]
   }
 }

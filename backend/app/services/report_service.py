@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from app.schemas.report import (
     VoucherReportRow,
 )
 from app.services.ledger_service import LedgerService
+from app.services.balance_service import BalanceService
 
 
 class ReportService:
@@ -22,6 +24,7 @@ class ReportService:
     def __init__(self) -> None:
         self.repository = ReportRepository()
         self.ledger_service = LedgerService()
+        self.balance_service = BalanceService()
 
     # -----------------------------------
     # Voucher Report
@@ -107,9 +110,23 @@ class ReportService:
         search: str | None = None,
     ) -> CustomerReportResponse:
 
-        rows, total_outstanding = self.repository.customer_report(
+        rows, _ = self.repository.customer_report(
             db,
             search=search,
+        )
+
+        # Report the live balances and derive the total from the same figures
+        # so the report agrees with the customer/vehicle views exactly.
+        balances = self.balance_service.customer_outstanding_bulk(
+            db,
+            [c.id for c in rows],
+        )
+        for c in rows:
+            c.outstanding_balance = balances[c.id]
+
+        total_outstanding = sum(
+            balances.values(),
+            Decimal("0.00"),
         )
 
         return CustomerReportResponse(

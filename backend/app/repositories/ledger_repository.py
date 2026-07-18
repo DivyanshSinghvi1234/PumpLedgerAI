@@ -6,6 +6,9 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from sqlalchemy import case, func
+
+from app.core.enums import DEBIT_ENTRY_TYPES
 from app.models.ledger_entry import LedgerEntry
 from app.repositories.base_repository import BaseRepository
 
@@ -14,6 +17,73 @@ class LedgerRepository(BaseRepository[LedgerEntry]):
 
     def __init__(self) -> None:
         super().__init__(LedgerEntry)
+
+    # -----------------------------------
+    # Live balance (signed sum of entries)
+    # -----------------------------------
+
+    def outstanding_for_customer(
+        self,
+        db: Session,
+        customer_id: int,
+    ) -> Decimal:
+        """Compute a customer's outstanding balance live from the signed sum
+        of their active ledger entries — the same definition the cached
+        ``customers.outstanding_balance`` holds, but read straight from the
+        source rows so it can never drift."""
+
+        signed = case(
+            (
+                LedgerEntry.entry_type.in_(list(DEBIT_ENTRY_TYPES)),
+                LedgerEntry.amount,
+            ),
+            else_=-LedgerEntry.amount,
+        )
+
+        total = db.scalar(
+            select(func.coalesce(func.sum(signed), 0)).where(
+                LedgerEntry.customer_id == customer_id,
+                LedgerEntry.is_active.is_(True),
+            )
+        )
+
+        return Decimal(str(total or "0.00"))
+
+    def outstanding_for_customers(
+        self,
+        db: Session,
+        customer_ids: list[int],
+    ) -> dict[int, Decimal]:
+        """Bulk variant of ``outstanding_for_customer`` — one grouped query for
+        a page of customers, avoiding an N+1 on the customer list."""
+
+        if not customer_ids:
+            return {}
+
+        signed = case(
+            (
+                LedgerEntry.entry_type.in_(list(DEBIT_ENTRY_TYPES)),
+                LedgerEntry.amount,
+            ),
+            else_=-LedgerEntry.amount,
+        )
+
+        rows = db.execute(
+            select(
+                LedgerEntry.customer_id,
+                func.coalesce(func.sum(signed), 0),
+            )
+            .where(
+                LedgerEntry.customer_id.in_(customer_ids),
+                LedgerEntry.is_active.is_(True),
+            )
+            .group_by(LedgerEntry.customer_id)
+        ).all()
+
+        totals = {cid: Decimal(str(amt or "0.00")) for cid, amt in rows}
+
+        # Customers with no ledger rows still need an explicit zero.
+        return {cid: totals.get(cid, Decimal("0.00")) for cid in customer_ids}
 
     # -----------------------------------
     # List (chronological, full series)

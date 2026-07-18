@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
   voucherId: string;
-
   canManage?: boolean;
 
   onEdit(id: string): void;
@@ -21,7 +20,6 @@ export default function VoucherActions({
 
   return (
     <div className="flex gap-2">
-
       <Button
         size="sm"
         variant="outline"
@@ -37,7 +35,6 @@ export default function VoucherActions({
       >
         Delete
       </Button>
-
     </div>
   );
 }

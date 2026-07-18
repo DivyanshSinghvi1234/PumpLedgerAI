@@ -1,6 +1,7 @@
 import type {
   FuelType,
   PaymentMode,
+  PaymentStatus,
   VerificationStatus,
 } from "@/types/voucher";
 
@@ -16,6 +17,7 @@ export interface VoucherReportRow {
   rate_per_liter: number;
   total_amount: number;
   payment_mode: PaymentMode;
+  payment_status: PaymentStatus;
   verification_status: VerificationStatus;
 }
 

@@ -36,6 +36,15 @@ class Vehicle(
         index=True,
     )
 
+    # Canonical form of ``vehicle_number`` (uppercased, no spaces/hyphens/dots)
+    # used to match plates typed inconsistently. See
+    # ``app.common.normalization.normalize_vehicle_number``.
+    normalized_number: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        index=True,
+    )
+
     vehicle_type: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,

@@ -2,6 +2,8 @@ This project is PumpLedgerAI.
 
 Use installed Skills whenever applicable.
 
+Also read AGENTS.md
+
 Architecture:
 FastAPI
 React
@@ -29,7 +31,5 @@ Use Conventional Commits.
 Never hardcode secrets.
 
 Prefer production-ready implementations.
-
-DESIGN.md for this project design
 
 Read existing code before modifying anything.

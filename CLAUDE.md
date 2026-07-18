@@ -2,6 +2,14 @@
 
 Guidance for working in the PumpLedgerAI codebase.
 
+## Mandatory Project Rules
+- **Read AGENTS.md:** Always follow the rules in `AGENTS.md`.
+- **Knowledge Graph & Obsidian:** 
+  - For codebase & architecture questions, first run `graphify query "<question>"` when `graphify-out/graph.json` exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts.
+  - If `graphify-out/wiki/index.md` or `graphify-out/obsidian/` exists, use it for broad navigation instead of raw source browsing.
+  - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
+  - After modifying code, run `graphify update .` to keep the graph current.
+
 ## What this is
 
 AI-powered petrol-pump invoice automation. Core loop: **upload invoice image →

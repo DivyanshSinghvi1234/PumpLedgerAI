@@ -110,6 +110,10 @@ class VoucherResponse(VoucherBase):
     is_amount_mismatch: bool = False
     calculated_amount: Decimal = Decimal("0.00")
 
+    # UUID of the linked vehicle (None when the voucher isn't tied to one).
+    # Lets clients deep-link to the vehicle ledger without a second lookup.
+    vehicle_uuid: UUID | None = None
+
     is_active: bool
 
     # Timestamp fields — when the voucher was first saved and last modified.
@@ -148,6 +152,7 @@ class VoucherResponse(VoucherBase):
             return data
 
         customer = getattr(data, "customer", None)
+        vehicle = getattr(data, "vehicle", None)
         items = getattr(data, "items", [])
 
         if items:
@@ -178,6 +183,9 @@ class VoucherResponse(VoucherBase):
             "customer_name": data.customer_name,
             "customer_uuid": (
                 customer.uuid if customer is not None else None
+            ),
+            "vehicle_uuid": (
+                vehicle.uuid if vehicle is not None else None
             ),
             "fuel_type": data.fuel_type,
             "quantity_liters": data.quantity_liters,

@@ -6,6 +6,7 @@ import { uploadErrorMessage } from "../../upload/services/uploadService";
 import InvoiceImageDialog from "../../vouchers/components/InvoiceImageDialog";
 import { invoiceImageUrl } from "../../vouchers/utils/invoiceImage";
 import CustomerAutocomplete from "../../customers/components/CustomerAutocomplete";
+import VehicleAutocomplete from "../../vehicles/components/VehicleAutocomplete";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import { getTodayDateString } from "@/lib/utils";
 import AppDialog from "@/components/common/AppDialog";
@@ -328,17 +329,24 @@ export default function OCRReviewForm({
         </div>
 
         <div>
-          <label>Vehicle Number</label>
-
-          <input
-            className={inputClass("vehicle_number")}
+          <VehicleAutocomplete
             value={formData.vehicle_number}
-            onChange={(e) =>
-              updateField(
-                "vehicle_number",
-                e.target.value
-              )
-            }
+            error={fieldErrors.vehicle_number}
+            onChange={(number, vehicle) => {
+              setFormData((prev) => ({
+                ...prev,
+                vehicle_number: number,
+                // Picking an existing vehicle auto-fills its owning customer
+                // and defaults to a credit sale.
+                ...(vehicle
+                  ? {
+                      customer_name: vehicle.customer_name,
+                      customer_uuid: vehicle.customer_uuid,
+                      payment_mode: "CREDIT",
+                    }
+                  : {}),
+              }));
+            }}
           />
         </div>
 

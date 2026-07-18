@@ -8,6 +8,7 @@ import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
+import VehicleAutocomplete from "@/features/vehicles/components/VehicleAutocomplete";
 import { getTodayDateString } from "@/lib/utils";
 
 import type {
@@ -34,6 +35,11 @@ const paymentSchema = z.object({
     .min(1, "Customer is required"),
 
   customer_name: z.string().optional(),
+
+  // Optional: scope FIFO allocation to one vehicle's vouchers.
+  vehicle_uuid: z.string().optional(),
+
+  vehicle_number: z.string().optional(),
 
   amount: z.coerce
     .number()
@@ -99,6 +105,7 @@ export default function PaymentForm({
 
   const customerName = watch("customer_name") ?? "";
   const customerUuid = watch("customer_uuid") ?? "";
+  const vehicleNumber = watch("vehicle_number") ?? "";
 
   function submitForm(
     data: PaymentFormData
@@ -110,6 +117,8 @@ export default function PaymentForm({
       payment_date: data.payment_date,
       reference_number: data.reference_number,
       remarks: data.remarks,
+      vehicle_uuid: data.vehicle_uuid || null,
+      vehicle_number: data.vehicle_number || null,
     });
   }
 
@@ -136,6 +145,32 @@ export default function PaymentForm({
               setValue("customer_uuid", uuid ?? "", {
                 shouldValidate: true,
               });
+            }}
+          />
+        </div>
+
+        <div className="col-span-1 sm:col-span-2">
+          <VehicleAutocomplete
+            label="Vehicle (optional — scopes allocation)"
+            value={vehicleNumber}
+            error={errors.vehicle_uuid?.message}
+            onChange={(number, vehicle) => {
+              setValue("vehicle_number", number, {
+                shouldValidate: true,
+              });
+              setValue("vehicle_uuid", vehicle?.uuid ?? "", {
+                shouldValidate: true,
+              });
+              // Picking a vehicle pins the payment to its owning customer so
+              // the FIFO allocation stays consistent.
+              if (vehicle) {
+                setValue("customer_name", vehicle.customer_name, {
+                  shouldValidate: true,
+                });
+                setValue("customer_uuid", vehicle.customer_uuid, {
+                  shouldValidate: true,
+                });
+              }
             }}
           />
         </div>

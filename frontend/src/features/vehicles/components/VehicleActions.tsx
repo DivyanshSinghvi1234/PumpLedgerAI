@@ -1,16 +1,30 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Pencil, Trash2 } from "lucide-react";
 
 interface Props {
+  onViewLedger(): void;
   onEdit(): void;
   onDelete(): void;
 }
 
 export default function VehicleActions({
+  onViewLedger,
   onEdit,
   onDelete,
 }: Props) {
   return (
     <div className="flex items-center justify-center gap-2">
+
+      <button
+        type="button"
+        onClick={onViewLedger}
+        title="View ledger"
+        className="rounded-md p-2 transition hover:bg-muted"
+      >
+        <BookOpen
+          size={18}
+          className="text-muted-foreground"
+        />
+      </button>
 
       <button
         type="button"

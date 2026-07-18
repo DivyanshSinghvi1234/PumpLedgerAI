@@ -53,4 +53,16 @@ export interface CreatePaymentRequest {
   reference_number?: string | null;
 
   remarks?: string | null;
+
+  /**
+   * Optional: scope FIFO allocation to a single vehicle's vouchers. When
+   * omitted the payment settles the customer's oldest vouchers across all
+   * vehicles.
+   */
+  vehicle_uuid?: string | null;
+
+  /**
+   * Optional: vehicle number string when typed or selected.
+   */
+  vehicle_number?: string | null;
 }

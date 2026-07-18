@@ -123,9 +123,7 @@ export default function VoucherTable({
             </TableCell>
 
             <TableCell>
-              <VoucherPaymentStatusBadge
-                status={voucher.payment_status}
-              />
+              <VoucherPaymentStatusBadge status={voucher.payment_status} />
             </TableCell>
 
             <TableCell className="text-xs text-ink-muted whitespace-nowrap">

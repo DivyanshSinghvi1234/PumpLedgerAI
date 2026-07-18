@@ -12,9 +12,12 @@ from app.core.exceptions import (
     VoucherNotFoundError,
 )
 from app.core.enums import VerificationStatus
+from app.common.normalization import normalize_vehicle_number
 from app.models.customer import Customer
+from app.models.vehicle import Vehicle
 from app.models.voucher import Voucher
 from app.repositories.customer_repository import CustomerRepository
+from app.repositories.vehicle_repository import VehicleRepository
 from app.repositories.voucher_repository import VoucherRepository
 from app.schemas.voucher import (
     VoucherCreate,
@@ -29,6 +32,7 @@ class VoucherService:
     def __init__(self):
         self.repository = VoucherRepository()
         self.customer_repository = CustomerRepository()
+        self.vehicle_repository = VehicleRepository()
         self.ledger_service = LedgerService()
         self.tank_service = FuelTankService()
         self.audit_service = AuditLogService()
@@ -97,6 +101,43 @@ class VoucherService:
 
         return customer
 
+    def _link_or_create_vehicle(
+        self,
+        db: Session,
+        customer: Customer | None,
+        vehicle_number: str | None,
+    ) -> Vehicle | None:
+        """Resolve the vehicle a voucher should link to.
+
+        Mirrors ``_link_or_create_customer``: the plate is normalized, matched
+        against existing vehicles, and otherwise created. A vehicle always
+        belongs to a customer, so this only runs once a customer has been
+        resolved/created — a plate on a customer-less walk-in stays as the
+        free-text ``vehicle_number`` only.
+
+        Returns ``None`` when there is no customer or no usable plate.
+        """
+        if customer is None:
+            return None
+
+        normalized = normalize_vehicle_number(vehicle_number)
+        if not normalized:
+            return None
+
+        existing = self.vehicle_repository.get_by_normalized(db, normalized)
+        if existing is not None:
+            return existing
+
+        vehicle = self.vehicle_repository.create(
+            db,
+            Vehicle(
+                customer_id=customer.id,
+                vehicle_number=(vehicle_number or "").strip(),
+                normalized_number=normalized,
+            ),
+        )
+        return vehicle
+
     @staticmethod
     def _affects_ledger(voucher: Voucher) -> bool:
         """A voucher posts to the ledger if it is linked to a customer."""
@@ -129,6 +170,14 @@ class VoucherService:
             data.customer_name,
         )
 
+        # Resolve/create the vehicle under that customer so the voucher links
+        # into the vehicle's ledger. Keeps the free-text vehicle_number too.
+        vehicle = self._link_or_create_vehicle(
+            db,
+            customer,
+            data.vehicle_number,
+        )
+
         total = data.total_amount
 
         from app.models.voucher_item import VoucherItem
@@ -138,6 +187,8 @@ class VoucherService:
                 exclude={"customer_uuid", "items"},
             ),
             customer_id=customer.id if customer else None,
+            vehicle_id=vehicle.id if vehicle else None,
+            verification_status=VerificationStatus.VERIFIED,
         )
 
         voucher.items = [
@@ -398,14 +449,32 @@ class VoucherService:
             )
 
         # Resolve a new customer link if provided.
+        resolved_customer = (
+            voucher.customer if voucher.customer_id is not None else None
+        )
         if "customer_uuid" in update_data:
-            new_customer = self._resolve_customer(
+            resolved_customer = self._resolve_customer(
                 db,
                 update_data.pop("customer_uuid"),
             )
             voucher.customer_id = (
-                new_customer.id if new_customer else None
+                resolved_customer.id if resolved_customer else None
             )
+
+        # Re-resolve the vehicle link against the (possibly new) customer, so
+        # editing a saved voucher to add a vehicle number — or moving it to
+        # another customer — relinks it into the right vehicle ledger. A plate
+        # is only linkable once the voucher has a customer.
+        new_plate = update_data.get(
+            "vehicle_number",
+            voucher.vehicle_number,
+        )
+        vehicle = self._link_or_create_vehicle(
+            db,
+            resolved_customer,
+            new_plate,
+        )
+        voucher.vehicle_id = vehicle.id if vehicle else None
 
         # Handle items list update explicitly
         items_updated = False

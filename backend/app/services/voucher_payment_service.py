@@ -14,6 +14,7 @@ from app.core.exceptions import (
 )
 from app.models.payment import Payment
 from app.repositories.customer_repository import CustomerRepository
+from app.repositories.vehicle_repository import VehicleRepository
 from app.repositories.voucher_repository import VoucherRepository
 from app.schemas.payment import (
     PaymentAllocationCreate,
@@ -33,6 +34,7 @@ class VoucherPaymentService:
 
     def __init__(self) -> None:
         self.customer_repository = CustomerRepository()
+        self.vehicle_repository = VehicleRepository()
         self.voucher_repository = VoucherRepository()
         self.ledger_service = LedgerService()
 
@@ -193,18 +195,65 @@ class VoucherPaymentService:
         payment_date: date,
         reference_number: str | None = None,
         remarks: str | None = None,
+        vehicle_uuid: str | None = None,
+        vehicle_number: str | None = None,
         actor_id: int | None = None,
     ) -> Payment:
         """
         Apply a payment to the customer's oldest outstanding vouchers first (FIFO).
+        When ``vehicle_uuid`` or ``vehicle_number`` is given, only that vehicle's
+        vouchers are settled — letting a payment be earmarked to one vehicle's dues
+        while still posting a single PAYMENT entry to the shared customer ledger.
         Returns the created Payment with all voucher settlements.
         """
+        from app.common.normalization import normalize_vehicle_number
+        from app.models.vehicle import Vehicle
+
         customer = self.customer_repository.get_by_uuid(db, customer_uuid)
         if customer is None:
             raise CustomerNotFoundError(customer_uuid)
 
-        # Get ALL unpaid/partially paid vouchers for this customer, ordered by invoice_date ASC (oldest first)
-        vouchers = self.voucher_repository.list_for_customer_fifo(db, customer.id)
+        # Optionally scope FIFO to a single vehicle owned by this customer.
+        vehicle: Vehicle | None = None
+        if vehicle_uuid:
+            vehicle = self.vehicle_repository.get_by_uuid(db, vehicle_uuid)
+            if vehicle is None or vehicle.customer_id != customer.id:
+                raise SettlementError(
+                    "Vehicle does not belong to this customer."
+                )
+        elif vehicle_number and vehicle_number.strip():
+            normalized = normalize_vehicle_number(vehicle_number)
+            if normalized:
+                vehicle = self.vehicle_repository.get_by_normalized(db, normalized)
+                if vehicle and vehicle.customer_id != customer.id:
+                    raise SettlementError(
+                        "Vehicle belongs to a different customer."
+                    )
+                if vehicle is None:
+                    vehicle = self.vehicle_repository.create(
+                        db,
+                        Vehicle(
+                            customer_id=customer.id,
+                            vehicle_number=vehicle_number.strip(),
+                            normalized_number=normalized,
+                        ),
+                    )
+
+        vehicle_id: int | None = vehicle.id if vehicle else None
+        norm_num: str | None = (
+            vehicle.normalized_number
+            if vehicle
+            else normalize_vehicle_number(vehicle_number)
+        )
+
+        # Get ALL unpaid/partially paid vouchers for this customer (optionally
+        # for one vehicle), ordered by invoice_date ASC (oldest first).
+        vouchers = self.voucher_repository.list_for_customer_fifo(
+            db,
+            customer.id,
+            vehicle_id=vehicle_id,
+            normalized_vehicle_number=norm_num,
+        )
 
         # Create single payment row
         payment = Payment(
@@ -231,6 +280,10 @@ class VoucherPaymentService:
             
             if alloc_amount > Decimal("0.00"):
                 self._apply_to_voucher(voucher, alloc_amount)
+                if vehicle and voucher.vehicle_id is None:
+                    voucher.vehicle_id = vehicle.id
+                    db.add(voucher)
+
                 total_allocated += alloc_amount
                 remaining -= alloc_amount
                 touched.append(voucher)

@@ -11,7 +11,7 @@ const STYLES: Record<Props["status"], string> = {
 const LABELS: Record<Props["status"], string> = {
   VERIFIED: "Verified",
   REJECTED: "Rejected",
-  PENDING: "Pending",
+  PENDING: "Pending Review",
 };
 
 export default function VoucherStatusBadge({
@@ -34,13 +34,13 @@ export function VoucherPaymentStatusBadge({
   const STYLES = {
     PAID: "badge-success",
     PARTIAL: "badge-warning",
-    UNPAID: "badge-warning",
+    UNPAID: "badge-error",
   };
 
   const LABELS = {
-    PAID: "Completed",
-    PARTIAL: "Pending",
-    UNPAID: "Pending",
+    PAID: "Paid",
+    PARTIAL: "Partial",
+    UNPAID: "Unpaid",
   };
 
   return (

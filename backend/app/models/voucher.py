@@ -213,7 +213,7 @@ class Voucher(
 
     verification_status: Mapped[VerificationStatus] = mapped_column(
         SqlEnum(VerificationStatus),
-        default=VerificationStatus.PENDING,
+        default=VerificationStatus.VERIFIED,
         nullable=False,
     )
 

@@ -186,6 +186,10 @@ class PaymentFifoAllocateRequest(BaseModel):
     payment_date: date
     reference_number: str | None = Field(default=None, max_length=50)
     remarks: str | None = Field(default=None, max_length=500)
+    # Optional: scope the FIFO settlement to a single vehicle's vouchers.
+    vehicle_uuid: UUID | None = None
+    vehicle_number: str | None = Field(default=None, max_length=50)
+
 
 
 class CustomerOutstandingResponse(BaseModel):

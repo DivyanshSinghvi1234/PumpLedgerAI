@@ -73,6 +73,10 @@ def allocate_payment_fifo(
             payment_date=data.payment_date,
             reference_number=data.reference_number,
             remarks=data.remarks,
+            vehicle_uuid=(
+                str(data.vehicle_uuid) if data.vehicle_uuid else None
+            ),
+            vehicle_number=data.vehicle_number,
             actor_id=current_user.id,
         )
     except CustomerNotFoundError as exc:

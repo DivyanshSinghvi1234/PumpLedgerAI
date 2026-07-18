@@ -27,6 +27,12 @@ export function useCreatePayment() {
       queryClient.invalidateQueries({
         queryKey: ["ledger"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["vehicles"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["vehicle"],
+      });
 
       toast.success("Payment recorded.");
     },

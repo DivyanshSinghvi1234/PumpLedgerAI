@@ -8,6 +8,7 @@ import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
+import VehicleAutocomplete from "@/features/vehicles/components/VehicleAutocomplete";
 import { getTodayDateString } from "@/lib/utils";
 
 import type {
@@ -112,6 +113,7 @@ export default function VoucherForm({
 
   const customerName = watch("customer_name") ?? "";
   const customerUuid = watch("customer_uuid") ?? "";
+  const vehicleNumber = watch("vehicle_number") ?? "";
 
   const qty = watch("quantity_liters") ?? 0;
   const rate = watch("rate_per_liter") ?? 0;
@@ -177,10 +179,27 @@ export default function VoucherForm({
           }}
         />
 
-        <FormInput
-          label="Vehicle Number"
+        <VehicleAutocomplete
+          value={vehicleNumber}
           error={errors.vehicle_number?.message}
-          {...register("vehicle_number")}
+          onChange={(number, vehicle) => {
+            setValue("vehicle_number", number, {
+              shouldValidate: true,
+            });
+            // Picking an existing vehicle auto-fills its owning customer and
+            // defaults to a credit sale, matching the customer picker.
+            if (vehicle) {
+              setValue("customer_name", vehicle.customer_name, {
+                shouldValidate: true,
+              });
+              setValue("customer_uuid", vehicle.customer_uuid, {
+                shouldValidate: true,
+              });
+              setValue("payment_mode", "CREDIT", {
+                shouldValidate: true,
+              });
+            }
+          }}
         />
 
         <FormSelect

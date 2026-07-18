@@ -8,6 +8,7 @@ import OCRReviewPage from "../features/review/OCRReviewPage";
 import VoucherListPage from "../features/vouchers/VoucherListPage";
 import CustomerListPage from "../features/customers/CustomerListPage";
 import VehicleListPage from "../features/vehicles/VehicleListPage";
+import VehicleLedgerPage from "../features/vehicles/VehicleLedgerPage";
 import PaymentListPage from "../features/payments/PaymentListPage";
 import CustomerLedgerPage from "../features/ledger/CustomerLedgerPage";
 import ReportsPage from "../features/reports/ReportsPage";
@@ -73,6 +74,10 @@ const router = createBrowserRouter([
           {
             path: "vehicles",
             element: <VehicleListPage />,
+          },
+          {
+            path: "vehicles/:vehicleUuid/ledger",
+            element: <VehicleLedgerPage />,
           },
           {
             path: "payments",

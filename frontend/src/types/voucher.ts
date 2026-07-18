@@ -19,6 +19,11 @@ export type TallyStatus =
   | "SYNCED"
   | "FAILED";
 
+export type PaymentStatus =
+  | "UNPAID"
+  | "PARTIAL"
+  | "PAID";
+
 export interface Voucher {
   uuid: string;
 
@@ -27,6 +32,8 @@ export interface Voucher {
   invoice_date: string;
 
   vehicle_number: string | null;
+
+  vehicle_uuid: string | null;
 
   customer_name: string | null;
 
@@ -126,4 +133,4 @@ export interface CreateVoucherRequest {
 }
 
 export interface UpdateVoucherRequest
-  extends Partial<CreateVoucherRequest> {}
+  extends Partial<CreateVoucherRequest> { }

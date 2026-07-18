@@ -1,29 +1,41 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 
 import FormActions from "@/components/forms/FormActions";
 import FormInput from "@/components/forms/FormInput";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
+import customerService from "@/features/customers/services/customerService";
+import { extractApiError } from "@/api/client";
 
 import type { CreateVehicleRequest } from "../types/vehicle";
 
-const vehicleSchema = z.object({
-  customer_uuid: z
-    .string()
-    .min(1, "Customer is required"),
+const vehicleSchema = z
+  .object({
+    customer_uuid: z.string().optional(),
 
-  customer_name: z.string().optional(),
+    customer_name: z.string().optional(),
 
-  vehicle_number: z
-    .string()
-    .min(4, "Vehicle number must be at least 4 characters"),
+    vehicle_number: z
+      .string()
+      .min(1, "Vehicle number is required")
+      .max(20, "Vehicle number must be at most 20 characters"),
 
-  vehicle_type: z.string().optional(),
-});
+    vehicle_type: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      Boolean(data.customer_uuid && data.customer_uuid.trim().length > 0) ||
+      Boolean(data.customer_name && data.customer_name.trim().length > 0),
+    {
+      message: "Customer is required",
+      path: ["customer_name"],
+    }
+  );
 
-type VehicleFormData =
-  z.output<typeof vehicleSchema>;
+type VehicleFormData = z.output<typeof vehicleSchema>;
 
 interface CustomerOption {
   label: string;
@@ -42,9 +54,7 @@ interface Props {
 
   onCancel?(): void;
 
-  onSubmit(
-    data: CreateVehicleRequest
-  ): void | Promise<void>;
+  onSubmit(data: CreateVehicleRequest): void | Promise<void>;
 }
 
 export default function VehicleForm({
@@ -54,15 +64,14 @@ export default function VehicleForm({
   onCancel,
   onSubmit,
 }: Props) {
+  const [submitting, setSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
-    formState: {
-      errors,
-    },
+    formState: { errors },
   } = useForm<VehicleFormData>({
     resolver: zodResolver(vehicleSchema),
 
@@ -78,31 +87,62 @@ export default function VehicleForm({
   const customerName = watch("customer_name") ?? "";
   const customerUuid = watch("customer_uuid") ?? "";
 
-  function submitForm(
-    data: VehicleFormData
-  ) {
-    return onSubmit({
-      customer_uuid: data.customer_uuid,
-      vehicle_number: data.vehicle_number,
-      vehicle_type: data.vehicle_type || null,
-    });
+  async function submitForm(data: VehicleFormData) {
+    setSubmitting(true);
+    try {
+      let targetCustomerUuid = data.customer_uuid?.trim() || "";
+
+      // If customer_uuid is empty but customer_name is entered, auto-link or auto-create customer.
+      if (!targetCustomerUuid && data.customer_name?.trim()) {
+        const nameToUse = data.customer_name.trim();
+
+        const searchRes = await customerService.getCustomers({
+          search: nameToUse,
+          page: 1,
+          page_size: 10,
+        });
+
+        const exactMatch = searchRes.items.find(
+          (c) => c.name.trim().toLowerCase() === nameToUse.toLowerCase()
+        );
+
+        if (exactMatch) {
+          targetCustomerUuid = exactMatch.uuid;
+        } else {
+          const newCust = await customerService.createCustomer({
+            name: nameToUse,
+          });
+          targetCustomerUuid = newCust.uuid;
+          toast.success(`Created new customer "${newCust.name}"`);
+        }
+      }
+
+      if (!targetCustomerUuid) {
+        toast.error("Customer is required");
+        return;
+      }
+
+      await onSubmit({
+        customer_uuid: targetCustomerUuid,
+        vehicle_number: data.vehicle_number.trim(),
+        vehicle_type: data.vehicle_type?.trim() || null,
+      });
+    } catch (err: any) {
+      toast.error(extractApiError(err, "Failed to save vehicle"));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit(submitForm)}
-      className="space-y-6"
-    >
-
+    <form onSubmit={handleSubmit(submitForm)} className="space-y-6">
       <div className="grid grid-cols-1 gap-4">
-
         <CustomerAutocomplete
           value={customerName}
           customerUuid={customerUuid || null}
           disabled={lockCustomer}
           error={
-            errors.customer_name?.message ??
-            errors.customer_uuid?.message
+            errors.customer_name?.message ?? errors.customer_uuid?.message
           }
           onChange={(name, uuid) => {
             setValue("customer_name", name, {
@@ -126,15 +166,13 @@ export default function VehicleForm({
           error={errors.vehicle_type?.message}
           {...register("vehicle_type")}
         />
-
       </div>
 
       <FormActions
-        loading={loading}
+        loading={loading || submitting}
         onCancel={onCancel}
         submitLabel="Save Vehicle"
       />
-
     </form>
   );
 }

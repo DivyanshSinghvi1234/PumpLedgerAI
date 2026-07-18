@@ -229,7 +229,8 @@ class LedgerService:
         voucher_ids = {
             entry.reference_id
             for entry in entries
-            if entry.reference_type == "VOUCHER" and entry.reference_id is not None
+            if (entry.entry_type == LedgerEntryType.VOUCHER or entry.reference_type == "VOUCHER")
+            and entry.reference_id is not None
         }
         vouchers_map = {}
         if voucher_ids:
@@ -249,21 +250,33 @@ class LedgerService:
             running += signed
 
             voucher = None
-            if entry.reference_type == "VOUCHER" and entry.reference_id is not None:
+            if entry.reference_id is not None:
                 voucher = vouchers_map.get(entry.reference_id)
 
             image_path = voucher.image_path if voucher else None
             invoice_number = voucher.invoice_number if voucher else None
 
-            # Determine entry status (Pending or Completed)
+            # Determine entry status (Paid, Partially Paid, or Unpaid)
             status_val = None
             is_mismatch = False
-            if entry.entry_type == LedgerEntryType.VOUCHER and voucher:
-                status_val = "Completed" if voucher.payment_status == PaymentStatus.PAID else "Pending"
-                calc = (Decimal(str(voucher.quantity_liters)) * Decimal(str(voucher.rate_per_liter))).quantize(Decimal("0.01"))
-                is_mismatch = abs(calc - Decimal(str(voucher.total_amount))) > Decimal("0.05")
+            if entry.entry_type == LedgerEntryType.VOUCHER:
+                if voucher:
+                    if voucher.payment_status == PaymentStatus.PAID:
+                        status_val = "Paid"
+                    elif voucher.payment_status == PaymentStatus.PARTIAL:
+                        status_val = "Partially Paid"
+                    else:
+                        status_val = "Unpaid"
+                    calc = (Decimal(str(voucher.quantity_liters)) * Decimal(str(voucher.rate_per_liter))).quantize(Decimal("0.01"))
+                    is_mismatch = abs(calc - Decimal(str(voucher.total_amount))) > Decimal("0.05")
+                else:
+                    status_val = "Unpaid"
             elif entry.entry_type == LedgerEntryType.PAYMENT:
-                status_val = "Completed"
+                status_val = "Paid"
+            elif entry.entry_type in (LedgerEntryType.OPENING_BALANCE, LedgerEntryType.DEBIT_ADJUSTMENT):
+                status_val = "Unpaid" if signed > 0 else "Paid"
+            elif entry.entry_type == LedgerEntryType.CREDIT_ADJUSTMENT:
+                status_val = "Paid"
 
             enriched.append(
                 LedgerEntryResponse(

@@ -29,8 +29,8 @@ router = APIRouter(
 
 service = CustomerService()
 
-# Only managers and admins may mutate customers.
-manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))]
+# Allow admins, managers, and operators to mutate customers.
+manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.OPERATOR))]
 
 
 @router.post(
@@ -117,6 +117,8 @@ def get_customer_outstanding(
     db: Session = Depends(get_db),
 ):
     try:
+        # get_by_uuid already overwrites outstanding_balance with the live
+        # ledger-derived figure.
         customer = service.get_by_uuid(db, customer_uuid)
         return CustomerOutstandingResponse(
             customer_uuid=customer.uuid,

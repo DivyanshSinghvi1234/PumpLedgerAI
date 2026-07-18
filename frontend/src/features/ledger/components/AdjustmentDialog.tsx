@@ -45,7 +45,7 @@ export default function AdjustmentDialog({
       open={open}
       onOpenChange={onOpenChange}
     >
-      <DialogContent className="max-w-xl bg-card p-6 shadow-xl">
+      <DialogContent className="max-w-2xl bg-card p-6 shadow-xl">
         <DialogTitle className="mb-6 text-xl font-semibold">
           Post Adjustment
         </DialogTitle>

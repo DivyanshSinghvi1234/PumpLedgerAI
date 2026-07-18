@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.common.pagination import build_pagination
 from app.core.dependencies import get_db, require_roles
 from app.core.enums import UserRole
+from app.core.exceptions import VehicleNotFoundError
 from app.schemas.vehicle import (
     VehicleCreate,
+    VehicleLedgerResponse,
     VehicleListResponse,
     VehicleResponse,
     VehicleUpdate,
@@ -21,8 +23,8 @@ router = APIRouter(
 
 service = VehicleService()
 
-# Only managers and admins may mutate vehicles.
-manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))]
+# Allow admins, managers, and operators to mutate vehicles.
+manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.OPERATOR))]
 
 
 @router.post(
@@ -69,6 +71,24 @@ def get_vehicles(
             total_items=total,
         ),
     )
+
+
+@router.get(
+    "/{vehicle_uuid}/ledger",
+    response_model=VehicleLedgerResponse,
+)
+def get_vehicle_ledger(
+    vehicle_uuid: str,
+    db: Session = Depends(get_db),
+):
+    """Vehicle-level ledger: this vehicle's vouchers and live outstanding."""
+    try:
+        return service.ledger(db, vehicle_uuid)
+    except VehicleNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
