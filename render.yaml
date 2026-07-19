@@ -18,10 +18,15 @@ services:
     plan: free                 # upgrade when ready
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    # prestart.sh adopts a create_all-built DB (stamp) then runs `alembic upgrade
-    # head` so future migrations apply cleanly; init_db's schema-ensure remains
-    # a belt-and-suspenders backfill at app startup.
-    startCommand: bash prestart.sh && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # NOTE: do NOT run `alembic upgrade` here. This prod DB's schema was built by
+    # SQLAlchemy create_all, but its alembic_version pointer is stale
+    # (44e5dce5cfe0), so `upgrade head` tries to re-run historical CREATE
+    # migrations against objects that already exist (e.g. `CREATE TYPE fueltype`
+    # -> DuplicateObject) and crash-loops the deploy. Schema stays in sync via
+    # create_all + init_db.check_and_update_schema() (idempotent ADD COLUMN
+    # backfills) at app startup. To adopt Alembic later, first run a ONE-OFF
+    # `alembic stamp head` against prod, then wire `alembic upgrade head` back in.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       # ── Database (Neon PostgreSQL) ──────────
