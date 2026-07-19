@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, time as time_type
 from decimal import Decimal
-from sqlalchemy import Float, ForeignKey, Numeric, Date
+from sqlalchemy import Float, ForeignKey, Numeric, Date, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -38,6 +38,18 @@ class NozzleReading(
         index=True,
     )
 
+    # Reading timestamps — default 19:30 (typical shift end time)
+    opening_time: Mapped[time_type | None] = mapped_column(
+        Time,
+        nullable=True,
+        default=time_type(19, 30),
+    )
+    closing_time: Mapped[time_type | None] = mapped_column(
+        Time,
+        nullable=True,
+        default=time_type(19, 30),
+    )
+
     opening_reading: Mapped[float] = mapped_column(
         Float,
         nullable=False,
@@ -46,6 +58,15 @@ class NozzleReading(
         Float,
         nullable=False,
     )
+
+    # Optional 6:00 AM interim reading — present only on price-change days
+    # When set: sales_before_6am = interim_6am_reading - opening_reading
+    #            sales_after_6am = closing_reading - interim_6am_reading
+    interim_6am_reading: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
     sales: Mapped[float] = mapped_column(
         Float,
         nullable=False,
@@ -64,3 +85,4 @@ class NozzleReading(
     # Relationships
     nozzle: Mapped["Nozzle"] = relationship("Nozzle", back_populates="readings")
     shift: Mapped["Shift"] = relationship("Shift", back_populates="nozzle_readings")
+

@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.common.pagination import build_pagination
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_db, require_roles, get_current_user
 from app.core.enums import UserRole
 from app.core.exceptions import VehicleNotFoundError
+from app.models.user import User
 from app.schemas.vehicle import (
     VehicleCreate,
     VehicleLedgerResponse,
@@ -36,10 +37,12 @@ manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.OPER
 def create_vehicle(
     data: VehicleCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     return service.create(
         db,
         data,
+        actor_id=current_user.id,
     )
 
 
@@ -114,11 +117,13 @@ def update_vehicle(
     vehicle_uuid: str,
     data: VehicleUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     return service.update(
         db,
         vehicle_uuid,
         data,
+        actor_id=current_user.id,
     )
 
 
@@ -130,8 +135,10 @@ def update_vehicle(
 def delete_vehicle(
     vehicle_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     service.delete(
         db,
         vehicle_uuid,
+        actor_id=current_user.id,
     )

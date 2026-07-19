@@ -69,7 +69,7 @@ class OpenRouterProvider:
             }
 
             payload = {
-                "model": "google/gemini-2.5-flash",
+                "model": settings.OPENROUTER_MODEL,
                 "messages": [
                     {
                         "role": "user",

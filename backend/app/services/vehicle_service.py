@@ -21,6 +21,7 @@ from app.schemas.vehicle import (
 )
 from app.schemas.voucher import VoucherResponse
 from app.services.balance_service import BalanceService
+from app.services.audit_log_service import AuditLogService
 
 
 class VehicleService:
@@ -30,6 +31,7 @@ class VehicleService:
         self.customer_repository = CustomerRepository()
         self.voucher_repository = VoucherRepository()
         self.balance_service = BalanceService()
+        self.audit_service = AuditLogService()
 
     def ledger(
         self,
@@ -64,6 +66,7 @@ class VehicleService:
         self,
         db: Session,
         data: VehicleCreate,
+        actor_id: int | None = None,
     ) -> Vehicle:
 
         customer = self.customer_repository.get_by_uuid(
@@ -96,10 +99,26 @@ class VehicleService:
             vehicle_type=data.vehicle_type,
         )
 
-        return self.repository.create(
+        vehicle = self.repository.create(
             db,
             vehicle,
         )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Created Vehicle",
+            target_table="vehicles",
+            target_id=str(vehicle.id),
+            actor_id=actor_id,
+            new_values={
+                "vehicle_number": vehicle.vehicle_number,
+                "vehicle_type": vehicle.vehicle_type,
+                "customer_id": str(customer.id),
+            }
+        )
+
+        return vehicle
 
     def get_all(
         self,
@@ -167,6 +186,7 @@ class VehicleService:
         db: Session,
         vehicle_uuid: str,
         data: VehicleUpdate,
+        actor_id: int | None = None,
     ) -> Vehicle:
 
         vehicle = self.repository.get_by_uuid(
@@ -178,6 +198,11 @@ class VehicleService:
             raise VehicleNotFoundError(
                 vehicle_uuid,
             )
+
+        old_values = {
+            "vehicle_number": vehicle.vehicle_number,
+            "vehicle_type": vehicle.vehicle_type,
+        }
 
         update_data = data.model_dump(
             exclude_unset=True,
@@ -212,15 +237,32 @@ class VehicleService:
                 value,
             )
 
-        return self.repository.update(
+        vehicle = self.repository.update(
             db,
             vehicle,
         )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Updated Vehicle",
+            target_table="vehicles",
+            target_id=str(vehicle.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values={
+                "vehicle_number": vehicle.vehicle_number,
+                "vehicle_type": vehicle.vehicle_type,
+            }
+        )
+
+        return vehicle
 
     def delete(
         self,
         db: Session,
         vehicle_uuid: str,
+        actor_id: int | None = None,
     ) -> None:
 
         vehicle = self.repository.get_by_uuid(
@@ -233,7 +275,22 @@ class VehicleService:
                 vehicle_uuid,
             )
 
+        old_values = {
+            "vehicle_number": vehicle.vehicle_number,
+            "vehicle_type": vehicle.vehicle_type,
+        }
+
         self.repository.delete(
             db,
             vehicle,
+        )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Deleted Vehicle",
+            target_table="vehicles",
+            target_id=str(vehicle.id),
+            actor_id=actor_id,
+            old_values=old_values,
         )

@@ -1,10 +1,22 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 import OCRReviewForm from "./components/OCRReviewForm";
 
 export default function OCRReviewPage() {
 
   const location = useLocation();
+  const navigate = useNavigate();
+  const batch = Array.isArray(location.state?.batch) ? location.state.batch : [location.state];
+  const [reviewIndex, setReviewIndex] = useState(0);
+
+  function showNextReview() {
+    if (reviewIndex + 1 < batch.length) {
+      setReviewIndex((index) => index + 1);
+      return;
+    }
+    navigate("/dashboard/vouchers");
+  }
 
   return (
     <div className="space-y-8">
@@ -14,7 +26,9 @@ export default function OCRReviewPage() {
       </h1>
 
       <OCRReviewForm
-        data={location.state}
+        key={reviewIndex}
+        data={batch[reviewIndex]}
+        onSaved={showNextReview}
       />
 
     </div>

@@ -51,6 +51,7 @@ class FuelTank(
         back_populates="fuel_tank",
         cascade="all, delete-orphan",
     )
+    deliveries = relationship("TankerDelivery", back_populates="fuel_tank", cascade="all, delete-orphan")
 
 
 
@@ -102,7 +103,27 @@ class DipReading(
         nullable=False,
     )
 
+    deliveries_liters: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    nozzle_sales_liters: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    unbilled_cash_variance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    physical_leak_variance: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    variance_tolerance_liters: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
     fuel_tank = relationship(
         "FuelTank",
         back_populates="dip_readings",
     )
+
+
+class TankerDelivery(Base, IDMixin, UUIDMixin, TimestampMixin, ActiveMixin, PumpScopedMixin):
+    __tablename__ = "tanker_deliveries"
+
+    tank_id: Mapped[int] = mapped_column(ForeignKey("fuel_tanks.id", ondelete="CASCADE"), nullable=False, index=True)
+    delivery_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    quantity_liters: Mapped[float] = mapped_column(Float, nullable=False)
+    density: Mapped[float | None] = mapped_column(Float, nullable=True)
+    supplier_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    fuel_tank = relationship("FuelTank", back_populates="deliveries")

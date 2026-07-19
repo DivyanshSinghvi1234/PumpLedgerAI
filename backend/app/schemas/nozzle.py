@@ -9,11 +9,15 @@ class NozzleCreate(BaseModel):
     name: str
     fuel_type: FuelType
     last_reading: float
+    tank_uuid: str | None = None
+    meter_capacity: float = 1_000_000.0
 
 class NozzleUpdate(BaseModel):
     name: str | None = None
     fuel_type: FuelType | None = None
     last_reading: float | None = None
+    tank_uuid: str | None = None
+    meter_capacity: float | None = None
 
 class NozzleResponse(BaseModel):
     id: int
@@ -22,6 +26,8 @@ class NozzleResponse(BaseModel):
     name: str
     fuel_type: FuelType
     last_reading: float
+    tank_id: int | None = None
+    meter_capacity: float
     status: NozzleStatus
     created_at: datetime
     updated_at: datetime
@@ -54,6 +60,9 @@ class NozzleReadingCreate(BaseModel):
     opening_reading: float | None = None
     closing_reading: float
     reading_date: date | None = None
+    opening_time: str | None = "19:30"   # HH:MM local time, default 19:30
+    closing_time: str | None = "19:30"   # HH:MM local time, default 19:30
+    interim_6am_reading: float | None = None  # Optional meter reading at 6:00 AM
 
 class NozzleReadingResponse(BaseModel):
     id: int
@@ -62,6 +71,9 @@ class NozzleReadingResponse(BaseModel):
     reading_date: date
     opening_reading: float
     closing_reading: float
+    opening_time: str | None = None
+    closing_time: str | None = None
+    interim_6am_reading: float | None = None
     sales: float
     total_sales: float
     created_at: datetime
@@ -81,6 +93,9 @@ class BulkFormNozzleItem(BaseModel):
     opening_reading: float
     closing_reading: float | None = None
     sales: float | None = None
+    opening_time: str | None = "19:30"
+    closing_time: str | None = "19:30"
+    interim_6am_reading: float | None = None
 
 class BulkFormResponse(BaseModel):
     reading_date: date

@@ -14,6 +14,7 @@ from app.repositories.customer_repository import CustomerRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.schemas.payment import PaymentCreate
 from app.services.ledger_service import LedgerService
+from app.services.audit_log_service import AuditLogService
 
 
 class PaymentService:
@@ -22,6 +23,7 @@ class PaymentService:
         self.repository = PaymentRepository()
         self.customer_repository = CustomerRepository()
         self.ledger_service = LedgerService()
+        self.audit_service = AuditLogService()
 
     # -----------------------------------
     # Create
@@ -71,6 +73,23 @@ class PaymentService:
             remarks=data.remarks,
             extra_objects=[payment],
             actor_id=actor_id,
+        )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Received Payment",
+            target_table="payments",
+            target_id=str(payment.id),
+            actor_id=actor_id,
+            new_values={
+                "customer_id": str(customer.id),
+                "amount": str(data.amount),
+                "payment_mode": data.payment_mode.value,
+                "payment_date": str(data.payment_date),
+                "reference_number": data.reference_number,
+                "remarks": data.remarks,
+            }
         )
 
         return payment
@@ -142,6 +161,16 @@ class PaymentService:
                 payment_uuid,
             )
 
+        # Capture old values for audit log
+        old_values = {
+            "customer_id": str(payment.customer_id),
+            "amount": str(payment.amount),
+            "payment_mode": payment.payment_mode.value,
+            "payment_date": str(payment.payment_date),
+            "reference_number": payment.reference_number,
+            "remarks": payment.remarks,
+        }
+
         # Reverse the allocations on the settled vouchers by decrementing
         # amount_paid and setting payment_status back accordingly.
         for settlement in payment.settlements:
@@ -168,6 +197,16 @@ class PaymentService:
             payment.id,
             extra_deletes=[payment],
             actor_id=actor_id,
+        )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Deleted Payment",
+            target_table="payments",
+            target_id=str(payment.id),
+            actor_id=actor_id,
+            old_values=old_values,
         )
 
 

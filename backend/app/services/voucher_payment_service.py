@@ -21,6 +21,7 @@ from app.schemas.payment import (
     VoucherSettleRequest,
 )
 from app.services.ledger_service import LedgerService
+from app.services.audit_log_service import AuditLogService
 
 
 class VoucherPaymentService:
@@ -37,6 +38,7 @@ class VoucherPaymentService:
         self.vehicle_repository = VehicleRepository()
         self.voucher_repository = VoucherRepository()
         self.ledger_service = LedgerService()
+        self.audit_service = AuditLogService()
 
     # -----------------------------------
     # Helpers
@@ -110,6 +112,25 @@ class VoucherPaymentService:
                 extra_objects=[voucher],
                 actor_id=actor_id,
             )
+
+            # Log audit log
+            self.audit_service.log_action(
+                db,
+                action="Received Payment (Voucher Settlement)",
+                target_table="payments",
+                target_id=str(payment.id),
+                actor_id=actor_id,
+                new_values={
+                    "customer_id": str(customer.id),
+                    "amount": str(data.amount),
+                    "payment_mode": data.payment_mode.value,
+                    "payment_date": str(data.payment_date),
+                    "reference_number": data.reference_number,
+                    "remarks": payment.remarks,
+                    "voucher_id": str(voucher.id),
+                    "invoice_number": voucher.invoice_number,
+                }
+            )
         else:
             db.add(voucher)
             db.commit()
@@ -181,6 +202,24 @@ class VoucherPaymentService:
             remarks=payment.remarks,
             extra_objects=touched,
             actor_id=actor_id,
+        )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Received Payment (Voucher Allocation)",
+            target_table="payments",
+            target_id=str(payment.id),
+            actor_id=actor_id,
+            new_values={
+                "customer_id": str(customer.id),
+                "amount": str(total),
+                "payment_mode": data.payment_mode.value,
+                "payment_date": str(data.payment_date),
+                "reference_number": data.reference_number,
+                "remarks": payment.remarks,
+                "voucher_count": len(touched),
+            }
         )
 
         db.refresh(payment)
@@ -312,6 +351,25 @@ class VoucherPaymentService:
                 remarks=payment.remarks,
                 extra_objects=touched,
                 actor_id=actor_id,
+            )
+
+            # Log audit log
+            self.audit_service.log_action(
+                db,
+                action="Received Payment (FIFO Allocation)",
+                target_table="payments",
+                target_id=str(payment.id),
+                actor_id=actor_id,
+                new_values={
+                    "customer_id": str(customer.id),
+                    "amount": str(total_allocated),
+                    "payment_mode": payment_mode.value,
+                    "payment_date": str(payment_date),
+                    "reference_number": reference_number,
+                    "remarks": payment.remarks,
+                    "vehicle_id": str(vehicle.id) if vehicle else None,
+                    "voucher_count": len(touched),
+                }
             )
 
         db.refresh(payment)

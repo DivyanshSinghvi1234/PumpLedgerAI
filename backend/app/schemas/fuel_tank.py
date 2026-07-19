@@ -41,6 +41,36 @@ class DipReadingResponse(BaseModel):
     sales_liters_calculated: float
     actual_sales_from_vouchers: float
     variance_liters: float
+    deliveries_liters: float
+    nozzle_sales_liters: float
+    unbilled_cash_variance: float
+    physical_leak_variance: float
+    variance_tolerance_liters: float
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TankerDeliveryCreate(BaseModel):
+    tank_uuid: str
+    delivery_date: date
+    invoice_number: str
+    quantity_liters: float
+    density: float | None = None
+    supplier_name: str | None = None
+    remarks: str | None = None
+
+
+class TankerDeliveryResponse(BaseModel):
+    id: int
+    uuid: str
+    tank_id: int
+    delivery_date: date
+    invoice_number: str
+    quantity_liters: float
+    density: float | None = None
+    supplier_name: str | None = None
+    remarks: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

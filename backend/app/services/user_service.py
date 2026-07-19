@@ -15,6 +15,7 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.pump import PumpResponse
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.pump_service import PumpService
+from app.services.audit_log_service import AuditLogService
 
 
 class UserService:
@@ -22,6 +23,7 @@ class UserService:
     def __init__(self):
         self.repository = UserRepository()
         self.pump_service = PumpService()
+        self.audit_service = AuditLogService()
 
     def _build_pump_access(
         self,
@@ -53,6 +55,7 @@ class UserService:
         self,
         db: Session,
         data: UserCreate,
+        actor_id: int | None = None,
     ) -> User:
 
         existing = self.repository.get_by_username(
@@ -82,6 +85,21 @@ class UserService:
                 self.pump_service.set_user_pumps(db, user, pump_uuids)
         elif data.pump_uuids:
             self.pump_service.set_user_pumps(db, user, data.pump_uuids)
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Created User",
+            target_table="users",
+            target_id=str(user.id),
+            actor_id=actor_id,
+            new_values={
+                "username": user.username,
+                "full_name": user.full_name,
+                "role": user.role.value,
+                "is_active": user.is_active,
+            }
+        )
 
         return self._enrich_with_pumps(db, user)
 
@@ -113,12 +131,20 @@ class UserService:
         db: Session,
         user_uuid: str,
         data: UserUpdate,
+        actor_id: int | None = None,
     ) -> User:
 
         user = self.repository.get_by_uuid(db, user_uuid)
 
         if user is None:
             raise UserNotFoundError(user_uuid)
+
+        old_values = {
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": user.role.value,
+            "is_active": user.is_active,
+        }
 
         update_data = data.model_dump(exclude_unset=True)
         
@@ -149,18 +175,43 @@ class UserService:
         if pump_uuids is not None:
             self.pump_service.set_user_pumps(db, user, pump_uuids)
 
+        # Log audit log
+        new_values = {
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": user.role.value,
+            "is_active": user.is_active,
+        }
+        self.audit_service.log_action(
+            db,
+            action="Updated User",
+            target_table="users",
+            target_id=str(user.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values=new_values,
+        )
+
         return self._enrich_with_pumps(db, user)
 
     def delete(
         self,
         db: Session,
         user_uuid: str,
+        actor_id: int | None = None,
     ) -> None:
 
         user = self.repository.get_by_uuid(db, user_uuid)
 
         if user is None:
             raise UserNotFoundError(user_uuid)
+
+        old_values = {
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": user.role.value,
+            "is_active": user.is_active,
+        }
 
         # Check if they are deleting the sole active admin
         if user.role == UserRole.ADMIN and user.is_active:
@@ -176,12 +227,23 @@ class UserService:
 
         self.repository.delete(db, user)
 
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Deleted User",
+            target_table="users",
+            target_id=str(user.id),
+            actor_id=actor_id,
+            old_values=old_values,
+        )
+
     def change_password(
         self,
         db: Session,
         user: User,
         current_password: str,
         new_password: str,
+        actor_id: int | None = None,
     ) -> None:
 
         if not verify_password(current_password, user.password_hash):
@@ -190,4 +252,13 @@ class UserService:
         user.password_hash = hash_password(new_password)
 
         self.repository.update(db, user)
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Changed Password",
+            target_table="users",
+            target_id=str(user.id),
+            actor_id=actor_id,
+        )
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.common.pagination import build_pagination
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_db, require_roles, get_current_user
 from app.core.enums import UserRole
 from app.core.exceptions import (
     CustomerNotFoundError,
@@ -12,6 +12,7 @@ from app.core.exceptions import (
     DuplicateCustomerGSTError,
     DuplicateCustomerPhoneError,
 )
+from app.models.user import User
 from app.schemas.customer import (
     CustomerCreate,
     CustomerListResponse,
@@ -42,9 +43,10 @@ manager = [Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.OPER
 def create_customer(
     data: CustomerCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.create(db, data)
+        return service.create(db, data, actor_id=current_user.id)
     except (
         DuplicateCustomerCodeError,
         DuplicateCustomerGSTError,
@@ -160,9 +162,10 @@ def update_customer(
     customer_uuid: str,
     data: CustomerUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.update(db, customer_uuid, data)
+        return service.update(db, customer_uuid, data, actor_id=current_user.id)
     except CustomerNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -187,9 +190,10 @@ def update_customer(
 def delete_customer(
     uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        service.delete(db, uuid)
+        service.delete(db, uuid, actor_id=current_user.id)
     except CustomerNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -19,11 +19,21 @@ from app.schemas.daily_sheet import (
     DailySheetCreate,
     DailySheetUpdate,
     DailySheetResponse,
+    DailyReconciliationResponse,
 )
 from app.services.daily_sheet_service import DailySheetService
 
 router = APIRouter(prefix="/daily-sheets", tags=["Daily Sheets"])
 service = DailySheetService()
+
+
+@router.get(
+    "/{date_val}/reconciliation",
+    response_model=DailyReconciliationResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def get_daily_reconciliation_summary(date_val: date, db: Session = Depends(get_db)):
+    return service.get_daily_reconciliation_summary(db, date_val)
 
 UPLOAD_DIR = Path("storage/daily-sheets")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -64,17 +74,23 @@ def create_daily_sheet(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        expenses_dicts = [e.model_dump() for e in data.expenses] if data.expenses is not None else None
         return service.create_daily_sheet(
             db,
             data.date,
             data.remarks,
             period_start=data.period_start,
             period_end=data.period_end,
+            actual_cash_collected=data.actual_cash_collected,
+            expenses=expenses_dicts,
+            manual_payment_mode_amounts=(
+                data.manual_payment_mode_amounts.model_dump()
+                if data.manual_payment_mode_amounts is not None
+                else None
+            ),
             actor_id=current_user.id,
         )
     except DuplicateDailySheetError as exc:
-        # Return 409 Conflict so the frontend can detect the duplicate and
-        # show a clear "Sheet already exists" warning instead of a generic error.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
@@ -93,6 +109,7 @@ def update_daily_sheet(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        expenses_dicts = [e.model_dump() for e in data.expenses] if data.expenses is not None else None
         return service.update_daily_sheet(
             db,
             uuid,
@@ -101,6 +118,13 @@ def update_daily_sheet(
             date_val=data.date,
             period_start=data.period_start,
             period_end=data.period_end,
+            actual_cash_collected=data.actual_cash_collected,
+            expenses=expenses_dicts,
+            manual_payment_mode_amounts=(
+                data.manual_payment_mode_amounts.model_dump()
+                if data.manual_payment_mode_amounts is not None
+                else None
+            ),
             actor_id=current_user.id,
         )
     except DailySheetNotFoundError as exc:

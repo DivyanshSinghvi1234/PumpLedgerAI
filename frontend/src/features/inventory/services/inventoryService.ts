@@ -42,11 +42,11 @@ class InventoryService {
     return response.data;
   }
 
-  async getActiveRate(fuelType: FuelType): Promise<{ fuel_type: FuelType; rate: number }> {
+  async getActiveRate(fuelType: FuelType, atTime?: string): Promise<{ fuel_type: FuelType; rate: number }> {
     const response = await api.get<{ fuel_type: FuelType; rate: number }>(
       "/v1/price-schedules/active-rate",
       {
-        params: { fuel_type: fuelType },
+        params: { fuel_type: fuelType, at_time: atTime },
       }
     );
     return response.data;

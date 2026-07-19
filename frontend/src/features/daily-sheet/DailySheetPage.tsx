@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   PlusCircle,
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 import dailySheetService from "@/features/daily-sheet/services/dailySheetService";
+import type { DailySheetPaymentModeAmounts } from "@/features/daily-sheet/services/dailySheetService";
 import SheetDetail from "./components/SheetDetail";
 import SheetPreview from "./components/SheetPreview";
 import StoredSheetsList from "./components/StoredSheetsList";
@@ -38,18 +39,36 @@ export default function DailySheetPage() {
 
   // Time window configurations (stored in localStorage)
   const [defaultStartHour, setDefaultStartHour] = useState(
-    () => localStorage.getItem("daily_sheet_default_start_hour") || "12:00"
+    () => localStorage.getItem("daily_sheet_default_start_hour") || "06:00"
   );
   const [defaultEndHour, setDefaultEndHour] = useState(
-    () => localStorage.getItem("daily_sheet_default_end_hour") || "12:00"
+    () => localStorage.getItem("daily_sheet_default_end_hour") || "06:00"
   );
   const [defaultStartOffset, setDefaultStartOffset] = useState(
-    () => Number(localStorage.getItem("daily_sheet_default_start_offset") ?? "-1")
+    () => Number(localStorage.getItem("daily_sheet_default_start_offset") ?? "0")
   );
   const [defaultEndOffset, setDefaultEndOffset] = useState(
-    () => Number(localStorage.getItem("daily_sheet_default_end_offset") ?? "0")
+    () => Number(localStorage.getItem("daily_sheet_default_end_offset") ?? "1")
   );
   const [showSettings, setShowSettings] = useState(false);
+
+  // Self-heal/Reset legacy settings to the new 6:00 AM standard on load
+  useEffect(() => {
+    const isLegacy =
+      localStorage.getItem("daily_sheet_default_start_hour") === "18:00" ||
+      localStorage.getItem("daily_sheet_default_start_offset") === "-1";
+    if (isLegacy) {
+      localStorage.setItem("daily_sheet_default_start_hour", "06:00");
+      localStorage.setItem("daily_sheet_default_end_hour", "06:00");
+      localStorage.setItem("daily_sheet_default_start_offset", "0");
+      localStorage.setItem("daily_sheet_default_end_offset", "1");
+      
+      setDefaultStartHour("06:00");
+      setDefaultEndHour("06:00");
+      setDefaultStartOffset(0);
+      setDefaultEndOffset(1);
+    }
+  }, []);
 
   // Calculate datetime bounds from offsets
   const calculateDefaultPeriod = (
@@ -78,8 +97,8 @@ export default function DailySheetPage() {
       };
     } catch (e) {
       return {
-        start: baseDateStr + "T12:00",
-        end: baseDateStr + "T12:00",
+        start: baseDateStr + "T18:00",
+        end: baseDateStr + "T18:00",
       };
     }
   };
@@ -160,10 +179,11 @@ export default function DailySheetPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const generateSheetMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (manualPaymentModeAmounts: DailySheetPaymentModeAmounts) =>
       dailySheetService.createDailySheet(createDate, {
         period_start: new Date(periodStart).toISOString(),
         period_end: new Date(periodEnd).toISOString(),
+        manual_payment_mode_amounts: manualPaymentModeAmounts,
       }),
     onSuccess: () => {
       setCreateError(null);
@@ -341,8 +361,8 @@ export default function DailySheetPage() {
                             onChange={(e) => setDefaultStartOffset(Number(e.target.value))}
                             className="w-full bg-surface-2 border border-hairline rounded-lg outline-none text-sm text-ink px-3 h-10 transition-colors focus:border-fuel-amber"
                           >
+                            <option value={0}>Same Day (0) — Recommended</option>
                             <option value={-1}>Yesterday (-1)</option>
-                            <option value={0}>Same Day (0)</option>
                           </select>
                         </div>
                         <div className="space-y-2">
@@ -389,11 +409,11 @@ export default function DailySheetPage() {
                       <p>
                         Current settings:{" "}
                         <span className="font-mono text-ink">
-                          {defaultStartOffset === -1 ? "Yesterday" : "Same day"} {defaultStartHour}
+                          {defaultStartOffset === -1 ? "Yesterday" : defaultStartOffset === 1 ? "Tomorrow" : "Same day"} {defaultStartHour}
                         </span>{" "}
                         to{" "}
                         <span className="font-mono text-ink">
-                          {defaultEndOffset === 1 ? "Tomorrow" : "Same day"} {defaultEndHour}
+                          {defaultEndOffset === 1 ? "Next day" : defaultEndOffset === -1 ? "Yesterday" : "Same day"} {defaultEndHour}
                         </span>
                       </p>
                       <button
@@ -420,9 +440,13 @@ export default function DailySheetPage() {
                   <ul className="text-xs text-ink-muted space-y-1.5 list-none">
                     <li className="flex items-start gap-2"><span className="text-fuel-amber mt-0.5">①</span> Select the accounting date and optional custom time window.</li>
                     <li className="flex items-start gap-2"><span className="text-fuel-amber mt-0.5">②</span> Review the <strong>Live Sheet Preview</strong> generated below.</li>
-                    <li className="flex items-start gap-2"><span className="text-fuel-amber mt-0.5">③</span> If satisfied, click <strong>Generate & Save Daily Sheet</strong> in the preview banner.</li>
+                    <li className="flex items-start gap-2"><span className="text-fuel-amber mt-0.5">③</span> If satisfied, click <strong>Generate &amp; Save Daily Sheet</strong> in the preview banner.</li>
                     <li className="flex items-start gap-2"><span className="text-fuel-amber mt-0.5">④</span> Stored sheets are persisted and can be viewed or updated in the Stored Sheets tab.</li>
                   </ul>
+                  <div className="border-t border-hairline pt-2 mt-2">
+                    <p className="text-[10px] text-fuel-amber font-semibold">⚡ 6 AM Standard</p>
+                    <p className="text-[10px] text-ink-subtle mt-0.5 leading-relaxed">Sheets run from 6:00 AM to 6:00 AM (next day), aligning with the daily fuel price revision. This ensures one clean rate per shift — no mid-shift crossovers.</p>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -432,7 +456,10 @@ export default function DailySheetPage() {
               periodStart={periodStart}
               periodEnd={periodEnd}
               sheetAlreadyExists={sheetAlreadyExists}
-              onGenerate={() => { setCreateError(null); generateSheetMutation.mutate(); }}
+              onGenerate={(manualPaymentModeAmounts) => {
+                setCreateError(null);
+                generateSheetMutation.mutate(manualPaymentModeAmounts);
+              }}
               isGenerating={generateSheetMutation.isPending}
               createError={createError}
             />

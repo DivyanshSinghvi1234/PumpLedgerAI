@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, Calendar, AlertTriangle } from "lucide-react";
+import { Activity, Calendar, AlertTriangle, Sunrise, ChevronDown, ChevronRight, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,22 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
 
   // Local state
   const [readingsDate, setReadingsDate] = useState(new Date().toISOString().split("T")[0]);
-  const [formItems, setFormItems] = useState<Record<string, { opening: string | number; closing: string | number }>>({});
+  const [formItems, setFormItems] = useState<
+    Record<string, { opening: string | number; closing: string | number; interim6am: string | number }>
+  >({});
   const [isEditingSaved, setIsEditingSaved] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+
+  // Shared times for all nozzles (operator takes readings together)
+  const [sharedOpeningTime, setSharedOpeningTime] = useState(
+    () => localStorage.getItem("meter_reading_opening_time") || "19:30"
+  );
+  const [sharedClosingTime, setSharedClosingTime] = useState(
+    () => localStorage.getItem("meter_reading_closing_time") || "19:30"
+  );
+
+  // Which nozzles have the 6 AM interim reading row expanded
+  const [expanded6am, setExpanded6am] = useState<Record<string, boolean>>({});
 
   // Query: bulk form readings for the selected date
   const { data: bulkForm, isLoading: bulkFormLoading } = useQuery({
@@ -27,17 +40,52 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     queryFn: () => inventoryService.getBulkReadingsForm(readingsDate),
   });
 
+  // Check if all active nozzles have 6 AM row expanded
+  const all6amExpanded = useMemo(() => {
+    if (!bulkForm || bulkForm.items.length === 0) return false;
+    return bulkForm.items.every((item) => expanded6am[item.nozzle_uuid]);
+  }, [bulkForm, expanded6am]);
+
+  // Toggle 6 AM rows for all nozzles
+  const handleToggleAll6am = () => {
+    if (!bulkForm) return;
+    const nextVal = !all6amExpanded;
+    const newExpanded: Record<string, boolean> = {};
+    bulkForm.items.forEach((item) => {
+      newExpanded[item.nozzle_uuid] = nextVal;
+    });
+    setExpanded6am(newExpanded);
+  };
+
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
     if (bulkForm?.items) {
-      const initialMap: Record<string, { opening: string | number; closing: string | number }> = {};
+      const initialMap: Record<string, { opening: string | number; closing: string | number; interim6am: string | number }> = {};
       bulkForm.items.forEach((item) => {
         initialMap[item.nozzle_uuid] = {
           opening: item.opening_reading,
           closing: item.closing_reading !== null ? item.closing_reading : "",
+          interim6am: item.interim_6am_reading !== null ? item.interim_6am_reading : "",
         };
       });
       setFormItems(initialMap);
+
+      // Restore saved times if present
+      if (bulkForm.items.length > 0 && bulkForm.items[0].opening_time) {
+        setSharedOpeningTime(bulkForm.items[0].opening_time);
+      }
+      if (bulkForm.items.length > 0 && bulkForm.items[0].closing_time) {
+        setSharedClosingTime(bulkForm.items[0].closing_time);
+      }
+
+      // Auto-expand 6AM rows if interim reading already saved
+      const expanded: Record<string, boolean> = {};
+      bulkForm.items.forEach((item) => {
+        if (item.interim_6am_reading !== null) {
+          expanded[item.nozzle_uuid] = true;
+        }
+      });
+      setExpanded6am(expanded);
     }
   }, [bulkForm]);
 
@@ -45,6 +93,16 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   useEffect(() => {
     setIsEditingSaved(false);
   }, [readingsDate]);
+
+  // Persist shared times to localStorage when changed
+  const handleOpeningTimeChange = (val: string) => {
+    setSharedOpeningTime(val);
+    localStorage.setItem("meter_reading_opening_time", val);
+  };
+  const handleClosingTimeChange = (val: string) => {
+    setSharedClosingTime(val);
+    localStorage.setItem("meter_reading_closing_time", val);
+  };
 
   // Evaluate if there are any saved logs on this date
   const hasSavedReadings = useMemo(() => {
@@ -78,6 +136,8 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           const vals = formItems[item.nozzle_uuid];
           const opening = parseFloat(vals.opening.toString());
           const closing = parseFloat(vals.closing.toString());
+          const interimRaw = vals.interim6am.toString();
+          const interim = interimRaw !== "" ? parseFloat(interimRaw) : null;
 
           if (isNaN(opening) || isNaN(closing)) {
             throw new Error(`Reading values for nozzle ${item.nozzle_name} must be numeric.`);
@@ -85,11 +145,17 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           if (closing < opening) {
             throw new Error(`Final meter reading for nozzle ${item.nozzle_name} cannot be less than initial reading.`);
           }
+          if (interim !== null && (interim < opening || interim > closing)) {
+            throw new Error(`6 AM reading for nozzle ${item.nozzle_name} must be between the opening and closing readings.`);
+          }
 
           return {
             nozzle_uuid: item.nozzle_uuid,
             opening_reading: opening,
             closing_reading: closing,
+            opening_time: sharedOpeningTime,
+            closing_time: sharedClosingTime,
+            interim_6am_reading: interim,
           };
         });
 
@@ -107,9 +173,11 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     }
   };
 
+  const isDisabled = hasSavedReadings && !isEditingSaved;
+
   return (
     <div className="space-y-6">
-      {/* Header toolbar for bulk entries */}
+      {/* Header toolbar */}
       <Card className="glass border-hairline p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
@@ -118,7 +186,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           <div>
             <h3 className="text-sm font-bold text-ink">Unified Data Entry Log</h3>
             <p className="text-xs text-ink-subtle">
-              Batch submit initial and final readings for all active dispensers.
+              Batch submit opening and closing readings for all active nozzles.
             </p>
           </div>
         </div>
@@ -177,6 +245,44 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
         </div>
       </Card>
 
+      {/* Shared Reading Times */}
+      <Card className="border-hairline bg-surface-2/40">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="text-fuel-amber" />
+            <p className="text-xs font-bold text-ink-muted uppercase tracking-wider font-mono">Reading Timestamps</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-ink-subtle">Opening Time</Label>
+              <Input
+                type="time"
+                value={sharedOpeningTime}
+                onChange={(e) => handleOpeningTimeChange(e.target.value)}
+                disabled={isDisabled}
+                className="bg-surface-2 border-hairline text-xs text-ink h-8 px-3 disabled:opacity-70 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-ink-subtle">Closing Time</Label>
+              <Input
+                type="time"
+                value={sharedClosingTime}
+                onChange={(e) => handleClosingTimeChange(e.target.value)}
+                disabled={isDisabled}
+                className="bg-surface-2 border-hairline text-xs text-ink h-8 px-3 disabled:opacity-70 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div className="col-span-2 flex items-end">
+              <p className="text-[10px] text-ink-subtle leading-relaxed">
+                These times apply to all nozzles. The <strong className="text-fuel-amber">6 AM reading</strong> below is optional —
+                only needed when a fuel price changed at 6:00 AM that day.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Bulk Spreadsheet Table */}
       <form onSubmit={handleSaveBulkReadings}>
         <Card className="glass border-hairline">
@@ -200,10 +306,26 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                         Fuel Type
                       </TableHead>
                       <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-40">
-                        Initial Reading (L) (Editable)
+                        Opening Reading (L)
+                      </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-36">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span>6 AM Reading</span>
+                          {bulkForm && bulkForm.items.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleToggleAll6am}
+                              disabled={isDisabled}
+                              className="text-[9px] lowercase bg-fuel-amber/10 hover:bg-fuel-amber/20 text-fuel-amber px-1.5 py-0.5 rounded transition-all cursor-pointer disabled:opacity-50 font-sans tracking-normal border border-fuel-amber/20 hover:scale-105 active:scale-95"
+                              title={all6amExpanded ? "Collapse 6 AM fields for all nozzles" : "Expand 6 AM fields for all nozzles"}
+                            >
+                              {all6amExpanded ? "hide all" : "add for all"}
+                            </button>
+                          )}
+                        </div>
                       </TableHead>
                       <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-44">
-                        Final Reading (L) (Editable)
+                        Closing Reading (L)
                       </TableHead>
                       <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle text-right w-36">
                         Sales (Liters)
@@ -212,10 +334,16 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                   </TableHeader>
                   <TableBody>
                     {bulkForm.items.map((item, idx) => {
-                      const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "" };
+                      const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "" };
                       const openVal = parseFloat(stateVals.opening.toString() || "0");
                       const closeVal = parseFloat(stateVals.closing.toString() || "0");
+                      const interimVal = stateVals.interim6am !== "" ? parseFloat(stateVals.interim6am.toString()) : null;
                       const salesAmt = closeVal >= openVal && stateVals.closing !== "" ? closeVal - openVal : 0;
+                      const is6amExpanded = expanded6am[item.nozzle_uuid] ?? false;
+
+                      // Show split if interim reading entered
+                      const before6am = interimVal !== null && !isNaN(interimVal) ? Math.max(0, interimVal - openVal) : null;
+                      const after6am = interimVal !== null && !isNaN(interimVal) ? Math.max(0, closeVal - interimVal) : null;
 
                       return (
                         <TableRow key={item.nozzle_uuid} className="border-b border-hairline hover:bg-surface-3/35">
@@ -233,8 +361,8 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                           <TableCell className="py-2.5">
                             <Input
                               type="number"
-                              step="0.01"
-                              placeholder="0.00"
+                              step="0.001"
+                              placeholder="0.000"
                               value={stateVals.opening}
                               onChange={(e) => {
                                 setFormItems((prev) => ({
@@ -245,15 +373,78 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   },
                                 }));
                               }}
-                              disabled={hasSavedReadings && !isEditingSaved}
+                              disabled={isDisabled}
                               className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
+                          </TableCell>
+                          <TableCell className="py-2.5">
+                            {/* 6 AM Interim Reading — expandable */}
+                            {is6amExpanded ? (
+                              <div className="flex items-center gap-1">
+                                <div className="relative">
+                                  <Sunrise size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-fuel-amber" />
+                                  <Input
+                                    id={`interim-input-${idx}`}
+                                    type="number"
+                                    step="0.001"
+                                    placeholder="6:00 AM reading"
+                                    value={stateVals.interim6am}
+                                    onChange={(e) => {
+                                      setFormItems((prev) => ({
+                                        ...prev,
+                                        [item.nozzle_uuid]: {
+                                          ...prev[item.nozzle_uuid],
+                                          interim6am: e.target.value,
+                                        },
+                                      }));
+                                    }}
+                                    disabled={isDisabled}
+                                    className="w-36 pl-6 bg-fuel-amber/5 border-fuel-amber/30 outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExpanded6am((p) => ({ ...p, [item.nozzle_uuid]: false }));
+                                    setFormItems((prev) => ({
+                                      ...prev,
+                                      [item.nozzle_uuid]: { ...prev[item.nozzle_uuid], interim6am: "" },
+                                    }));
+                                  }}
+                                  disabled={isDisabled}
+                                  className="text-ink-subtle hover:text-red-400 transition-colors cursor-pointer disabled:opacity-50"
+                                  title="Remove 6 AM reading"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setExpanded6am((p) => ({ ...p, [item.nozzle_uuid]: true }))}
+                                disabled={isDisabled}
+                                className="flex items-center gap-1 text-[10px] text-ink-subtle hover:text-fuel-amber transition-colors font-semibold cursor-pointer disabled:opacity-50 group"
+                                title="Add 6 AM interim reading (optional, only if price changed today)"
+                              >
+                                <ChevronRight size={11} className="group-hover:hidden" />
+                                <ChevronDown size={11} className="hidden group-hover:block" />
+                                <Sunrise size={11} />
+                                Add 6 AM
+                              </button>
+                            )}
+                            {/* Split preview */}
+                            {before6am !== null && after6am !== null && (
+                              <div className="mt-1 text-[9px] text-ink-subtle space-y-0.5">
+                                <span className="text-ink-muted">Before: {before6am.toFixed(3)} L</span>
+                                <span className="text-ink-muted block">After: {after6am.toFixed(3)} L</span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="py-2.5">
                             <Input
                               id={`closing-input-${idx}`}
                               type="number"
-                              step="0.01"
+                              step="0.001"
                               placeholder="Enter final reading"
                               value={stateVals.closing}
                               onChange={(e) => {
@@ -275,12 +466,12 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   }
                                 }
                               }}
-                              disabled={hasSavedReadings && !isEditingSaved}
+                              disabled={isDisabled}
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>
                           <TableCell className="px-5 text-right font-semibold text-xs text-ink">
-                            {salesAmt > 0 ? `${salesAmt.toFixed(2)} L` : "—"}
+                            {salesAmt > 0 ? `${salesAmt.toFixed(3)} L` : "—"}
                           </TableCell>
                         </TableRow>
                       );
@@ -331,7 +522,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
         )}
       </form>
 
-      {/* 3. Unlock Confirmation Dialog */}
+      {/* Unlock Confirmation Dialog */}
       <Dialog open={unlockConfirmOpen} onOpenChange={setUnlockConfirmOpen}>
         <DialogContent className="glass border border-hairline sm:max-w-[400px]">
           <DialogHeader>
@@ -369,7 +560,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
               }}
               className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
             >
-              Confirm & Unlock
+              Confirm &amp; Unlock
             </Button>
           </DialogFooter>
         </DialogContent>

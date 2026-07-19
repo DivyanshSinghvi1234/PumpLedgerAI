@@ -14,6 +14,7 @@ from app.schemas.customer import (
 )
 from app.services.ledger_service import LedgerService
 from app.services.balance_service import BalanceService
+from app.services.audit_log_service import AuditLogService
 from app.core.exceptions import (
     CustomerNotFoundError,
     DuplicateCustomerGSTError,
@@ -28,6 +29,8 @@ class CustomerService:
         self.repository = CustomerRepository()
         self.ledger_service = LedgerService()
         self.balance_service = BalanceService()
+        self.audit_service = AuditLogService()
+        self.audit_service = AuditLogService()
 
     def _apply_live_balance(
         self,
@@ -51,6 +54,7 @@ class CustomerService:
         self,
         db: Session,
         data: CustomerCreate,
+        actor_id: int | None = None,
     ) -> Customer:
 
         if data.customer_code:
@@ -120,6 +124,23 @@ class CustomerService:
                 reference_id=customer.id,
                 remarks="Opening balance",
             )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Created Customer",
+            target_table="customers",
+            target_id=str(customer.id),
+            actor_id=actor_id,
+            new_values={
+                "name": customer.name,
+                "customer_code": customer.customer_code,
+                "mobile": customer.mobile,
+                "gst_number": customer.gst_number,
+                "address": customer.address,
+                "opening_balance": str(customer.opening_balance) if customer.opening_balance else "0.00",
+            }
+        )
 
         return customer
 
@@ -211,6 +232,7 @@ class CustomerService:
         db: Session,
         customer_uuid: str,
         data: CustomerUpdate,
+        actor_id: int | None = None,
     ) -> Customer:
 
         customer = self.repository.get_by_uuid(
@@ -226,6 +248,15 @@ class CustomerService:
         update_data = data.model_dump(
             exclude_unset=True,
         )
+
+        old_values = {
+            "name": customer.name,
+            "customer_code": customer.customer_code,
+            "mobile": customer.mobile,
+            "gst_number": customer.gst_number,
+            "address": customer.address,
+            "opening_balance": str(customer.opening_balance) if customer.opening_balance else "0.00",
+        }
 
         # Duplicate Mobile
         if (
@@ -317,6 +348,25 @@ class CustomerService:
                 remarks="Opening balance adjustment",
             )
 
+        # Log audit log
+        new_values = {
+            "name": customer.name,
+            "customer_code": customer.customer_code,
+            "mobile": customer.mobile,
+            "gst_number": customer.gst_number,
+            "address": customer.address,
+            "opening_balance": str(customer.opening_balance) if customer.opening_balance else "0.00",
+        }
+        self.audit_service.log_action(
+            db,
+            action="Updated Customer",
+            target_table="customers",
+            target_id=str(customer.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values=new_values,
+        )
+
         return customer
 
     # -----------------------------------
@@ -327,6 +377,7 @@ class CustomerService:
         self,
         db: Session,
         customer_uuid: str,
+        actor_id: int | None = None,
     ) -> None:
 
         customer = self.repository.get_by_uuid(
@@ -339,7 +390,26 @@ class CustomerService:
                 customer_uuid,
             )
 
+        old_values = {
+            "name": customer.name,
+            "customer_code": customer.customer_code,
+            "mobile": customer.mobile,
+            "gst_number": customer.gst_number,
+            "address": customer.address,
+            "opening_balance": str(customer.opening_balance) if customer.opening_balance else "0.00",
+        }
+
         self.repository.delete(
             db,
             customer,
+        )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Deleted Customer",
+            target_table="customers",
+            target_id=str(customer.id),
+            actor_id=actor_id,
+            old_values=old_values,
         )

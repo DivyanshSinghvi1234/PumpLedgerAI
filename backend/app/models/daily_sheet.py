@@ -55,6 +55,28 @@ class DailySheet(
         nullable=True,
     )
 
+    # ── Financial reconciliation & expenses ──────────────────────────────────
+    actual_cash_collected: Mapped[float | None] = mapped_column(
+        nullable=True,
+    )
+
+    cash_shortage_excess: Mapped[float | None] = mapped_column(
+        nullable=True,
+    )
+
+    expenses_data: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+    # Operator-entered additions to the payment-mode totals. Voucher amounts
+    # remain the source of truth; these cover walk-in or otherwise unvouchered
+    # sales that still need to appear in the daily settlement.
+    manual_payment_mode_amounts_data: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+    # ─────────────────────────────────────────────────────────────────────────
+
     __table_args__ = (
         UniqueConstraint("pump_id", "date", name="uq_daily_sheet_pump_date"),
     )

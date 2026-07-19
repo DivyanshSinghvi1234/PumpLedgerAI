@@ -29,6 +29,7 @@ class Nozzle(
         nullable=False,
         index=True,
     )
+    tank_id: Mapped[int | None] = mapped_column(ForeignKey("fuel_tanks.id", ondelete="SET NULL"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
@@ -42,6 +43,7 @@ class Nozzle(
         default=0.0,
         nullable=False,
     )
+    meter_capacity: Mapped[float] = mapped_column(Float, default=1_000_000.0, nullable=False)
     status: Mapped[NozzleStatus] = mapped_column(
         Enum(NozzleStatus),
         default=NozzleStatus.ACTIVE,

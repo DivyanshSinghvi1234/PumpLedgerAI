@@ -10,18 +10,21 @@ from app.models.voucher import Voucher
 from app.models.employee import Employee
 from app.repositories.shift_repository import ShiftRepository
 from app.core.enums import PaymentMode
+from app.services.audit_log_service import AuditLogService
 
 
 class ShiftService:
 
     def __init__(self):
         self.repository = ShiftRepository()
+        self.audit_service = AuditLogService()
 
     def start_shift(
         self,
         db: Session,
         employee_uuid: str,
         opening_cash: Decimal | float,
+        actor_id: int | None = None,
     ) -> Shift:
         # Resolve employee
         employee = db.scalar(select(Employee).where(Employee.uuid == employee_uuid))
@@ -38,7 +41,22 @@ class ShiftService:
             opening_cash=Decimal(str(opening_cash)),
             cash_reconciled=False,
         )
-        return self.repository.create(db, shift)
+        shift = self.repository.create(db, shift)
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Started Shift",
+            target_table="shifts",
+            target_id=str(shift.id),
+            actor_id=actor_id,
+            new_values={
+                "employee_id": str(employee.id),
+                "employee_name": employee.full_name,
+                "opening_cash": str(opening_cash),
+            }
+        )
+        return shift
 
     def get_active_shift(self, db: Session) -> Shift | None:
         return self.repository.get_active_shift(db)
@@ -47,11 +65,18 @@ class ShiftService:
         self,
         db: Session,
         closing_cash_reported: Decimal | float,
+        actor_id: int | None = None,
     ) -> Shift:
         # Get active shift
         shift = self.repository.get_active_shift(db)
         if not shift:
             raise ValueError("No active shift found to end.")
+
+        old_values = {
+            "start_time": str(shift.start_time),
+            "opening_cash": str(shift.opening_cash),
+            "cash_reconciled": shift.cash_reconciled,
+        }
 
         end_time = datetime.utcnow()
         shift.end_time = end_time
@@ -87,4 +112,24 @@ class ShiftService:
         shift.variance = reported_cash - expected_cash
         shift.cash_reconciled = True
 
-        return self.repository.update(db, shift)
+        shift = self.repository.update(db, shift)
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Ended Shift",
+            target_table="shifts",
+            target_id=str(shift.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values={
+                "end_time": str(end_time),
+                "total_sales_amount": str(sales_total),
+                "cash_sales": str(cash_sales),
+                "expected_cash": str(expected_cash),
+                "closing_cash_reported": str(reported_cash),
+                "variance": str(shift.variance),
+                "cash_reconciled": shift.cash_reconciled,
+            }
+        )
+        return shift

@@ -13,6 +13,7 @@ import AppDialog from "@/components/common/AppDialog";
 
 type Props = {
   data: any;
+  onSaved?: () => void;
 };
 
 const FUEL_TYPES = ["PETROL", "DIESEL", "LUBRICANT"];
@@ -24,6 +25,7 @@ type FieldErrors = Record<string, string>;
 
 export default function OCRReviewForm({
   data,
+  onSaved,
 }: Props) {
   const navigate = useNavigate();
   const createMutation = useCreateVoucher();
@@ -233,7 +235,11 @@ export default function OCRReviewForm({
         image_path: imagePath,
       });
 
-      navigate("/dashboard/vouchers");
+      if (onSaved) {
+        onSaved();
+      } else {
+        navigate("/dashboard/vouchers");
+      }
     } catch (err) {
       console.error(err);
 

@@ -4,6 +4,7 @@ from app.core.security import hash_password
 from app.database.base import Base
 from app.database.session import SessionLocal, engine
 from app.models.pump import Pump
+from app.models.fuel_tank import TankerDelivery
 from app.models.user import User
 from app.models.user_pump_access import UserPumpAccess
 from app.repositories.pump_repository import PumpRepository
@@ -157,6 +158,28 @@ def check_and_update_schema() -> None:
             db.commit()
         except Exception:
             db.rollback()
+
+        # Daily reconciliation fields are additive, so safely backfill them
+        # for existing SQLite installations that predate the Alembic revision.
+        for table, column, definition in (
+            ("nozzles", "tank_id", "INTEGER"),
+            ("nozzles", "meter_capacity", "FLOAT NOT NULL DEFAULT 1000000"),
+            ("dip_readings", "deliveries_liters", "FLOAT NOT NULL DEFAULT 0"),
+            ("dip_readings", "nozzle_sales_liters", "FLOAT NOT NULL DEFAULT 0"),
+            ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),
+            ("dip_readings", "physical_leak_variance", "FLOAT NOT NULL DEFAULT 0"),
+            ("dip_readings", "variance_tolerance_liters", "FLOAT NOT NULL DEFAULT 0"),
+            ("daily_sheets", "actual_cash_collected", "FLOAT"),
+            ("daily_sheets", "cash_shortage_excess", "FLOAT"),
+            ("daily_sheets", "expenses_data", "TEXT"),
+            ("daily_sheets", "manual_payment_mode_amounts_data", "TEXT"),
+        ):
+            try:
+                db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
+            except Exception:
+                db.rollback()
+                db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+                db.commit()
     finally:
         db.close()
 
@@ -168,4 +191,3 @@ def init_db() -> None:
 
     seed_admin()
     seed_pumps()
-

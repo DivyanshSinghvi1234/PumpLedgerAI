@@ -11,9 +11,16 @@ import {
 import PageHeader from "@/components/common/PageHeader";
 
 import {
-  uploadInvoice,
+  uploadInvoices,
   uploadErrorMessage,
 } from "./services/uploadService";
+
+const MAX_BATCH_SIZE = 5;
+
+type SelectedImage = {
+  file: File;
+  preview: string;
+};
 
 export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,8 +30,7 @@ export default function UploadPage() {
 
   const navigate = useNavigate();
 
-  const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
+  const [images, setImages] = useState<SelectedImage[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -34,53 +40,43 @@ export default function UploadPage() {
   const [cameraLoading, setCameraLoading] = useState(false);
 
   useEffect(() => {
-    const savedBase64 = sessionStorage.getItem("saved_image_base64");
-    const savedName = sessionStorage.getItem("saved_image_name");
-    const savedType = sessionStorage.getItem("saved_image_type");
-    if (savedBase64 && savedName && savedType) {
-      fetch(savedBase64)
-        .then((res) => res.blob())
-        .then((blob) => {
-          const file = new File([blob], savedName, { type: savedType });
-          setImage(file);
-          setPreview(URL.createObjectURL(file));
-        })
-        .catch((e) => console.error("Error restoring saved image", e));
-    }
-
     return () => {
       stopCamera();
     };
   }, []);
 
-  function handleFile(file: File) {
-    setImage(file);
-    setPreview(URL.createObjectURL(file));
+  function handleFiles(files: Iterable<File>) {
+    const incoming = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    const remaining = MAX_BATCH_SIZE - images.length;
+
+    if (incoming.length === 0) {
+      setError("Please select image files.");
+      return;
+    }
+    if (remaining <= 0) {
+      setError(`You can scan up to ${MAX_BATCH_SIZE} images at a time.`);
+      return;
+    }
+
+    const accepted = incoming.slice(0, remaining).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setImages((current) => [...current, ...accepted]);
     setError("");
     stopCamera();
 
-    // Save to sessionStorage to survive OS OOM reloads when native camera triggers background state
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      try {
-        sessionStorage.setItem("saved_image_base64", reader.result as string);
-        sessionStorage.setItem("saved_image_name", file.name);
-        sessionStorage.setItem("saved_image_type", file.type);
-      } catch (e) {
-        console.warn("Could not save image to sessionStorage (likely quota exceeded)", e);
-      }
-    };
-    reader.readAsDataURL(file);
+    if (incoming.length > remaining) {
+      setError(`Only the first ${remaining} image${remaining === 1 ? "" : "s"} were added; the batch limit is ${MAX_BATCH_SIZE}.`);
+    }
   }
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement>,
   ) {
-    const file = e.target.files?.[0];
+    if (!e.target.files?.length) return;
 
-    if (!file) return;
-
-    handleFile(file);
+    handleFiles(e.target.files);
 
     e.target.value = "";
   }
@@ -134,7 +130,7 @@ export default function UploadPage() {
       const file = new File([blob], `capture-${Date.now()}.jpg`, {
         type: "image/jpeg",
       });
-      handleFile(file);
+      handleFiles([file]);
     }, "image/jpeg", 0.92);
   }
 
@@ -144,23 +140,23 @@ export default function UploadPage() {
     e.preventDefault();
     setDragActive(false);
 
-    const file = e.dataTransfer.files?.[0];
+    if (!e.dataTransfer.files?.length) return;
 
-    if (!file) return;
-
-    handleFile(file);
+    handleFiles(e.dataTransfer.files);
   }
 
   async function handleUpload() {
-    if (!image) return;
+    if (images.length === 0) return;
 
     try {
       setLoading(true);
       setError("");
 
       // Compress and resize image client-side to save bandwidth and reduce upload latency
-      const resizedImage = await resizeImage(image, 1600);
-      const result = await uploadInvoice(resizedImage);
+      const resizedImages = await Promise.all(
+        images.map(({ file }) => resizeImage(file, 1600)),
+      );
+      const results = await uploadInvoices(resizedImages);
 
       // Clean storage on successful upload
       sessionStorage.removeItem("saved_image_base64");
@@ -168,7 +164,7 @@ export default function UploadPage() {
       sessionStorage.removeItem("saved_image_type");
 
       navigate("/dashboard/review", {
-        state: result,
+        state: { batch: results },
       });
     } catch (err) {
       console.error(err);
@@ -178,13 +174,12 @@ export default function UploadPage() {
     }
   }
 
-  function clearImage() {
-    setImage(null);
-    setPreview("");
+  function removeImage(index: number) {
+    setImages((current) => {
+      URL.revokeObjectURL(current[index].preview);
+      return current.filter((_, currentIndex) => currentIndex !== index);
+    });
     setError("");
-    sessionStorage.removeItem("saved_image_base64");
-    sessionStorage.removeItem("saved_image_name");
-    sessionStorage.removeItem("saved_image_type");
   }
 
   return (
@@ -217,7 +212,7 @@ export default function UploadPage() {
         </div>
 
         <p className="mt-3 text-sm font-semibold text-ink">
-          Drag & drop or click to upload your invoice
+          Drag & drop or click to upload up to {MAX_BATCH_SIZE} invoices
         </p>
 
         <p className="mt-2 text-[10px] font-mono text-ink-tertiary uppercase tracking-wider">
@@ -292,6 +287,7 @@ export default function UploadPage() {
         hidden
         type="file"
         accept="image/*"
+        multiple
         onChange={handleChange}
       />
       <input
@@ -304,7 +300,7 @@ export default function UploadPage() {
       />
 
       {/* Preview card */}
-      {preview && (
+      {images.length > 0 && (
         <div className="rounded-xl border border-hairline bg-surface-1 overflow-hidden animate-fade-in-up">
           {/* Preview header */}
           <div className="flex items-center justify-between border-b border-hairline px-5 py-3">
@@ -313,29 +309,25 @@ export default function UploadPage() {
                 <FileImage size={16} />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-ink truncate">
-                  {image?.name || "camera-capture.jpg"}
-                </p>
-                <p className="text-[11px] text-ink-subtle font-mono">
-                  {image ? (image.size / 1024 / 1024).toFixed(2) : "0"} MB
-                </p>
+                <p className="text-sm font-medium text-ink">{images.length} image{images.length === 1 ? "" : "s"} ready to scan</p>
+                <p className="text-[11px] text-ink-subtle font-mono">They will be processed one at a time.</p>
               </div>
             </div>
-            <button
-              onClick={clearImage}
-              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-surface-3 text-ink-subtle hover:text-ink transition cursor-pointer"
-            >
-              <X size={14} />
-            </button>
           </div>
 
-          {/* Image */}
-          <div className="p-4">
-            <img
-              src={preview}
-              alt="Invoice Preview"
-              className="max-h-[50vh] w-full rounded-lg object-contain bg-surface-2"
-            />
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
+            {images.map(({ file, preview }, index) => (
+              <div key={preview} className="relative overflow-hidden rounded-lg border border-hairline bg-surface-2">
+                <img src={preview} alt={`Invoice ${index + 1} preview`} className="h-32 w-full object-cover" />
+                <div className="p-2 pr-8">
+                  <p className="truncate text-xs font-medium text-ink">{file.name}</p>
+                  <p className="text-[10px] text-ink-subtle">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
+                <button type="button" onClick={() => removeImage(index)} aria-label={`Remove ${file.name}`} className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-surface-1/90 text-ink-subtle hover:text-ink">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
           </div>
 
           {/* Action bar */}
@@ -358,12 +350,12 @@ export default function UploadPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Processing...
+                  Processing {images.length} image{images.length === 1 ? "" : "s"}...
                 </span>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  PROCESS INVOICE
+                  PROCESS {images.length} INVOICE{images.length === 1 ? "" : "S"}
                 </>
               )}
             </button>

@@ -33,9 +33,10 @@ service = NozzleService()
 def create_dispenser(
     data: FuelDispenserCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.create_dispenser(db, data)
+        return service.create_dispenser(db, data, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,9 +64,10 @@ def create_nozzle(
     dispenser_uuid: str,
     data: NozzleCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.create_nozzle(db, dispenser_uuid, data)
+        return service.create_nozzle(db, dispenser_uuid, data, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -82,9 +84,10 @@ def update_nozzle(
     nozzle_uuid: str,
     data: NozzleUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.update_nozzle(db, nozzle_uuid, data)
+        return service.update_nozzle(db, nozzle_uuid, data, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -100,9 +103,10 @@ def update_nozzle(
 def delete_nozzle(
     nozzle_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        service.delete_nozzle(db, nozzle_uuid)
+        service.delete_nozzle(db, nozzle_uuid, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -156,9 +160,10 @@ def update_dispenser(
     dispenser_uuid: str,
     data: FuelDispenserUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        return service.update_dispenser(db, dispenser_uuid, data)
+        return service.update_dispenser(db, dispenser_uuid, data, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -174,9 +179,10 @@ def update_dispenser(
 def delete_dispenser(
     dispenser_uuid: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
-        service.delete_dispenser(db, dispenser_uuid)
+        service.delete_dispenser(db, dispenser_uuid, actor_id=current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

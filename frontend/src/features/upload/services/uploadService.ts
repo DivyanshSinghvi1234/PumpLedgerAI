@@ -18,6 +18,17 @@ export async function uploadInvoice(file: File) {
   return response.data;
 }
 
+/** Process a small batch sequentially to stay within provider rate limits. */
+export async function uploadInvoices(files: File[]) {
+  const results = [];
+
+  for (const file of files) {
+    results.push(await uploadInvoice(file));
+  }
+
+  return results;
+}
+
 /**
  * Human-readable message for an upload/OCR failure. Thin wrapper over the
  * shared `extractApiError` with an upload-specific fallback.

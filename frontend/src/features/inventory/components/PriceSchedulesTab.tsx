@@ -1,416 +1,410 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { TrendingUp, Trash2, AlertTriangle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { HelpCircle, Save, Trash2, ArrowLeft, Edit3 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
-import type { FuelType, PriceScheduleCreate } from "../types";
+import type { FuelType } from "../types";
+
+// Standard fuel items
+const FUEL_ITEMS: FuelType[] = ["PETROL", "SPEED", "DIESEL", "LUBRICANT"];
+
+const FUEL_LABELS: Record<FuelType, string> = {
+  PETROL: "PETROL",
+  SPEED: "POWER_PETROL", // Matches the style in the screenshot
+  DIESEL: "DIESEL",
+  LUBRICANT: "LUBRICANT",
+};
 
 export default function PriceSchedulesTab({ isAdminOrManager }: { isAdminOrManager: boolean }) {
   const queryClient = useQueryClient();
 
-  // Dialog & Form states
-  const [deletePriceScheduleDialogOpen, setDeletePriceScheduleDialogOpen] = useState(false);
-  const [selectedPriceScheduleUuid, setSelectedPriceScheduleUuid] = useState("");
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [searchDate, setSearchDate] = useState(todayStr);
+  const [activeDate, setActiveDate] = useState(todayStr);
+  const [isEditing, setIsEditing] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
-  const [priceFuelType, setPriceFuelType] = useState<FuelType>("PETROL");
-  const [priceRate, setPriceRate] = useState("");
-  // Helper to format a Date object as a local ISO string (YYYY-MM-DDTHH:mm)
-  const getLocalDateTimeString = (date: Date) => {
-    const tzOffset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
-  };
+  // Editable rate states for each fuel item
+  const [rates, setRates] = useState<Record<FuelType, string>>({
+    PETROL: "",
+    SPEED: "",
+    DIESEL: "",
+    LUBRICANT: "",
+  });
 
-  const [priceEffectiveFrom, setPriceEffectiveFrom] = useState(
-    getLocalDateTimeString(new Date(Date.now() + 60000))
-  );
+  // Previous rates states for variation calculation
+  const [prevRates, setPrevRates] = useState<Record<FuelType, number>>({
+    PETROL: 0,
+    SPEED: 0,
+    DIESEL: 0,
+    LUBRICANT: 0,
+  });
 
-  // Queries
-  const { data: activeRates, isLoading: activeRatesLoading } = useQuery({
-    queryKey: ["activeRates"],
+  // Calculate 6:00 AM timestamp for the query of targeted active rates
+  const targetTimeStr = `${activeDate}T06:00:00`;
+  const prevDateStr = (() => {
+    const d = new Date(activeDate);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  })();
+  const prevTimeStr = `${prevDateStr}T06:00:00`;
+
+  // Fetch rates for active date (at 6:00 AM)
+  const { data: currentRatesData, refetch: refetchCurrent } = useQuery({
+    queryKey: ["rateMasterCurrent", activeDate],
     queryFn: async () => {
-      const fuelTypes: FuelType[] = ["PETROL", "SPEED", "DIESEL", "LUBRICANT"];
-      const rates: Record<FuelType, number> = {
-        PETROL: 104.20,
-        SPEED: 108.50,
-        DIESEL: 95.50,
-        LUBRICANT: 320.00,
-      };
-      
+      const results: Record<FuelType, number> = { PETROL: 0, SPEED: 0, DIESEL: 0, LUBRICANT: 0 };
       await Promise.all(
-        fuelTypes.map(async (ft) => {
+        FUEL_ITEMS.map(async (ft) => {
           try {
-            const res = await inventoryService.getActiveRate(ft);
-            rates[ft] = Number(res.rate);
-          } catch (err) {
-            console.error(`Error loading rate for ${ft}:`, err);
+            const res = await inventoryService.getActiveRate(ft, new Date(targetTimeStr).toISOString());
+            results[ft] = Number(res.rate);
+          } catch {
+            results[ft] = 0;
           }
         })
       );
-      return rates;
+      return results;
     },
-    refetchInterval: 10000,
   });
 
-  const { data: priceSchedules, isLoading: priceSchedulesLoading } = useQuery({
-    queryKey: ["priceSchedules"],
-    queryFn: () => inventoryService.getPriceSchedules(),
-    refetchInterval: 10000,
+  // Fetch previous day's rates (at 6:00 AM) to calculate Rate Variation
+  const { data: prevRatesData, refetch: refetchPrev } = useQuery({
+    queryKey: ["rateMasterPrev", activeDate],
+    queryFn: async () => {
+      const results: Record<FuelType, number> = { PETROL: 0, SPEED: 0, DIESEL: 0, LUBRICANT: 0 };
+      await Promise.all(
+        FUEL_ITEMS.map(async (ft) => {
+          try {
+            const res = await inventoryService.getActiveRate(ft, new Date(prevTimeStr).toISOString());
+            results[ft] = Number(res.rate);
+          } catch {
+            results[ft] = 0;
+          }
+        })
+      );
+      return results;
+    },
   });
+
+  // Update form inputs when data loads
+  useEffect(() => {
+    if (currentRatesData) {
+      setRates({
+        PETROL: currentRatesData.PETROL ? String(currentRatesData.PETROL) : "",
+        SPEED: currentRatesData.SPEED ? String(currentRatesData.SPEED) : "",
+        DIESEL: currentRatesData.DIESEL ? String(currentRatesData.DIESEL) : "",
+        LUBRICANT: currentRatesData.LUBRICANT ? String(currentRatesData.LUBRICANT) : "",
+      });
+    }
+    if (prevRatesData) {
+      setPrevRates(prevRatesData);
+    }
+  }, [currentRatesData, prevRatesData]);
 
   // Mutations
   const createPriceMutation = useMutation({
-    mutationFn: (data: PriceScheduleCreate) => inventoryService.createPriceSchedule(data),
-    onSuccess: () => {
-      toast.success("Fuel price schedule added successfully!");
-      setPriceRate("");
-      queryClient.invalidateQueries({ queryKey: ["activeRates"] });
-      queryClient.invalidateQueries({ queryKey: ["priceSchedules"] });
-    },
+    mutationFn: (data: { fuel_type: FuelType; rate: number; effective_from: string }) =>
+      inventoryService.createPriceSchedule(data),
     onError: (err) => {
-      toast.error("Failed to create price schedule.");
+      toast.error("Failed to update rate.");
       console.error(err);
     },
   });
 
-  const syncPricesMutation = useMutation({
-    mutationFn: () => inventoryService.syncLiveRates(),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["activeRates"] });
-      queryClient.invalidateQueries({ queryKey: ["priceSchedules"] });
-      if (data.live) {
-        toast.success(
-          `Successfully synced live rates! Petrol: ₹${data.PETROL}, Speed: ₹${data.SPEED}, Diesel: ₹${data.DIESEL}`
-        );
-      } else {
-        toast.warning(
-          `Failed to scrape live rates, fell back to default prices. Petrol: ₹${data.PETROL}, Speed: ₹${data.SPEED}, Diesel: ₹${data.DIESEL}`
-        );
-      }
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to sync prices.";
-      toast.error(msg);
-    },
+  const { data: priceSchedules } = useQuery({
+    queryKey: ["priceSchedulesHistory"],
+    queryFn: () => inventoryService.getPriceSchedules(),
   });
 
-  const deletePriceScheduleMutation = useMutation({
+  const deleteScheduleMutation = useMutation({
     mutationFn: (uuid: string) => inventoryService.deletePriceSchedule(uuid),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["activeRates"] });
-      queryClient.invalidateQueries({ queryKey: ["priceSchedules"] });
-      setDeletePriceScheduleDialogOpen(false);
-      toast.success("Price schedule deleted successfully!");
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to delete price schedule.";
-      toast.error(msg);
+      toast.success("Schedule deleted successfully!");
+      refetchCurrent();
+      refetchPrev();
+      queryClient.invalidateQueries({ queryKey: ["priceSchedulesHistory"] });
     },
   });
 
-  // Submit Handlers
-  const handleCreatePriceSchedule = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!priceRate || !priceEffectiveFrom) {
-      toast.error("Please specify a rate and effective timestamp.");
+  const handleSave = async () => {
+    if (!isAdminOrManager) {
+      toast.error("Price changes are restricted to administrators and managers.");
       return;
     }
-    
-    // Parse the local date-time string safely in local timezone
-    const [datePart, timePart] = priceEffectiveFrom.split("T");
-    const [year, month, day] = datePart.split("-").map(Number);
-    const [hour, minute] = timePart.split(":").map(Number);
-    const localDate = new Date(year, month - 1, day, hour, minute);
 
-    createPriceMutation.mutate({
-      fuel_type: priceFuelType,
-      rate: parseFloat(priceRate),
-      effective_from: localDate.toISOString(),
-    });
+    try {
+      // Rates are effective at 6:00 AM on the selected date
+      const local6Am = new Date(`${activeDate}T06:00:00`);
+      const isoEffectiveFrom = local6Am.toISOString();
+
+      const promises = FUEL_ITEMS.map(async (ft) => {
+        const val = parseFloat(rates[ft]);
+        if (isNaN(val) || val <= 0) return;
+
+        // Only save if the rate has changed
+        if (val !== currentRatesData?.[ft]) {
+          await createPriceMutation.mutateAsync({
+            fuel_type: ft,
+            rate: val,
+            effective_from: isoEffectiveFrom,
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      toast.success(`Rates updated successfully for ${activeDate} starting at 6:00 AM!`);
+      setIsEditing(false);
+      refetchCurrent();
+      refetchPrev();
+      queryClient.invalidateQueries({ queryKey: ["priceSchedulesHistory"] });
+    } catch (err) {
+      toast.error("Failed to save some rates.");
+      console.error(err);
+    }
   };
 
-  const handleDeletePriceSchedule = (e: React.FormEvent) => {
-    e.preventDefault();
-    deletePriceScheduleMutation.mutate(selectedPriceScheduleUuid);
+  const handleDeleteSchedulesForDate = () => {
+    if (!priceSchedules) return;
+
+    // Find and delete price schedules that match the activeDate
+    const targetDateStr = new Date(`${activeDate}T06:00:00`).toDateString();
+    const matches = priceSchedules.filter(
+      (s) => new Date(s.effective_from).toDateString() === targetDateStr
+    );
+
+    if (matches.length === 0) {
+      toast.info("No custom schedules found for this date to delete.");
+      return;
+    }
+
+    Promise.all(matches.map((m) => deleteScheduleMutation.mutateAsync(m.uuid)))
+      .then(() => {
+        toast.success(`Deleted schedules for ${activeDate}`);
+      })
+      .catch((err) => {
+        toast.error("Failed to delete schedules.");
+        console.error(err);
+      });
+  };
+
+  const handleBack = () => {
+    setSearchDate(todayStr);
+    setActiveDate(todayStr);
+    setIsEditing(false);
+  };
+
+  const handleRateChange = (ft: FuelType, val: string) => {
+    setRates((prev) => ({ ...prev, [ft]: val }));
   };
 
   return (
-    <div className="grid gap-8 md:grid-cols-3 animate-fade-in">
-      {/* Scheduling Form */}
-      {isAdminOrManager ? (
-        <Card className="glass border-hairline md:col-span-1 h-fit">
-          <CardHeader>
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in print:p-0">
+      
+      {/* ── Title Master ── */}
+      <div className="text-center space-y-1">
+        <h2 className="text-xl font-bold tracking-wider text-ink font-serif uppercase" style={{ color: "var(--color-primary-focus, #ea580c)" }}>
+          Rate Master
+        </h2>
+        <p className="text-xs text-ink-subtle italic">
+          Fuel Price Mapping & Variation Console
+        </p>
+      </div>
+
+      <Card className="glass border-hairline overflow-hidden shadow-xl" style={{ fontFamily: "Courier New, monospace" }}>
+        <CardContent className="p-6 space-y-6">
+          
+          {/* ── Search bar (Date Input) ── */}
+          <div className="flex items-center justify-center gap-4 flex-wrap pb-4 border-b border-hairline/60 no-print">
             <div className="flex items-center gap-2">
-              <TrendingUp size={16} className="text-fuel-amber" />
-              <CardTitle className="text-base font-bold tracking-tight text-ink">
-                Schedule Price Change
-              </CardTitle>
+              <Label htmlFor="searchDate" className="text-xs font-bold text-ink-muted uppercase">
+                Date :
+              </Label>
+              <Input
+                id="searchDate"
+                type="date"
+                value={searchDate}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setSearchDate(newDate);
+                  setActiveDate(newDate);
+                  setIsEditing(false);
+                }}
+                className="bg-surface-2 border-hairline text-sm text-ink h-8 px-3 rounded w-44 font-mono focus:border-fuel-amber"
+              />
             </div>
-            <CardDescription className="text-xs text-ink-subtle">
-              Create a future price adjustment that applies automatically when creating invoices.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreatePriceSchedule} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="priceFuelType" className="text-xs font-semibold text-ink-muted">
-                  Fuel Type
-                </Label>
-                <select
-                  id="priceFuelType"
-                  value={priceFuelType}
-                  onChange={(e) => setPriceFuelType(e.target.value as FuelType)}
-                  className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
-                >
-                  <option value="PETROL">PETROL</option>
-                  <option value="SPEED">SPEED</option>
-                  <option value="DIESEL">DIESEL</option>
-                  <option value="LUBRICANT">LUBRICANT</option>
-                </select>
-              </div>
+          </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="priceRate" className="text-xs font-semibold text-ink-muted">
-                  New Rate (₹ per Liter)
-                </Label>
-                <Input
-                  id="priceRate"
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 96.50"
-                  value={priceRate}
-                  onChange={(e) => setPriceRate(e.target.value)}
-                  className="bg-surface-2 border-hairline outline-none text-sm text-ink placeholder:text-ink-subtle"
-                  required
-                />
-              </div>
+          {/* ── Rates Table ── */}
+          <div className="overflow-x-auto">
+            <Table className="min-w-full text-xs border border-hairline">
+              <TableHeader className="bg-surface-2 border-b border-hairline">
+                <TableRow>
+                  <TableHead className="px-4 py-2 font-bold text-ink uppercase tracking-wider text-left">
+                    Date
+                  </TableHead>
+                  <TableHead className="px-4 py-2 font-bold text-ink uppercase tracking-wider text-left">
+                    Item Name
+                  </TableHead>
+                  <TableHead className="px-4 py-2 font-bold text-ink uppercase tracking-wider text-right w-[30%]">
+                    Sale Rate (₹)
+                  </TableHead>
+                  <TableHead className="px-4 py-2 font-bold text-ink uppercase tracking-wider text-right">
+                    Rate Variation
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {FUEL_ITEMS.map((ft) => {
+                  const currentVal = rates[ft] !== "" ? parseFloat(rates[ft]) : 0;
+                  const prevVal = prevRates[ft] || 0;
+                  const variation = prevVal > 0 && currentVal > 0 ? currentVal - prevVal : 0;
 
-              <div className="space-y-1.5">
-                <Label htmlFor="priceEffective" className="text-xs font-semibold text-ink-muted">
-                  Effective Date & Time
-                </Label>
-                <Input
-                  id="priceEffective"
-                  type="datetime-local"
-                  value={priceEffectiveFrom}
-                  onChange={(e) => setPriceEffectiveFrom(e.target.value)}
-                  className="bg-surface-2 border-hairline outline-none text-sm text-ink"
-                  required
-                />
-              </div>
+                  return (
+                    <TableRow key={ft} className="border-b border-hairline hover:bg-surface-2/40">
+                      <td className="px-4 py-3 font-semibold text-ink-muted">
+                        {new Date(activeDate).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-ink">
+                        {FUEL_LABELS[ft]}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={rates[ft]}
+                            onChange={(e) => handleRateChange(ft, e.target.value)}
+                            className="bg-surface-1 border-hairline text-right font-bold text-xs h-7 px-2 font-mono text-ink rounded w-full ml-auto"
+                            placeholder="0.00"
+                          />
+                        ) : (
+                          <span className="font-bold text-sm text-ink font-mono">
+                            {rates[ft] !== "" ? Number(rates[ft]).toFixed(2) : "0.00"}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-mono font-bold ${
+                        variation > 0 ? "text-emerald-600" : variation < 0 ? "text-red-500" : "text-ink-subtle"
+                      }`}>
+                        {variation > 0 ? "+" : ""}{variation !== 0 ? variation.toFixed(2) : "0.00"}
+                      </td>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
 
-              <Button
-                type="submit"
-                disabled={createPriceMutation.isPending}
-                className="w-full bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium text-xs py-2 shadow-md cursor-pointer mt-2"
-              >
-                {createPriceMutation.isPending ? "Scheduling..." : "Schedule Price Adjustment"}
-              </Button>
-            </form>
+          {/* ── Help / Notice Section ── */}
+          {showHelp && (
+            <div className="bg-surface-2 border border-hairline p-3 rounded text-[11px] text-ink-muted space-y-1.5 animate-fade-in no-print">
+              <p className="font-bold text-fuel-amber uppercase tracking-wider flex items-center gap-1">
+                <HelpCircle size={13} /> Fuel Rate Timing & Schedules Info
+              </p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Rate master coordinates changes that typically occur at **6:00 AM** daily.</li>
+                <li>When saving rates, the system automatically schedules them starting at **6:00 AM** on the chosen date.</li>
+                <li>Voucher calculations (Fuel Sales, Invoices) use the active rate effective at the time of the transaction.</li>
+                <li>Rate Variation shows price differences compared to the previous day's rate.</li>
+              </ul>
+            </div>
+          )}
+
+          {/* ── Controls Row (Retro Styling Buttons) ── */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-4 border-t border-hairline/60 no-print">
+            <Button
+              onClick={handleSave}
+              disabled={!isEditing}
+              className="bg-teal-500/20 text-teal-600 hover:bg-teal-500/30 border border-teal-500/30 font-bold text-xs h-9 px-6 rounded cursor-pointer uppercase shadow-sm disabled:opacity-50"
+            >
+              <Save size={13} className="mr-1.5" /> Save
+            </Button>
+
+            <Button
+              onClick={handleDeleteSchedulesForDate}
+              variant="ghost"
+              className="bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 font-bold text-xs h-9 px-6 rounded cursor-pointer uppercase shadow-sm"
+            >
+              <Trash2 size={13} className="mr-1.5" /> Delete
+            </Button>
+
+            <Button
+              onClick={handleBack}
+              className="bg-stone-500/10 text-stone-600 hover:bg-stone-500/20 border border-stone-500/20 font-bold text-xs h-9 px-6 rounded cursor-pointer uppercase shadow-sm"
+            >
+              <ArrowLeft size={13} className="mr-1.5" /> Back
+            </Button>
+
+            <Button
+              onClick={() => setShowHelp((h) => !h)}
+              className="bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 border border-sky-500/20 font-bold text-xs h-9 px-6 rounded cursor-pointer uppercase shadow-sm"
+            >
+              <HelpCircle size={13} className="mr-1.5" /> Help
+            </Button>
+
+            <Button
+              onClick={() => setIsEditing((e) => !e)}
+              className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20 font-bold text-xs h-9 px-6 rounded cursor-pointer uppercase shadow-sm"
+            >
+              <Edit3 size={13} className="mr-1.5" /> Edit
+            </Button>
+          </div>
+
+        </CardContent>
+      </Card>
+      
+      {/* ── Active History / Scheduled changes overview ── */}
+      {priceSchedules && priceSchedules.length > 0 && (
+        <Card className="glass border-hairline/60 no-print" style={{ fontFamily: "Courier New, monospace" }}>
+          <CardContent className="p-4 space-y-3">
+            <h4 className="text-[10px] font-black uppercase text-ink-subtle tracking-wider">
+              Upcoming scheduled rate shifts
+            </h4>
+            <div className="space-y-2">
+              {priceSchedules.slice(0, 5).map((sched) => {
+                const isFuture = new Date(sched.effective_from).getTime() > Date.now();
+                return (
+                  <div key={sched.uuid} className="flex justify-between items-center text-xs p-2 rounded bg-surface-2 border border-hairline/40">
+                    <div className="flex items-center gap-2">
+                      <Badge className="text-[8px] bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent font-bold">
+                        {FUEL_LABELS[sched.fuel_type as FuelType]}
+                      </Badge>
+                      <span className="font-bold text-ink">₹{Number(sched.rate).toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-ink-subtle">
+                        Effective: {new Date(sched.effective_from).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {isFuture && (
+                        <Badge className="text-[8px] bg-sky-500/10 text-sky-500 border-transparent">
+                          Scheduled
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
-        </Card>
-      ) : (
-        <Card className="glass border-hairline md:col-span-1 p-6 text-center text-xs text-ink-subtle italic">
-          Price adjustments are restricted to administrators and managers.
         </Card>
       )}
 
-      {/* Pricing lists grids */}
-      <div className="md:col-span-2 space-y-6">
-        {/* Active prices mappings card */}
-        <Card className="glass border-hairline">
-          <CardHeader className="pb-3 border-b border-hairline flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-bold tracking-tight text-ink">
-                Active Price Mappings
-              </CardTitle>
-              <CardDescription className="text-xs text-ink-subtle">
-                Current rates applied automatically on fuel invoice transactions.
-              </CardDescription>
-            </div>
-            {isAdminOrManager && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => syncPricesMutation.mutate()}
-                disabled={syncPricesMutation.isPending}
-                className="text-xs h-8 border-hairline bg-surface-2 hover:bg-surface-3 cursor-pointer shadow-sm text-ink font-semibold"
-              >
-                {syncPricesMutation.isPending ? "Syncing..." : "Sync Prices"}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="pt-4">
-            {activeRatesLoading ? (
-              <div className="py-6 text-center text-xs text-ink-subtle">Loading active rates...</div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-3">
-                {(["PETROL", "SPEED", "DIESEL", "LUBRICANT"] as FuelType[]).map((ft) => {
-                  const rate = activeRates ? activeRates[ft] : 0;
-                  return (
-                    <Card key={ft} className="bg-surface-2 border border-hairline p-4 flex flex-col justify-between">
-                      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">{ft}</p>
-                      <div className="flex items-baseline gap-1 mt-2.5">
-                        <span className="text-xl font-bold tracking-tight text-ink">
-                          ₹{Number(rate).toFixed(2)}
-                        </span>
-                        <span className="text-[10px] text-ink-subtle">/L</span>
-                      </div>
-                      <p className="text-[9px] text-success mt-1.5 flex items-center gap-1 font-medium">
-                        <span className="h-1.5 w-1.5 rounded-full bg-success inline-block" /> Active
-                      </p>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Price Schedule History Card */}
-        <Card className="glass border-hairline">
-          <CardHeader className="pb-3 border-b border-hairline">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-fuel-amber/10 text-fuel-amber">
-                <TrendingUp size={15} />
-              </div>
-              <div>
-                <CardTitle className="text-base font-bold tracking-tight text-ink">
-                  Pricing Schedules & History
-                </CardTitle>
-                <CardDescription className="text-xs text-ink-subtle">
-                  Log of all manual and automated historical fuel rate changes.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {priceSchedulesLoading ? (
-              <div className="p-6 text-center text-xs text-ink-subtle">Loading schedules...</div>
-            ) : priceSchedules && priceSchedules.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-hairline hover:bg-transparent">
-                      <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Fuel Type
-                      </TableHead>
-                      <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                        New Rate
-                      </TableHead>
-                      <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">
-                        Effective Date & Time
-                      </TableHead>
-                      <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">
-                        Status
-                      </TableHead>
-                      {isAdminOrManager && (
-                        <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right w-20">
-                          Actions
-                        </TableHead>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {priceSchedules.map((schedule) => {
-                      const isApplied = schedule.is_applied || new Date(schedule.effective_from).getTime() <= Date.now();
-                      return (
-                        <TableRow key={schedule.uuid} className="border-b border-hairline hover:bg-surface-3/15">
-                          <TableCell className="px-5 text-xs font-semibold text-ink-muted">
-                            <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
-                              {schedule.fuel_type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-ink font-bold font-mono">
-                            ₹{Number(schedule.rate).toFixed(2)} / L
-                          </TableCell>
-                          <TableCell className="text-xs text-ink-muted font-medium">
-                            {new Date(schedule.effective_from).toLocaleString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </TableCell>
-                          <TableCell className="px-5 text-right">
-                            <Badge
-                              className={`text-[9px] uppercase font-mono font-bold border-transparent ${
-                                isApplied
-                                  ? "bg-success/15 text-success hover:bg-success/15"
-                                  : "bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15"
-                              }`}
-                            >
-                              {isApplied ? "Applied" : "Scheduled"}
-                            </Badge>
-                          </TableCell>
-                          {isAdminOrManager && (
-                            <TableCell className="px-5 text-right">
-                              <button
-                                onClick={() => {
-                                  setSelectedPriceScheduleUuid(schedule.uuid);
-                                  setDeletePriceScheduleDialogOpen(true);
-                                }}
-                                className="text-ink-subtle hover:text-destructive transition-colors p-1 rounded hover:bg-surface-3 cursor-pointer"
-                                title="Delete Price Schedule"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="p-6 text-center text-xs text-ink-subtle italic">
-                No pricing schedules configured yet.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Delete Price Schedule Confirmation Dialog */}
-      <Dialog open={deletePriceScheduleDialogOpen} onOpenChange={setDeletePriceScheduleDialogOpen}>
-        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2 text-destructive">
-              <AlertTriangle size={18} /> Delete Price Schedule
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleDeletePriceSchedule} className="space-y-4 py-2">
-            <p className="text-xs text-ink-muted">
-              Are you sure you want to delete this price schedule? This action is permanent and will prevent it from applying to future transactions. It has no effect on past vouchers.
-            </p>
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDeletePriceScheduleDialogOpen(false)}
-                className="border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={deletePriceScheduleMutation.isPending}
-                className="bg-destructive hover:bg-destructive/90 text-canvas font-semibold text-xs cursor-pointer"
-              >
-                {deletePriceScheduleMutation.isPending ? "Deleting..." : "Delete Schedule"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

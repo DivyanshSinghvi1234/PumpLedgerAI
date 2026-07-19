@@ -103,6 +103,9 @@ export interface NozzleReadingCreate {
   nozzle_uuid: string;
   opening_reading?: number;
   closing_reading: number;
+  opening_time?: string;       // HH:MM, default "19:30"
+  closing_time?: string;       // HH:MM, default "19:30"
+  interim_6am_reading?: number | null; // Optional 6:00 AM meter reading
 }
 
 export interface BulkNozzleReadingCreate {
@@ -118,6 +121,9 @@ export interface BulkFormNozzleItem {
   opening_reading: number;
   closing_reading: number | null;
   sales: number | null;
+  opening_time: string | null;
+  closing_time: string | null;
+  interim_6am_reading: number | null;
 }
 
 export interface BulkFormResponse {

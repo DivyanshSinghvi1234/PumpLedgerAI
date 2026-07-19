@@ -10,11 +10,35 @@ from app.schemas.fuel_tank import (
     FuelTankResponse,
     DipReadingCreate,
     DipReadingResponse,
+    TankerDeliveryCreate,
+    TankerDeliveryResponse,
 )
 from app.services.fuel_tank_service import FuelTankService
 
 router = APIRouter(prefix="/tanks", tags=["Fuel Tanks"])
 service = FuelTankService()
+
+
+@router.post(
+    "/deliveries",
+    response_model=TankerDeliveryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def create_delivery(data: TankerDeliveryCreate, db: Session = Depends(get_db)):
+    try:
+        return service.create_delivery(db, **data.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get(
+    "/deliveries",
+    response_model=list[TankerDeliveryResponse],
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def list_deliveries(db: Session = Depends(get_db)):
+    return service.list_deliveries(db)
 
 
 @router.post(

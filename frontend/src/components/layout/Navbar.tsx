@@ -1,27 +1,9 @@
-import { useNavigate, useLocation } from "react-router-dom";
-import { LogOut, Menu, Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { LogOut, Menu, Building2 } from "lucide-react";
 
 import { logout } from "../../features/auth/services/authService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
-
-const TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/dashboard/upload": "Upload Invoice",
-  "/dashboard/vouchers": "Vouchers",
-  "/dashboard/payments": "Payments",
-  "/dashboard/customers": "Customers",
-  "/dashboard/vehicles": "Vehicles",
-  "/dashboard/reports": "Reports",
-  "/dashboard/review": "OCR Review",
-};
-
-function titleFor(path: string): string {
-  if (TITLES[path]) return TITLES[path];
-  if (path.startsWith("/dashboard/customers") && path.includes("ledger")) {
-    return "Customer Ledger";
-  }
-  return "PumpLedger";
-}
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface NavbarProps {
   onMenuClick(): void;
@@ -29,7 +11,6 @@ interface NavbarProps {
 
 export default function Navbar({ onMenuClick }: NavbarProps) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, activePump } = useCurrentUser();
 
   function handleLogout() {
@@ -57,11 +38,17 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
         </button>
 
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold tracking-tight text-ink">
-            {titleFor(location.pathname)}
-          </h2>
+          {/* Brand: PumpLedger with building icon */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-fuel-amber/10 text-fuel-amber">
+              <Building2 size={14} />
+            </div>
+            <h2 className="text-sm font-semibold tracking-tight text-ink">
+              PumpLedger
+            </h2>
+          </div>
           {activePump && (
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-fuel-amber/10 border border-fuel-amber/15 px-2 py-0.5 text-[10px] font-semibold text-fuel-amber">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-fuel-amber/10 border border-fuel-amber/15 px-2 py-0.5 text-[10px] font-semibold text-fuel-amber">
               <span className="h-1 w-1 rounded-full bg-fuel-amber" />
               {activePump.name}
             </span>
@@ -70,45 +57,38 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Notification bell (visual placeholder) */}
-        <button
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg text-ink-subtle hover:text-ink hover:bg-surface-3 transition cursor-pointer"
-          aria-label="Notifications"
-        >
-          <Bell size={16} />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-fuel-amber" />
-        </button>
+          {/* Divider */}
+          <div className="h-6 w-px bg-hairline mx-1" />
 
-        {/* Divider */}
-        <div className="h-6 w-px bg-hairline mx-1" />
-
-        {user && (
-          <div className="flex items-center gap-2.5">
-            {/* Avatar with gradient ring */}
-            <div className="rounded-full p-[2px] bg-gradient-to-br from-fuel-amber to-fuel-orange">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold text-ink">
-                {initials}
+          {user && (
+            <div className="flex items-center gap-2.5">
+              {/* Avatar with gradient ring */}
+              <div className="rounded-full p-[2px] bg-gradient-to-br from-fuel-amber to-fuel-orange">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold text-ink">
+                  {initials}
+                </div>
+              </div>
+              <div className="hidden leading-tight sm:block">
+                <p className="text-xs font-medium text-ink">
+                  {user.full_name || user.username}
+                </p>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-fuel-amber">
+                  {{ ADMIN: "Admin", MANAGER: "Manager", OPERATOR: "Employee" }[user.role] ?? user.role}
+                </p>
               </div>
             </div>
-            <div className="hidden leading-tight sm:block">
-              <p className="text-xs font-medium text-ink">
-                {user.full_name || user.username}
-              </p>
-              <p className="text-[9px] font-mono uppercase tracking-wider text-fuel-amber">
-                {{ ADMIN: "Admin", MANAGER: "Manager", OPERATOR: "Employee" }[user.role] ?? user.role}
-              </p>
-            </div>
-          </div>
-        )}
+          )}
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-3 hover:text-ink transition cursor-pointer ml-1"
-        >
-          <LogOut size={13} />
-          <span className="hidden sm:inline">Logout</span>
-        </button>
-      </div>
+          <ThemeToggle />
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-3 hover:text-ink transition cursor-pointer ml-1"
+          >
+            <LogOut size={13} />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </div>
     </header>
   );
 }

@@ -13,12 +13,14 @@ from app.core.exceptions import (
     EmployeeNotFoundError,
     DuplicateEmployeeEmailError,
 )
+from app.services.audit_log_service import AuditLogService
 
 
 class EmployeeService:
 
     def __init__(self) -> None:
         self.repository = EmployeeRepository()
+        self.audit_service = AuditLogService()
 
     # -----------------------------------
     # Create
@@ -28,6 +30,7 @@ class EmployeeService:
         self,
         db: Session,
         data: EmployeeCreate,
+        actor_id: int | None = None,
     ) -> Employee:
 
         if data.email:
@@ -43,10 +46,29 @@ class EmployeeService:
 
         employee = Employee(**data.model_dump())
 
-        return self.repository.create(
+        employee = self.repository.create(
             db,
             employee,
         )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Created Employee",
+            target_table="employees",
+            target_id=str(employee.id),
+            actor_id=actor_id,
+            new_values={
+                "employee_code": employee.employee_code,
+                "full_name": employee.full_name,
+                "email": employee.email,
+                "phone": employee.phone,
+                "role": employee.role.value,
+                "is_active": employee.is_active,
+            }
+        )
+
+        return employee
 
     # -----------------------------------
     # Get All (active only)
@@ -123,6 +145,7 @@ class EmployeeService:
         db: Session,
         employee_uuid: str,
         data: EmployeeUpdate,
+        actor_id: int | None = None,
     ) -> Employee:
 
         employee = self.repository.get_by_uuid(
@@ -134,6 +157,15 @@ class EmployeeService:
             raise EmployeeNotFoundError(
                 employee_uuid,
             )
+
+        old_values = {
+            "employee_code": employee.employee_code,
+            "full_name": employee.full_name,
+            "email": employee.email,
+            "phone": employee.phone,
+            "role": employee.role.value,
+            "is_active": employee.is_active,
+        }
 
         update_data = data.model_dump(
             exclude_unset=True,
@@ -163,10 +195,31 @@ class EmployeeService:
                 value,
             )
 
-        return self.repository.update(
+        employee = self.repository.update(
             db,
             employee,
         )
+
+        # Log audit log
+        new_values = {
+            "employee_code": employee.employee_code,
+            "full_name": employee.full_name,
+            "email": employee.email,
+            "phone": employee.phone,
+            "role": employee.role.value,
+            "is_active": employee.is_active,
+        }
+        self.audit_service.log_action(
+            db,
+            action="Updated Employee",
+            target_table="employees",
+            target_id=str(employee.id),
+            actor_id=actor_id,
+            old_values=old_values,
+            new_values=new_values,
+        )
+
+        return employee
 
     # -----------------------------------
     # Delete (Soft Delete)
@@ -176,6 +229,7 @@ class EmployeeService:
         self,
         db: Session,
         employee_uuid: str,
+        actor_id: int | None = None,
     ) -> None:
 
         employee = self.repository.get_by_uuid(
@@ -188,7 +242,26 @@ class EmployeeService:
                 employee_uuid,
             )
 
+        old_values = {
+            "employee_code": employee.employee_code,
+            "full_name": employee.full_name,
+            "email": employee.email,
+            "phone": employee.phone,
+            "role": employee.role.value,
+            "is_active": employee.is_active,
+        }
+
         self.repository.delete(
             db,
             employee,
+        )
+
+        # Log audit log
+        self.audit_service.log_action(
+            db,
+            action="Deleted Employee",
+            target_table="employees",
+            target_id=str(employee.id),
+            actor_id=actor_id,
+            old_values=old_values,
         )

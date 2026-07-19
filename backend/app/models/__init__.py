@@ -6,7 +6,7 @@ from app.models.user import User
 from app.models.payment import Payment
 from app.models.ledger_entry import LedgerEntry
 from app.models.voucher_settlement import VoucherSettlement
-from app.models.fuel_tank import FuelTank, DipReading
+from app.models.fuel_tank import FuelTank, DipReading, TankerDelivery
 from app.models.price_schedule import PriceSchedule
 from app.models.shift import Shift
 from app.models.audit_log import AuditLog
@@ -30,6 +30,7 @@ __all__ = [
     "VoucherSettlement",
     "FuelTank",
     "DipReading",
+    "TankerDelivery",
     "PriceSchedule",
     "Shift",
     "AuditLog",
@@ -42,4 +43,3 @@ __all__ = [
     "UserPumpAccess",
     "DailySheet",
 ]
-
