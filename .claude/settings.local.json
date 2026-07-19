@@ -34,7 +34,8 @@
       "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
       "Bash(python -m pytest --version)",
       "Bash(python -m pip install pytest -q)",
-      "Bash(uv pip *)"
+      "Bash(uv pip *)",
+      "Bash(python -c \"import app.main; print\\('OK'\\)\")"
     ]
   }
 }

@@ -302,12 +302,12 @@ class NozzleService:
         items = []
 
         for dispenser in dispensers:
-            if not dispenser.is_active:
-                continue
+            # ponytail: match the config tab, which lists every dispenser/nozzle
+            # regardless of the legacy is_active flag (the UI manages `status`,
+            # not is_active). Ceiling: OUT_OF_ORDER nozzles still appear here —
+            # upgrade to filtering on `status == ACTIVE` if that's ever wanted.
             for nozzle in dispenser.nozzles:
-                if not nozzle.is_active:
-                    continue
-                
+
                 # Fetch saved reading for this nozzle on this date
                 reading = self.reading_repo.get_by_date(db, nozzle.id, reading_date)
                 

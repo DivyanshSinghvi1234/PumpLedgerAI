@@ -11,6 +11,9 @@ export function invoiceImageUrl(
 ): string | null {
   if (!imagePath) return null;
 
+  // R2 (or any remote storage) returns an absolute URL — use it verbatim.
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
   // Normalize Windows backslashes and strip any leading ./ or /
   let p = imagePath.replace(/\\/g, "/").replace(/^\.?\//, "");
 

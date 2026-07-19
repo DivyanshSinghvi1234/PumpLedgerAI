@@ -10,7 +10,7 @@ import type { DailySheet } from "../services/dailySheetService";
 
 function fmtDt(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
   });

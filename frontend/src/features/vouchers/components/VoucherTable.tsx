@@ -128,7 +128,7 @@ export default function VoucherTable({
 
             <TableCell className="text-xs text-ink-muted whitespace-nowrap">
               {voucher.created_at
-                ? new Date(voucher.created_at).toLocaleString(undefined, {
+                ? new Date(voucher.created_at).toLocaleString("en-GB", {
                     dateStyle: "medium",
                     timeStyle: "short",
                   })

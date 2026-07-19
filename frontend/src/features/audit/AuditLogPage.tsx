@@ -134,7 +134,7 @@ export default function AuditLogPage() {
                     return (
                       <TableRow key={log.id} className="border-b border-hairline hover:bg-surface-3/35">
                         <TableCell className="px-5 text-xs font-semibold text-ink py-3.5">
-                          {new Date(log.created_at).toLocaleString("en-US", {
+                          {new Date(log.created_at).toLocaleString("en-GB", {
                             month: "short",
                             day: "numeric",
                             hour: "2-digit",

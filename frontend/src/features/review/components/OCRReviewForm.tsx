@@ -90,8 +90,6 @@ export default function OCRReviewForm({
   // Mismatch: saved amount differs from computed qty × rate total
   const diff = Number(Math.abs(totalAmount - grandTotal).toFixed(2));
   const isMismatch = diff > 0.05;
-  // scannedTotal = the original OCR-extracted value (for reference in warnings)
-  const scannedTotal = Number(ocr.total_amount) || 0;
 
   function updateField(
     field: string,
