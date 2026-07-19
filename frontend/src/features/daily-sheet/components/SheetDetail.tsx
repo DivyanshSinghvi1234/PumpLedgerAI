@@ -134,14 +134,13 @@ export default function SheetDetail({
   );
 
   /* ── query params ──────────────────────────────────────────────────────── */
-  const voucherParams =
-    sheet.period_start && sheet.period_end
-      ? {
-          from_datetime: sheet.period_start,
-          to_datetime: sheet.period_end,
-          page_size: 200,
-        }
-      : { from_date: sheet.date, to_date: sheet.date, page_size: 200 };
+  // Always filter by invoice_date (from_date/to_date) so vouchers are matched
+  // by the date printed on the invoice — not by created_at (save timestamp).
+  const voucherParams = {
+    from_date: sheet.date,
+    to_date: sheet.date,
+    page_size: 200,
+  };
 
   /* ── queries ───────────────────────────────────────────────────────────── */
   const { data: salesForm, isLoading: salesFormLoading } = useQuery({

@@ -76,16 +76,22 @@ export default function OCRReviewForm({
     customer_uuid: null as string | null,
     payment_mode: ocr.payment_mode ?? "",
     remarks: ocr.remarks ?? "",
+    // total_amount = scanned/handwritten total from the invoice (what OCR read).
+    // This is the editable field that gets saved. Grand Total (qty × rate) is
+    // computed separately and shown as a read-only reference.
     total_amount: ocr.total_amount ?? initialItems.reduce((sum: number, it: any) => sum + (Number(it.total_amount) || 0), 0),
     items: initialItems,
   });
 
-  const expectedAmount = formData.items.reduce((sum: number, item: any) => sum + (Number(item.total_amount) || 0), 0);
+  // Grand Total = auto-computed from qty × rate (read-only reference, not saved directly)
+  const grandTotal = formData.items.reduce((sum: number, item: any) => sum + (Number(item.total_amount) || 0), 0);
+  // total_amount = the scanned/handwritten total the user edits and saves
   const totalAmount = Number(formData.total_amount) || 0;
-  const diff = Number(Math.abs(totalAmount - expectedAmount).toFixed(2));
+  // Mismatch: saved amount differs from computed qty × rate total
+  const diff = Number(Math.abs(totalAmount - grandTotal).toFixed(2));
   const isMismatch = diff > 0.05;
+  // scannedTotal = the original OCR-extracted value (for reference in warnings)
   const scannedTotal = Number(ocr.total_amount) || 0;
-  const isScannedMismatch = Math.abs(totalAmount - scannedTotal) > 0.05;
 
   function updateField(
     field: string,
@@ -113,18 +119,20 @@ export default function OCRReviewForm({
         [field]: value,
       };
 
+      // Auto-compute the per-line total from qty × rate when either changes.
+      // This updates the item's own total_amount (line total) but does NOT
+      // overwrite the invoice-level total_amount (scanned/handwritten total).
       if (field === "quantity_liters" || field === "rate_per_liter") {
         const q = Number(nextItems[index].quantity_liters) || 0;
         const r = Number(nextItems[index].rate_per_liter) || 0;
         nextItems[index].total_amount = Number((q * r).toFixed(2));
       }
 
-      const newGrandTotal = nextItems.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
-
+      // Do NOT update prev.total_amount — that holds the scanned/handwritten
+      // invoice total and is only changed by the user explicitly.
       return {
         ...prev,
         items: nextItems,
-        total_amount: Number(newGrandTotal.toFixed(2)),
       };
     });
   }
@@ -147,11 +155,10 @@ export default function OCRReviewForm({
   function removeItem(index: number) {
     setFormData((prev) => {
       const nextItems = prev.items.filter((_: any, i: number) => i !== index);
-      const newGrandTotal = nextItems.reduce((sum: number, item: any) => sum + (Number(item.total_amount) || 0), 0);
+      // Do not recalculate total_amount from items — preserve scanned/handwritten total.
       return {
         ...prev,
         items: nextItems,
-        total_amount: Number(newGrandTotal.toFixed(2)),
       };
     });
   }
@@ -500,8 +507,9 @@ export default function OCRReviewForm({
 
         <div className="sm:col-span-2 border border-border/40 rounded-xl p-4 bg-muted/10">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* LEFT: Scanned/Handwritten Total — editable, this is what gets saved */}
             <div>
-              <label className="block text-sm font-medium mb-1">Total Invoice Amount (Grand Total) *</label>
+              <label className="block text-sm font-medium mb-1">Scanned / Handwritten Invoice Total *</label>
               <input
                 type="number"
                 step="0.01"
@@ -515,28 +523,23 @@ export default function OCRReviewForm({
                 }
               />
               <FieldError field="total_amount" />
-
-              <div className="mt-1.5 space-y-1">
-                <p className="text-xs text-muted-foreground">
-                  Calculated Total (Qty × Rate): <span className="font-semibold text-foreground">₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                </p>
-                {isScannedMismatch && scannedTotal > 0 && (
-                  <p className="text-xs font-semibold text-amber-500 flex items-center gap-1">
-                    ⚠️ Mismatch: Edited total differs from scanned/handwritten total (₹{scannedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
-                  </p>
-                )}
-                {isMismatch && (
-                  <p className="text-xs font-semibold text-amber-500 flex items-center gap-1">
-                    ⚠️ Mismatch: Edited total differs from items total (₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
-                  </p>
-                )}
-              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enter the total as printed on the invoice.
+              </p>
             </div>
 
+            {/* RIGHT: Grand Total (Qty × Rate) — auto-computed, read-only */}
             <div>
-              <label className="block text-sm font-medium mb-1 text-muted-foreground">Scanned or Handwritten Total</label>
-              <div className="w-full rounded border border-input bg-muted px-4 py-3 text-sm text-muted-foreground font-medium select-all flex items-center h-[46px]">
-                ₹{scannedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              <label className="block text-sm font-medium mb-1 text-muted-foreground">Grand Total (Qty × Rate) — Auto-computed</label>
+              <div className="w-full rounded border border-input bg-muted px-4 py-3 text-sm font-semibold select-all flex items-center h-[46px] font-mono">
+                ₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </div>
+              <div className="mt-1.5 space-y-1">
+                {isMismatch && (
+                  <p className="text-xs font-semibold text-amber-500 flex items-center gap-1">
+                    ⚠️ Scanned total (₹{totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}) differs from computed (₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -609,22 +612,15 @@ export default function OCRReviewForm({
               </span>
             </div>
 
-            {/* Warn inside confirmation dialog if mismatches exist! */}
-            {(isMismatch || isScannedMismatch) && (
+            {/* Warn inside confirmation dialog if totals mismatch */}
+            {isMismatch && (
               <div className="mt-3 rounded-md bg-amber-500/10 border border-amber-500/25 p-3 space-y-1">
                 <h4 className="text-xs font-bold text-amber-500 flex items-center gap-1">
-                  ⚠️ Verification Warnings
+                  ⚠️ Verification Warning
                 </h4>
-                {isScannedMismatch && scannedTotal > 0 && (
-                  <p className="text-xs text-amber-500/90">
-                    • Total amount differs from scanned/handwritten total (₹{scannedTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
-                  </p>
-                )}
-                {isMismatch && (
-                  <p className="text-xs text-amber-500/90">
-                    • Total amount differs from calculated items total (₹{expectedAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
-                  </p>
-                )}
+                <p className="text-xs text-amber-500/90">
+                  • Scanned/handwritten total (₹{totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}) differs from computed Grand Total (₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}).
+                </p>
               </div>
             )}
           </div>

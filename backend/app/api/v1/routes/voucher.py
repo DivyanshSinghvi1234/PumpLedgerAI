@@ -133,7 +133,7 @@ def get_vouchers(
     page_size: int = Query(
         default=20,
         ge=1,
-        le=100,
+        le=500,
     ),
 
     sort_by: VoucherSortField = Query(

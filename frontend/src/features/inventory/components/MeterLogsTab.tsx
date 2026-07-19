@@ -77,7 +77,7 @@ export default function MeterLogsTab() {
       ) : groupedReadings && groupedReadings.length > 0 ? (
         <div className="space-y-6">
           {groupedReadings.map((group) => {
-            const formattedDate = new Date(group.date).toLocaleDateString("en-US", {
+            const formattedDate = new Date(group.date).toLocaleDateString("en-GB", {
               weekday: "long",
               year: "numeric",
               month: "long",

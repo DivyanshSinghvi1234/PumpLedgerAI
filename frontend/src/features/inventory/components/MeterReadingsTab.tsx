@@ -534,7 +534,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
             <p className="text-xs text-ink-muted">
               Are you sure you want to unlock and edit the saved meter readings for{" "}
               <strong className="text-ink font-bold">
-                {new Date(readingsDate).toLocaleDateString("en-US", {
+                {new Date(readingsDate).toLocaleDateString("en-GB", {
                   year: "numeric",
                   month: "short",
                   day: "numeric",
