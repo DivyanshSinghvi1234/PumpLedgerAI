@@ -164,6 +164,13 @@ def check_and_update_schema() -> None:
         for table, column, definition in (
             ("nozzles", "tank_id", "INTEGER"),
             ("nozzles", "meter_capacity", "FLOAT NOT NULL DEFAULT 1000000"),
+            # Reading-time + interim-6am fields (Alembic 84afd97faf4a). Missing on
+            # prod DBs that were built by create_all before this revision, which
+            # 500s the meter-readings bulk-form query. TIME/FLOAT are portable
+            # across SQLite and PostgreSQL.
+            ("nozzle_readings", "opening_time", "TIME"),
+            ("nozzle_readings", "closing_time", "TIME"),
+            ("nozzle_readings", "interim_6am_reading", "FLOAT"),
             ("dip_readings", "deliveries_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "nozzle_sales_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),

@@ -18,7 +18,10 @@ services:
     plan: free                 # upgrade when ready
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # prestart.sh adopts a create_all-built DB (stamp) then runs `alembic upgrade
+    # head` so future migrations apply cleanly; init_db's schema-ensure remains
+    # a belt-and-suspenders backfill at app startup.
+    startCommand: bash prestart.sh && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       # ── Database (Neon PostgreSQL) ──────────

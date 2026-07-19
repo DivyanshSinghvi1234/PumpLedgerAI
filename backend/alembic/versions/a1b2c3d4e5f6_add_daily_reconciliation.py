@@ -3,6 +3,14 @@
 from alembic import op
 import sqlalchemy as sa
 
+from alembic_helpers.idempotent import (
+    add_column_if_missing,
+    drop_column_if_exists,
+    has_fk,
+    has_index,
+    has_table,
+)
+
 revision = "a1b2c3d4e5f6"
 down_revision = "44e5dce5cfe0"
 branch_labels = None
@@ -10,11 +18,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("nozzles", sa.Column("tank_id", sa.Integer(), nullable=True))
-    op.add_column("nozzles", sa.Column("meter_capacity", sa.Float(), nullable=False, server_default="1000000"))
-    op.create_foreign_key("fk_nozzles_tank_id", "nozzles", "fuel_tanks", ["tank_id"], ["id"], ondelete="SET NULL")
+    add_column_if_missing("nozzles", sa.Column("tank_id", sa.Integer(), nullable=True))
+    add_column_if_missing("nozzles", sa.Column("meter_capacity", sa.Float(), nullable=False, server_default="1000000"))
+    # SQLite can't ALTER-ADD a named FK after the fact; only create it where the
+    # backend supports it and it isn't already present.
+    if op.get_bind().dialect.name != "sqlite" and not has_fk("nozzles", "fk_nozzles_tank_id"):
+        op.create_foreign_key("fk_nozzles_tank_id", "nozzles", "fuel_tanks", ["tank_id"], ["id"], ondelete="SET NULL")
     for name in ("deliveries_liters", "nozzle_sales_liters", "unbilled_cash_variance", "physical_leak_variance", "variance_tolerance_liters"):
-        op.add_column("dip_readings", sa.Column(name, sa.Float(), nullable=False, server_default="0"))
+        add_column_if_missing("dip_readings", sa.Column(name, sa.Float(), nullable=False, server_default="0"))
+    if has_table("tanker_deliveries"):
+        return
     op.create_table(
         "tanker_deliveries",
         sa.Column("tank_id", sa.Integer(), nullable=False),
@@ -33,13 +46,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["tank_id"], ["fuel_tanks.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["pump_id"], ["pumps.id"]),
     )
-    op.create_index("ix_tanker_deliveries_delivery_date", "tanker_deliveries", ["delivery_date"])
+    if not has_index("tanker_deliveries", "ix_tanker_deliveries_delivery_date"):
+        op.create_index("ix_tanker_deliveries_delivery_date", "tanker_deliveries", ["delivery_date"])
 
 
 def downgrade() -> None:
     op.drop_table("tanker_deliveries")
     for name in ("variance_tolerance_liters", "physical_leak_variance", "unbilled_cash_variance", "nozzle_sales_liters", "deliveries_liters"):
-        op.drop_column("dip_readings", name)
-    op.drop_constraint("fk_nozzles_tank_id", "nozzles", type_="foreignkey")
-    op.drop_column("nozzles", "meter_capacity")
-    op.drop_column("nozzles", "tank_id")
+        drop_column_if_exists("dip_readings", name)
+    if op.get_bind().dialect.name != "sqlite" and has_fk("nozzles", "fk_nozzles_tank_id"):
+        op.drop_constraint("fk_nozzles_tank_id", "nozzles", type_="foreignkey")
+    drop_column_if_exists("nozzles", "meter_capacity")
+    drop_column_if_exists("nozzles", "tank_id")

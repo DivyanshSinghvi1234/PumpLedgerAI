@@ -64,12 +64,27 @@ DB queries must NOT live in services.
 - **Role matrix:** ADMIN = everything incl. user management; MANAGER = manage
   vouchers/customers/vehicles + verify/reject/delete + reports; OPERATOR =
   create/edit vouchers + upload + view only. Enforced via `require_roles`.
-- **Enums** live in `app/core/enums.py`. `FuelType` = PETROL / DIESEL /
+- **Enums** live in `app/core/enums.py`. `FuelType` = PETROL / SPEED / DIESEL /
   LUBRICANT. `UserRole` = ADMIN / MANAGER / OPERATOR.
 - **Exceptions:** domain errors in `app/core/exceptions.py` (subclass
   `AppException`); routes catch them and map to `HTTPException`.
-- **DB init:** `init_db()` runs `Base.metadata.create_all` + `seed_admin()` on
-  startup. There is **no migration step wired into dev** — see gotcha below.
+- **DB init:** `init_db()` runs `Base.metadata.create_all` + `seed_admin()` +
+  `seed_pumps()` on startup. There is **no migration step wired into dev** — see
+  gotcha below.
+- **Multi-tenant pump scoping:** the app is scoped per filling station. Models
+  that inherit `PumpScopedMixin` (`app/database/mixins.py`) carry a `pump_id`.
+  `PumpScopingMiddleware` reads the `X-Pump-UUID` request header and, via
+  `app/database/scoping.py` (a `do_orm_execute` event listener), auto-filters
+  every SELECT to the active pump and auto-populates `pump_id` on insert. The
+  frontend sends `X-Pump-UUID` from `localStorage` (`active_pump_uuid`, set by
+  `authService`/`PumpSwitcher`). If pump-scoped data "disappears," check the
+  active pump header, not the query.
+- **File uploads go through `StorageService`** (`app/services/storage_service.py`):
+  Backblaze B2 / R2 in prod, local-disk fallback in dev. Always upload via
+  `storage_service.upload(fileobj, filename, content_type)` — it returns an
+  absolute `https://` URL when object storage is configured, or a local
+  `storage/...` path otherwise. Never write uploads straight to disk (see
+  ephemeral-storage gotcha).
 
 **Frontend structure:**
 - `src/features/<feature>/` is the unit: `{components, hooks, services, types}`
@@ -94,15 +109,39 @@ DB queries must NOT live in services.
 - **`passlib` is NOT used** — it's incompatible with bcrypt 5.x. Password hashing
   uses the `bcrypt` library directly in `app/core/security.py` (72-byte cap
   handled explicitly). Don't reintroduce `passlib`.
-- **SQLite schema is create-only.** `create_all` never ALTERs existing tables, so
-  adding a column to a model won't update `pumpledger.db`. In dev, delete/rename
-  the DB file to rebuild (it re-seeds admin). Alembic migrations exist under
-  `backend/alembic/` but aren't auto-run.
+- **`create_all` never ALTERs existing tables.** Adding a column to a model
+  won't update an existing `pumpledger.db`. In dev, delete/rename the DB file to
+  rebuild (it re-seeds admin), OR run `python -m alembic upgrade head`.
+- **Schema evolution is a hybrid — read this before adding columns/migrations.**
+  Prod (Neon Postgres) was originally built by `create_all`, so it has NO
+  `alembic_version` row, and `create_all` can't add new columns to existing
+  tables. Two things keep prod in sync: (1) `check_and_update_schema()` in
+  `init_db.py` does idempotent `ADD COLUMN` backfills at app startup — add
+  prod-critical columns here too; (2) on deploy, `bash prestart.sh` stamps an
+  un-versioned DB at the merge head then runs `alembic upgrade head`. **All
+  Alembic migrations MUST be idempotent** — use `backend/alembic_helpers/
+  idempotent.py` (`add_column_if_missing`, etc.), never bare `op.add_column`,
+  because the column may already exist from the backfill. Keep a single Alembic
+  head (merge branches with `alembic merge`).
 - **OCR result is intentionally tolerant.** `schemas/vision.py::OCRResult` has
   optional/defaulted fields so a partial extraction still reaches the review
   screen for correction. Don't make these strictly required.
 - **Two `OCRParser`-style layers existed;** the live one is
   `app/services/ocr_parser.py` (the `app/utils/` duplicates were removed).
+- **Hosted disk is ephemeral (Render).** Anything written to `storage/`
+  disappears on redeploy/restart. Uploads that skip `StorageService` show broken
+  images on the live site but work locally. When rendering a stored image
+  reference, resolve it with a helper that passes absolute `https://` URLs
+  verbatim and roots bare/local paths under `/storage` (see `invoiceImageUrl`
+  and `dailySheetService.resolveImageUrl`) — never blindly prepend `/storage/`.
+- **Native `<input type="date">` renders in the browser locale, not page code.**
+  `index.html` sets `<html lang="en-IN">` to force dd/mm/yyyy — don't revert to
+  plain `en`. Formatted (non-input) dates use explicit
+  `toLocaleDateString("en-IN"/"en-GB")`; keep passing an explicit locale.
+- **Distinguish query error from empty result in list/form UIs.** A failed
+  request that's rendered the same as an empty response hides the real error
+  (this masked a meter-readings failure as "No nozzles configured"). Read
+  `isError` from TanStack Query and show a distinct error state.
 
 ## Status / roadmap
 

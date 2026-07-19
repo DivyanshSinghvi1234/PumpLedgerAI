@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from alembic_helpers.idempotent import add_column_if_missing, drop_column_if_exists
+
 
 # revision identifiers, used by Alembic.
 revision: str = '84afd97faf4a'
@@ -20,13 +22,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add reading timestamps and optional 6 AM interim reading to nozzle_readings."""
-    op.add_column('nozzle_readings', sa.Column('opening_time', sa.Time(), nullable=True))
-    op.add_column('nozzle_readings', sa.Column('closing_time', sa.Time(), nullable=True))
-    op.add_column('nozzle_readings', sa.Column('interim_6am_reading', sa.Float(), nullable=True))
+    add_column_if_missing('nozzle_readings', sa.Column('opening_time', sa.Time(), nullable=True))
+    add_column_if_missing('nozzle_readings', sa.Column('closing_time', sa.Time(), nullable=True))
+    add_column_if_missing('nozzle_readings', sa.Column('interim_6am_reading', sa.Float(), nullable=True))
 
 
 def downgrade() -> None:
     """Remove reading timestamps and interim reading from nozzle_readings."""
-    op.drop_column('nozzle_readings', 'interim_6am_reading')
-    op.drop_column('nozzle_readings', 'closing_time')
-    op.drop_column('nozzle_readings', 'opening_time')
+    drop_column_if_exists('nozzle_readings', 'interim_6am_reading')
+    drop_column_if_exists('nozzle_readings', 'closing_time')
+    drop_column_if_exists('nozzle_readings', 'opening_time')
