@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,9 +21,11 @@ from app.schemas.daily_sheet import (
     DailyReconciliationResponse,
 )
 from app.services.daily_sheet_service import DailySheetService
+from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/daily-sheets", tags=["Daily Sheets"])
 service = DailySheetService()
+storage_service = StorageService()
 
 
 @router.get(
@@ -158,15 +159,19 @@ async def upload_manual_sheet_image(
         )
 
     extension = Path(file.filename).suffix.lower()
-    filename = f"{uuid4()}{extension}"
-    filepath = UPLOAD_DIR / filename
+    filename = f"daily-sheets/{uuid4()}{extension}"
 
     try:
-        with filepath.open("wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Upload via StorageService: Backblaze B2 in production (durable across
+        # redeploys) with a local-disk fallback for dev. Returns an absolute
+        # https:// URL when B2 is configured, or a local path otherwise.
+        stored_path = storage_service.upload(
+            file.file,
+            filename,
+            file.content_type or "image/jpeg",
+        )
 
-        relative_path = f"daily-sheets/{filename}"
-        return service.update_daily_sheet(db, uuid, manual_sheet_image=relative_path, actor_id=current_user.id)
+        return service.update_daily_sheet(db, uuid, manual_sheet_image=stored_path, actor_id=current_user.id)
     except DailySheetNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

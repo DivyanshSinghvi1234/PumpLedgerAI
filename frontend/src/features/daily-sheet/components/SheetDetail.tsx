@@ -1524,13 +1524,13 @@ export default function SheetDetail({
                 {sheet.manual_sheet_image ? (
                   <div className="relative aspect-[4/3] max-h-40 rounded overflow-hidden border border-hairline bg-surface-2 group">
                     <img
-                      src={`${dailySheetService.getBaseUrl()}${sheet.manual_sheet_image}`}
+                      src={dailySheetService.resolveImageUrl(sheet.manual_sheet_image) ?? ""}
                       alt="Manual Sheet Scan"
                       className="w-full h-full object-cover"
                     />
                     <div className="no-print absolute inset-0 bg-ink/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <a
-                        href={`${dailySheetService.getBaseUrl()}${sheet.manual_sheet_image}`}
+                        href={dailySheetService.resolveImageUrl(sheet.manual_sheet_image) ?? "#"}
                         target="_blank"
                         rel="noreferrer"
                         className="bg-canvas hover:bg-surface-3 text-ink text-xs font-bold px-3 py-1.5 rounded shadow cursor-pointer"

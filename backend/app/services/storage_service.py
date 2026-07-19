@@ -84,7 +84,14 @@ class StorageService:
         return public_url
 
     def _upload_local(self, file_obj: BinaryIO, filename: str) -> str:
-        filepath = self._local_dir / filename
+        # `filename` may carry a subdirectory prefix (e.g. "daily-sheets/x.jpg").
+        # Route bare names into storage/invoices/ (back-compat); route prefixed
+        # names under storage/<prefix>/ so the /storage mount can serve them.
+        if "/" in filename or "\\" in filename:
+            filepath = Path("storage") / filename
+        else:
+            filepath = self._local_dir / filename
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         with filepath.open("wb") as buffer:
             shutil.copyfileobj(file_obj, buffer)
         local_path = str(filepath)

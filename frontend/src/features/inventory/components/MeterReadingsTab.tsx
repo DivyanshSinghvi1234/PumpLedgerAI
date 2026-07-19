@@ -35,7 +35,13 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   const [expanded6am, setExpanded6am] = useState<Record<string, boolean>>({});
 
   // Query: bulk form readings for the selected date
-  const { data: bulkForm, isLoading: bulkFormLoading } = useQuery({
+  const {
+    data: bulkForm,
+    isLoading: bulkFormLoading,
+    isError: bulkFormError,
+    error: bulkFormErrorObj,
+    refetch: refetchBulkForm,
+  } = useQuery({
     queryKey: ["bulkReadings", readingsDate],
     queryFn: () => inventoryService.getBulkReadingsForm(readingsDate),
   });
@@ -291,6 +297,24 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
               {bulkFormLoading ? (
                 <div className="p-12 text-center text-xs text-ink-subtle">
                   Loading meter entry form...
+                </div>
+              ) : bulkFormError ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="flex items-center justify-center gap-2 text-fuel-amber">
+                    <AlertTriangle size={16} />
+                    <p className="text-xs font-semibold">Couldn't load the meter entry form.</p>
+                  </div>
+                  <p className="text-[11px] text-ink-subtle max-w-md mx-auto">
+                    {(bulkFormErrorObj as any)?.response?.data?.detail ||
+                      "The server rejected this request. Your nozzles are still configured — this is a loading error, not a missing setup."}
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => refetchBulkForm()}
+                    className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs cursor-pointer"
+                  >
+                    Retry
+                  </Button>
                 </div>
               ) : bulkForm && bulkForm.items.length > 0 ? (
                 <Table>

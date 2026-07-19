@@ -160,6 +160,37 @@ export const dailySheetService = {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
     return baseUrl ? `${baseUrl}/storage/` : "/storage/";
   },
+
+  /**
+   * Resolve a stored manual-sheet image reference to a browser URL.
+   *
+   * Handles three shapes:
+   *  - Absolute B2/R2 URL (production) → used verbatim.
+   *  - A `storage/…` rooted local path → served by the /storage mount.
+   *  - A bare relative path like `daily-sheets/x.jpg` (legacy) → prefixed
+   *    with the /storage base.
+   */
+  resolveImageUrl(path: string | null | undefined): string | null {
+    if (!path) return null;
+
+    // Remote object storage returns a full URL — use as-is.
+    if (/^https?:\/\//i.test(path)) return path;
+
+    // Normalize Windows backslashes and strip any leading ./ or /
+    let p = path.replace(/\\/g, "/").replace(/^\.?\//, "");
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+
+    // If the path already contains the storage segment, root it there.
+    const idx = p.indexOf("storage/");
+    if (idx >= 0) {
+      p = p.slice(idx);
+      return baseUrl ? `${baseUrl}/${p}` : `/${p}`;
+    }
+
+    // Bare relative path (e.g. "daily-sheets/x.jpg") → mount under /storage.
+    return baseUrl ? `${baseUrl}/storage/${p}` : `/storage/${p}`;
+  },
 };
 
 export default dailySheetService;
