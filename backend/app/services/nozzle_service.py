@@ -301,6 +301,32 @@ class NozzleService:
         dispensers = self.dispenser_repo.get_all(db)
         items = []
 
+        def safe_format_time(t) -> str:
+            if not t:
+                return "19:30"
+            if hasattr(t, "strftime"):
+                try:
+                    return t.strftime("%H:%M")
+                except Exception:
+                    pass
+            import datetime
+            if isinstance(t, datetime.timedelta):
+                tot = int(t.total_seconds())
+                h = (tot // 3600) % 24
+                m = (tot % 3600) // 60
+                return f"{h:02d}:{m:02d}"
+            t_str = str(t).strip()
+            if ":" in t_str:
+                parts = t_str.split(":")
+                if len(parts) >= 2:
+                    try:
+                        h_val = int(parts[0])
+                        m_val = int(parts[1])
+                        return f"{h_val:02d}:{m_val:02d}"
+                    except ValueError:
+                        pass
+            return "19:30"
+
         for dispenser in dispensers:
             # ponytail: match the config tab, which lists every dispenser/nozzle
             # regardless of the legacy is_active flag (the UI manages `status`,
@@ -315,8 +341,8 @@ class NozzleService:
                     opening_reading = reading.opening_reading
                     closing_reading = reading.closing_reading
                     sales = reading.sales
-                    opening_time = reading.opening_time.strftime("%H:%M") if reading.opening_time else "19:30"
-                    closing_time = reading.closing_time.strftime("%H:%M") if reading.closing_time else "19:30"
+                    opening_time = safe_format_time(reading.opening_time)
+                    closing_time = safe_format_time(reading.closing_time)
                     interim_6am_reading = reading.interim_6am_reading
                     testing = reading.testing_liters
                 else:
