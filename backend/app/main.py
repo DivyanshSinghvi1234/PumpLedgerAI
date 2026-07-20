@@ -96,6 +96,8 @@ _default_origins = [
     "http://127.0.0.1:5178",
     "http://localhost:5179",
     "http://127.0.0.1:5179",
+    "https://pumpledger-frontend.onrender.com",
+    "https://pumpledger-backend.onrender.com",
 ]
 _extra = os.getenv("ALLOWED_ORIGINS", "")
 _allowed_origins = (
