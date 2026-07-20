@@ -171,6 +171,11 @@ def check_and_update_schema() -> None:
             ("nozzle_readings", "opening_time", "TIME"),
             ("nozzle_readings", "closing_time", "TIME"),
             ("nozzle_readings", "interim_6am_reading", "FLOAT"),
+            # Alembic 48eed73943a5. Missing on prod DBs built by create_all and
+            # stamped past this revision by prestart.sh, so the migration never
+            # runs — its absence 500s every SELECT on nozzle_readings (all mapped
+            # columns are loaded), including the meter-readings bulk-form query.
+            ("nozzle_readings", "testing_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "deliveries_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "nozzle_sales_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),
