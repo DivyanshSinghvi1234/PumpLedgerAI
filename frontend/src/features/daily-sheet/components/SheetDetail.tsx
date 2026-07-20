@@ -457,6 +457,9 @@ export default function SheetDetail({
   const handleRemoveExpense = (idx: number) =>
     setExpenses((prev) => prev.filter((_, i) => i !== idx));
 
+  const updateExpense = (idx: number, patch: Partial<DailySheetExpense>) =>
+    setExpenses((prev) => prev.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
+
   const handleSave = () => {
     updateSheetMutation.mutate({
       actual_cash_collected: parsedActualCash,
@@ -470,17 +473,6 @@ export default function SheetDetail({
     setDenominations((prev) =>
       prev.map((d, i) => (i === idx ? { ...d, count: val } : d))
     );
-  };
-
-  const setManualPaymentAmount = (
-    mode: keyof DailySheetPaymentModeAmounts,
-    value: string
-  ) => {
-    const amount = Number(value);
-    setManualPaymentAmounts((current) => ({
-      ...current,
-      [mode]: Number.isFinite(amount) && amount >= 0 ? amount : 0,
-    }));
   };
 
   const isLoading =
@@ -964,7 +956,8 @@ export default function SheetDetail({
                           className="border-b border-hairline print:border-gray-200 hover:bg-surface-2/50"
                         >
                           <td className="px-3 py-1.5">
-                            <p className="text-ink font-semibold">
+                            {/* Print: static text. Screen: inline-editable controls. */}
+                            <p className="hidden print:block text-ink font-semibold">
                               {exp.category}
                               <span className="ml-1.5 text-[8px] uppercase font-bold text-ink-subtle">
                                 {(exp.payment_mode ?? "cash")}
@@ -972,13 +965,60 @@ export default function SheetDetail({
                               </span>
                             </p>
                             {exp.description !== exp.category && (
-                              <p className="text-[9px] text-ink-subtle">
+                              <p className="hidden print:block text-[9px] text-ink-subtle">
                                 {exp.description}
                               </p>
                             )}
+                            <div className="no-print space-y-1">
+                              <div className="flex gap-1">
+                                <select
+                                  value={exp.category}
+                                  onChange={(ev) => updateExpense(idx, { category: ev.target.value })}
+                                  className="flex-1 min-w-0 bg-surface-1 border border-hairline rounded text-[10px] text-ink px-1 py-0.5 outline-none focus:border-fuel-amber"
+                                >
+                                  {EXPENSE_CATEGORIES.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={exp.type ?? "expense"}
+                                  onChange={(ev) => updateExpense(idx, { type: ev.target.value as ExpenseType })}
+                                  className="bg-surface-1 border border-hairline rounded text-[10px] text-ink px-1 py-0.5 outline-none focus:border-fuel-amber"
+                                >
+                                  <option value="expense">Out</option>
+                                  <option value="income">In</option>
+                                </select>
+                                <select
+                                  value={exp.payment_mode ?? "cash"}
+                                  onChange={(ev) => updateExpense(idx, { payment_mode: ev.target.value as ExpensePaymentMode })}
+                                  className="bg-surface-1 border border-hairline rounded text-[10px] text-ink px-1 py-0.5 outline-none focus:border-fuel-amber"
+                                >
+                                  <option value="cash">Cash</option>
+                                  <option value="upi">UPI</option>
+                                  <option value="card">Card</option>
+                                  <option value="credit">Credit</option>
+                                </select>
+                              </div>
+                              <Input
+                                type="text"
+                                placeholder="Note"
+                                value={exp.description === exp.category ? "" : exp.description}
+                                onChange={(ev) => updateExpense(idx, { description: ev.target.value || exp.category })}
+                                className="bg-surface-1 border-hairline text-[10px] h-6 px-1.5 text-ink w-full"
+                              />
+                            </div>
                           </td>
                           <td className={`px-3 py-1.5 text-right font-mono ${(exp.type ?? "expense") === "income" ? "text-emerald-500" : "text-ink"}`}>
-                            {(exp.type ?? "expense") === "income" ? "+" : ""}{fmt(exp.amount)}
+                            <span className="hidden print:inline">
+                              {(exp.type ?? "expense") === "income" ? "+" : ""}{fmt(exp.amount)}
+                            </span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={exp.amount}
+                              onChange={(ev) => updateExpense(idx, { amount: parseFloat(ev.target.value) || 0 })}
+                              className="no-print bg-surface-1 border-hairline text-[10px] h-6 px-1.5 text-right font-mono w-20 ml-auto"
+                            />
                           </td>
                           <td className="py-1.5 pr-2 no-print">
                             <button
@@ -1255,35 +1295,6 @@ export default function SheetDetail({
                     )}
                   </tbody>
                 </table>
-                <div className="no-print border-t border-hairline bg-surface-2/50 p-3 space-y-2">
-                  <p className="text-[9px] uppercase font-bold text-ink-subtle tracking-wider">
-                    Add manual payment-mode amount
-                  </p>
-                  <p className="text-[10px] text-ink-subtle">
-                    Voucher totals are included automatically. Use these fields only for sales not entered as vouchers.
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      ["cash", "Cash"],
-                      ["upi", "UPI"],
-                      ["card", "Card"],
-                      ["credit", "Credit"],
-                    ] as const).map(([mode, label]) => (
-                      <label key={mode} className="text-[10px] text-ink-muted">
-                        {label}
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={manualPaymentAmounts[mode] || ""}
-                          onChange={(event) => setManualPaymentAmount(mode, event.target.value)}
-                          placeholder="0.00"
-                          className="mt-1 bg-surface-1 border-hairline text-[11px] h-7 px-2 text-right font-mono"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* RIGHT: Denomination Entry */}

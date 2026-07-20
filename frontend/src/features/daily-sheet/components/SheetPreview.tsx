@@ -94,7 +94,12 @@ export default function SheetPreview({
   isGenerating,
   createError: _createError,
 }: SheetPreviewProps) {
-  const [manualPaymentAmounts, setManualPaymentAmounts] = useState<DailySheetPaymentModeAmounts>({ cash: 0, upi: 0, card: 0, credit: 0 });
+  // Manual per-mode amounts were replaced by Income/Expense rows (an "income"
+  // entry adds un-vouchered sales to a payment mode). Kept as a zero constant so
+  // the create payload shape and backend stay unchanged.
+  // ponytail: dead zero payload; upgrade path is dropping the field from the
+  // create schema + onGenerate signature if no sheet ever needs it again.
+  const manualPaymentAmounts: DailySheetPaymentModeAmounts = { cash: 0, upi: 0, card: 0, credit: 0 };
 
   // Expense / income rows entered in the preview, persisted on Generate & Save.
   const [expenses, setExpenses] = useState<DailySheetExpense[]>([]);
@@ -116,6 +121,8 @@ export default function SheetPreview({
     setNewExpense((p) => ({ ...p, description: "", amount: "" }));
   };
   const removeExpense = (idx: number) => setExpenses((prev) => prev.filter((_, i) => i !== idx));
+  const updateExpense = (idx: number, patch: Partial<DailySheetExpense>) =>
+    setExpenses((prev) => prev.map((e, i) => (i === idx ? { ...e, ...patch } : e)));
 
   // Denomination cash cross-check. Display-only, not persisted (matches the
   // saved-sheet view). ₹2000 note excluded.
@@ -318,12 +325,33 @@ export default function SheetPreview({
     [dailyVouchers]
   );
 
-  const creditSales = voucherCreditSales + manualPaymentAmounts.credit;
-  const upiSales = voucherUpiSales + manualPaymentAmounts.upi;
-  const cardSales = voucherCardSales + manualPaymentAmounts.card;
+  const voucherCashSales = useMemo(
+    () => dailyVouchers?.items?.filter((v) => v.payment_mode === "CASH").reduce((s, v) => s + Number(v.total_amount), 0) ?? 0,
+    [dailyVouchers]
+  );
+
+  // Per-mode net of the income/expense rows: income adds, expense subtracts.
+  // Mirrors the backend + SheetDetail so the "By Payment Mode" and Cash In (A)
+  // figures update live as rows are added. Legacy rows default to cash/expense.
+  const expenseNetByMode = useMemo(() => {
+    const m = { cash: 0, upi: 0, card: 0, credit: 0 };
+    for (const e of expenses) {
+      const key = (e.payment_mode ?? "cash") as ExpensePaymentMode;
+      if (!(key in m)) continue;
+      const amt = Number(e.amount || 0);
+      m[key] += (e.type ?? "expense") === "income" ? amt : -amt;
+    }
+    return m;
+  }, [expenses]);
+
+  const creditSales = voucherCreditSales + expenseNetByMode.credit;
+  const upiSales = voucherUpiSales + expenseNetByMode.upi;
+  const cardSales = voucherCardSales + expenseNetByMode.card;
   const digitalSales = upiSales + cardSales;
-  const cashSales = grossFuelSales - creditSales - digitalSales;
-  const recordedCashSales = (dailyVouchers?.items?.filter((v) => v.payment_mode === "CASH").reduce((s, v) => s + Number(v.total_amount), 0) ?? 0) + manualPaymentAmounts.cash;
+  const recordedCashSales = voucherCashSales + expenseNetByMode.cash;
+  // Per the sheet rule, only CASH-mode income/expense moves the physical drawer;
+  // credit/digital are money never in cash, so they're deducted at voucher value.
+  const cashSales = grossFuelSales - voucherCreditSales - (voucherUpiSales + voucherCardSales) + expenseNetByMode.cash;
 
   const totalPaymentsReceived = useMemo(
     () =>
@@ -746,30 +774,6 @@ export default function SheetPreview({
                   </tbody>
                 </table>
 
-                <div className="no-print border-t border-hairline bg-surface-2/50 p-3 space-y-2">
-                  <p className="text-[9px] uppercase font-bold text-ink-subtle tracking-wider">Add manual payment-mode amount</p>
-                  <p className="text-[10px] text-ink-subtle">Voucher amounts are included automatically. Add only sales not entered as vouchers.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      ["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["credit", "Credit"],
-                    ] as const).map(([mode, label]) => (
-                      <label key={mode} className="text-[10px] text-ink-muted">
-                        {label}
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={manualPaymentAmounts[mode] || ""}
-                          onChange={(event) => {
-                            const amount = Number(event.target.value);
-                            setManualPaymentAmounts((current) => ({ ...current, [mode]: Number.isFinite(amount) && amount >= 0 ? amount : 0 }));
-                          }}
-                          placeholder="0.00"
-                          className="mt-1 bg-surface-1 border-hairline text-[11px] h-7 px-2 text-right font-mono"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Expenses / Income */}
                 <div className="no-print border-t border-hairline bg-surface-2/50 p-3 space-y-2">
                   <p className="text-[9px] uppercase font-bold text-ink-subtle tracking-wider">Expenses / Income</p>
@@ -778,14 +782,39 @@ export default function SheetPreview({
                   {expenses.length > 0 && (
                     <div className="space-y-1">
                       {expenses.map((e, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-[10px] bg-surface-1 rounded px-2 py-1">
-                          <span className={`font-bold uppercase w-14 ${e.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
-                            {e.type === "income" ? "+ In" : "− Out"}
-                          </span>
-                          <span className="flex-1 text-ink-muted truncate">{e.category}{e.description && e.description !== e.category ? ` · ${e.description}` : ""}</span>
-                          <span className="uppercase text-ink-subtle w-12 text-right">{e.payment_mode}</span>
-                          <span className="font-mono text-ink w-20 text-right">{fmtRs(e.amount)}</span>
-                          <button type="button" onClick={() => removeExpense(idx)} className="text-ink-subtle hover:text-red-500">
+                        <div key={idx} className="flex items-center gap-1.5 text-[10px] bg-surface-1 rounded px-2 py-1">
+                          <select
+                            value={e.type ?? "expense"}
+                            onChange={(ev) => updateExpense(idx, { type: ev.target.value as ExpenseType })}
+                            className={`bg-surface-1 border border-hairline rounded h-6 px-1 font-bold uppercase w-14 ${e.type === "income" ? "text-emerald-500" : "text-red-500"}`}
+                          >
+                            <option value="expense">− Out</option>
+                            <option value="income">+ In</option>
+                          </select>
+                          <select
+                            value={e.category}
+                            onChange={(ev) => updateExpense(idx, { category: ev.target.value })}
+                            className="flex-1 min-w-0 bg-surface-1 border border-hairline rounded h-6 px-1 text-ink"
+                          >
+                            {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <select
+                            value={e.payment_mode ?? "cash"}
+                            onChange={(ev) => updateExpense(idx, { payment_mode: ev.target.value as ExpensePaymentMode })}
+                            className="bg-surface-1 border border-hairline rounded h-6 px-1 uppercase text-ink-subtle w-16"
+                          >
+                            <option value="cash">Cash</option>
+                            <option value="upi">UPI</option>
+                            <option value="card">Card</option>
+                            <option value="credit">Credit</option>
+                          </select>
+                          <Input
+                            type="number" min="0" step="0.01"
+                            value={e.amount}
+                            onChange={(ev) => updateExpense(idx, { amount: Number(ev.target.value) || 0 })}
+                            className="bg-surface-1 border-hairline h-6 px-1 text-right font-mono w-20 text-[10px]"
+                          />
+                          <button type="button" onClick={() => removeExpense(idx)} className="text-ink-subtle hover:text-red-500 shrink-0">
                             <Trash2 size={12} />
                           </button>
                         </div>

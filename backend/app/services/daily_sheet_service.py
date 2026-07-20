@@ -239,9 +239,11 @@ class DailySheetService:
             PaymentMode.CREDIT.value: credit_sales + manual_amounts["credit"],
         }
         # For the cash-handover formula, credit/digital are money NOT in the cash
-        # drawer — voucher + manual only. Expense/income in those modes hit their
-        # own bank/credit bucket, not physical cash, so they're excluded here and
-        # the cash-mode net is applied separately below.
+        # drawer — voucher + manual only. Per the sheet rule, only CASH-mode
+        # income/expense adjusts the expected cash handover (applied separately
+        # below); non-cash income/expense only moves its mode's displayed total,
+        # which the frontend applies via expense_net_by_mode. So they're excluded
+        # here.
         credit_sales = credit_sales + manual_amounts["credit"]
         digital_sales = digital_sales + manual_amounts["upi"] + manual_amounts["card"]
 
