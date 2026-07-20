@@ -149,7 +149,7 @@ app.include_router(
 app.include_router(
     customer_router,
     prefix="/api/v1",
-    dependencies=manager_protected,
+    dependencies=protected,
 )
 app.include_router(
     vehicle_router,
@@ -193,17 +193,17 @@ app.include_router(
 app.include_router(
     fuel_tank_router,
     prefix="/api/v1",
-    dependencies=manager_protected,
+    dependencies=protected,
 )
 app.include_router(
     nozzle_router,
     prefix="/api/v1",
-    dependencies=manager_protected,
+    dependencies=protected,
 )
 app.include_router(
     price_schedule_router,
     prefix="/api/v1",
-    dependencies=manager_protected,
+    dependencies=protected,
 )
 app.include_router(
     shift_router,
