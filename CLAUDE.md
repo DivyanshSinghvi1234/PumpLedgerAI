@@ -28,27 +28,48 @@ role-based user management.
 - **AI/OCR:** Google Gemini (`google-genai`). Provider is pluggable
   (gemini/openrouter/ollama) via `AI_PROVIDER` env var.
 
-## Run commands
+## Run commands (run the site locally)
+
+Deps live in the backend's `.venv` managed by **`uv`** — NOT in the base/Anaconda
+Python. Launch the backend with `uv run`. A bare `uvicorn app.main:app` resolves
+to Anaconda's interpreter, which has no FastAPI installed and dies with
+`ModuleNotFoundError: No module named 'fastapi'`.
+
+Open two terminals from the repo root:
 
 ```bash
-# Backend — MUST run on port 8000 (frontend hardcodes it in src/api/client.ts)
+# ── Terminal 1: Backend — MUST run on port 8000 (frontend hardcodes it in src/api/client.ts) ──
 cd backend
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-# Docs at http://127.0.0.1:8000/docs
+uv sync                                                    # first time only — install deps into .venv
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# → API at  http://127.0.0.1:8000     Docs at  http://127.0.0.1:8000/docs
 
-# Frontend
+# ── Terminal 2: Frontend ──
 cd frontend
-npm install
-npm run dev          # http://localhost:5173
+npm install                                                # first time only
+npm run dev          # → http://localhost:5173
 npm run build        # tsc -b && vite build — use this to typecheck
-
-# Quick backend sanity check (import the app without serving)
-cd backend && python -c "import app.main; print('OK')"
 ```
 
-Default login: **admin / admin123** (auto-seeded on first startup by
-`seed_admin()` in `app/database/init_db.py`). Requires `GOOGLE_API_KEY` in
-`backend/.env` for OCR; everything else works without it.
+Then open **http://localhost:5173** and log in with **admin / admin123**
+(auto-seeded on first startup by `seed_admin()` in `app/database/init_db.py`).
+
+How local wiring works: Vite dev server proxies `/api` and `/storage` to
+`127.0.0.1:8000` (see `frontend/vite.config.ts`), so both origins reach the
+backend with no CORS setup. In production that proxy is replaced by nginx —
+see `frontend/nginx.conf` (which now proxies BOTH `/api` and `/storage`).
+
+Sanity checks (both should print `200`):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/    # backend
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5173/    # frontend
+# import the app without serving:
+cd backend && uv run python -c "import app.main; print('OK')"
+```
+
+Requires `GOOGLE_API_KEY` in `backend/.env` for OCR; everything else works
+without it.
 
 ## Architecture & conventions
 

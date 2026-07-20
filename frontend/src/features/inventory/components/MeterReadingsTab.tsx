@@ -362,7 +362,14 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                       const openVal = parseFloat(stateVals.opening.toString() || "0");
                       const closeVal = parseFloat(stateVals.closing.toString() || "0");
                       const interimVal = stateVals.interim6am !== "" ? parseFloat(stateVals.interim6am.toString()) : null;
-                      const salesAmt = closeVal >= openVal && stateVals.closing !== "" ? closeVal - openVal : 0;
+                      // A closing reading equal to the opening reading is a valid
+                      // zero-sales day (nozzle unused), not a missing entry — only
+                      // treat a blank closing field as "not entered".
+                      const closingEntered = stateVals.closing !== "";
+                      // closing < opening is invalid (meter can't run backwards);
+                      // closing == opening is valid zero sales.
+                      const isNegative = closingEntered && closeVal < openVal;
+                      const salesAmt = closingEntered && closeVal >= openVal ? closeVal - openVal : 0;
                       const is6amExpanded = expanded6am[item.nozzle_uuid] ?? false;
 
                       // Show split if interim reading entered
@@ -494,8 +501,16 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>
-                          <TableCell className="px-5 text-right font-semibold text-xs text-ink">
-                            {salesAmt > 0 ? `${salesAmt.toFixed(3)} L` : "—"}
+                          <TableCell className="px-5 text-right font-semibold text-xs">
+                            {!closingEntered ? (
+                              <span className="text-ink">—</span>
+                            ) : isNegative ? (
+                              <span className="text-red-400 font-bold" title="Closing reading cannot be less than the opening reading.">
+                                Invalid
+                              </span>
+                            ) : (
+                              <span className="text-ink">{salesAmt.toFixed(3)} L</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

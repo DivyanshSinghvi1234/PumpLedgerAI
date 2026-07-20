@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Fuel, Plus, Calculator, History } from "lucide-react";
+import { Fuel, Plus, Calculator, History, AlertTriangle } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,24 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [closingDip, setClosingDip] = useState("");
 
   // Queries
-  const { data: tanks, isLoading: tanksLoading } = useQuery({
+  const {
+    data: tanks,
+    isLoading: tanksLoading,
+    isError: tanksError,
+    error: tanksErrorObj,
+    refetch: refetchTanks,
+  } = useQuery({
     queryKey: ["tanks"],
     queryFn: () => inventoryService.getTanks(),
   });
 
-  const { data: dips, isLoading: dipsLoading } = useQuery({
+  const {
+    data: dips,
+    isLoading: dipsLoading,
+    isError: dipsError,
+    error: dipsErrorObj,
+    refetch: refetchDips,
+  } = useQuery({
     queryKey: ["dips"],
     queryFn: () => inventoryService.getDips(),
   });
@@ -121,6 +133,24 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
         </h3>
         {tanksLoading ? (
           <div className="py-12 text-center text-xs text-ink-subtle">Loading tanks...</div>
+        ) : tanksError ? (
+          <div className="py-12 text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-fuel-amber">
+              <AlertTriangle size={16} />
+              <p className="text-xs font-semibold">Couldn't load fuel tanks.</p>
+            </div>
+            <p className="text-[11px] text-ink-subtle max-w-md mx-auto">
+              {(tanksErrorObj as any)?.response?.data?.detail ||
+                "The server rejected this request. This is a loading error, not a missing setup."}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchTanks()}
+              className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs px-3 py-1.5 rounded cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
         ) : tanks && tanks.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {tanks.map((tank) => {
@@ -282,6 +312,24 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
             <CardContent className="p-0">
               {dipsLoading ? (
                 <div className="p-6 text-center text-xs text-ink-subtle">Loading reconciliation logs...</div>
+              ) : dipsError ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="flex items-center justify-center gap-2 text-fuel-amber">
+                    <AlertTriangle size={16} />
+                    <p className="text-xs font-semibold">Couldn't load reconciliation logs.</p>
+                  </div>
+                  <p className="text-[11px] text-ink-subtle max-w-md mx-auto">
+                    {(dipsErrorObj as any)?.response?.data?.detail ||
+                      "The server rejected this request. This is a loading error, not a missing setup."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => refetchDips()}
+                    className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs px-3 py-1.5 rounded cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
               ) : dips && dips.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>

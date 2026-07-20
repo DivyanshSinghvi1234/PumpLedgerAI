@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { History } from "lucide-react";
+import { History, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,13 @@ import type { FuelType } from "../types";
 
 export default function MeterLogsTab() {
   // Query nozzle readings history
-  const { data: nozzleReadings, isLoading: readingsLoading } = useQuery({
+  const {
+    data: nozzleReadings,
+    isLoading: readingsLoading,
+    isError: readingsError,
+    error: readingsErrorObj,
+    refetch: refetchReadings,
+  } = useQuery({
     queryKey: ["nozzleReadingsHistory"],
     queryFn: () => inventoryService.getNozzleReadings(),
   });
@@ -73,6 +79,24 @@ export default function MeterLogsTab() {
       {readingsLoading ? (
         <Card className="glass border-hairline p-12 text-center text-xs text-ink-subtle">
           Loading meter readings history...
+        </Card>
+      ) : readingsError ? (
+        <Card className="glass border-hairline p-12 text-center space-y-3">
+          <div className="flex items-center justify-center gap-2 text-fuel-amber">
+            <AlertTriangle size={16} />
+            <p className="text-xs font-semibold">Couldn't load meter readings history.</p>
+          </div>
+          <p className="text-[11px] text-ink-subtle max-w-md mx-auto">
+            {(readingsErrorObj as any)?.response?.data?.detail ||
+              "The server rejected this request. This is a loading error, not a missing setup."}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetchReadings()}
+            className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-semibold text-xs px-3 py-1.5 rounded cursor-pointer"
+          >
+            Retry
+          </button>
         </Card>
       ) : groupedReadings && groupedReadings.length > 0 ? (
         <div className="space-y-6">
