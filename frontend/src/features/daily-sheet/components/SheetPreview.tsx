@@ -451,8 +451,8 @@ export default function SheetPreview({
                   (g) => g.fuel_type === ft
                 )!;
                 return (
-                  <div key={ft}>
-                    <table className="w-full border-collapse text-[11px]">
+                  <div key={ft} className="overflow-x-auto print:overflow-visible">
+                    <table className="w-full border-collapse text-[11px] min-w-[560px] print:min-w-0">
                       <thead>
                         <tr className="border-y border-hairline bg-surface-2">
                           <th className="text-left px-3 py-1.5 font-bold text-ink w-[28%]">
@@ -610,7 +610,8 @@ export default function SheetPreview({
                   </p>
                 </div>
                 {dailyVouchers?.items && dailyVouchers.items.length > 0 ? (
-                  <table className="w-full text-[11px]">
+                  <div className="overflow-x-auto print:overflow-visible">
+                  <table className="w-full text-[11px] min-w-[520px] print:min-w-0">
                     <thead>
                       <tr className="border-b border-hairline text-[9px]">
                         <th className="text-left px-3 py-1 text-ink-subtle font-bold">
@@ -677,6 +678,7 @@ export default function SheetPreview({
                       </tr>
                     </tbody>
                   </table>
+                  </div>
                 ) : (
                   <div className="px-3 py-5 text-center text-xs text-ink-subtle italic">
                     No invoices found in this time window.

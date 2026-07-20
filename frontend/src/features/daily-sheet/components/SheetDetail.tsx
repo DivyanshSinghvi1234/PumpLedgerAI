@@ -659,8 +659,8 @@ export default function SheetDetail({
                   (g) => g.fuel_type === ft
                 )!;
                 return (
-                  <div key={ft}>
-                    <table className="w-full border-collapse text-[11px]">
+                  <div key={ft} className="overflow-x-auto print:overflow-visible">
+                    <table className="w-full min-w-[560px] print:min-w-0 border-collapse text-[11px]">
                       <thead>
                         <tr className="border-y border-hairline bg-surface-2 print:bg-gray-50 print:border-gray-300">
                           <th className="text-left px-3 py-1.5 font-bold text-ink w-[28%]">
