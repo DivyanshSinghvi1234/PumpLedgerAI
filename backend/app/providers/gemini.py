@@ -3,6 +3,7 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
+import anyio
 from google import genai
 from google.genai import types
 
@@ -13,12 +14,17 @@ from app.prompts.voucher_prompt import VOUCHER_PROMPT
 from app.schemas.ocr import OCRExtraction
 from app.utils.image_validator import ImageValidator
 
+# Bound the Gemini call so a slow/hung provider can't tie up a worker forever.
+# SDK timeout is expressed in milliseconds.
+_GEMINI_TIMEOUT_MS = 30_000
+
 
 class GeminiProvider:
 
     def __init__(self):
         self.client = genai.Client(
             api_key=settings.GOOGLE_API_KEY,
+            http_options=types.HttpOptions(timeout=_GEMINI_TIMEOUT_MS),
         )
 
     async def extract_data(
@@ -52,23 +58,30 @@ class GeminiProvider:
         mime_type: str = "image/jpeg",
     ) -> OCRExtraction:
         try:
-            # Call Gemini
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=[
-                    SYSTEM_PROMPT,
-                    VOUCHER_PROMPT,
-                    types.Part.from_bytes(
-                        data=image_bytes,
-                        mime_type=mime_type,
+            # The google-genai SDK call is synchronous and blocking. Run it in a
+            # worker thread so it never freezes the async event loop — otherwise a
+            # single 20-30s OCR call stalls the whole worker (missed health checks,
+            # dropped connections). Mirrors the async httpx clients in the other
+            # providers.
+            def _call() -> "types.GenerateContentResponse":
+                return self.client.models.generate_content(
+                    model=settings.GEMINI_MODEL,
+                    contents=[
+                        SYSTEM_PROMPT,
+                        VOUCHER_PROMPT,
+                        types.Part.from_bytes(
+                            data=image_bytes,
+                            mime_type=mime_type,
+                        ),
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=OCRExtraction,
+                        temperature=0,
                     ),
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=OCRExtraction,
-                    temperature=0,
-                ),
-            )
+                )
+
+            response = await anyio.to_thread.run_sync(_call)
 
             return response.parsed
 
