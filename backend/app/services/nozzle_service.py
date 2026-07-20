@@ -23,6 +23,7 @@ from app.schemas.nozzle import (
     BulkFormResponse,
 )
 
+from app.core.enums import FuelType
 from app.services.audit_log_service import AuditLogService
 
 
@@ -276,26 +277,29 @@ class NozzleService:
         nozzle_uuid: str,
         reading_date: date,
     ) -> float:
-        nozzle = self.nozzle_repo.get_by_uuid(db, nozzle_uuid)
-        if not nozzle:
-            raise ValueError("Nozzle not found")
+        try:
+            nozzle = self.nozzle_repo.get_by_uuid(db, nozzle_uuid)
+            if not nozzle:
+                return 0.0
 
-        # Find the latest reading before reading_date
-        prev_reading = db.scalar(
-            select(NozzleReading)
-            .where(
-                NozzleReading.nozzle_id == nozzle.id,
-                NozzleReading.reading_date < reading_date
+            # Find the latest reading before reading_date
+            prev_reading = db.scalar(
+                select(NozzleReading)
+                .where(
+                    NozzleReading.nozzle_id == nozzle.id,
+                    NozzleReading.reading_date < reading_date
+                )
+                .order_by(desc(NozzleReading.reading_date))
+                .limit(1)
             )
-            .order_by(desc(NozzleReading.reading_date))
-            .limit(1)
-        )
 
-        if prev_reading:
-            return prev_reading.closing_reading
-        
-        # Fallback to configured initial last_reading on Nozzle
-        return nozzle.last_reading
+            if prev_reading and prev_reading.closing_reading is not None:
+                return prev_reading.closing_reading
+            
+            # Fallback to configured initial last_reading on Nozzle
+            return nozzle.last_reading if (nozzle and nozzle.last_reading is not None) else 0.0
+        except Exception:
+            return 0.0
 
     def get_bulk_form(self, db: Session, reading_date: date) -> BulkFormResponse:
         dispensers = self.dispenser_repo.get_all(db)
@@ -338,16 +342,18 @@ class NozzleService:
                 reading = self.reading_repo.get_by_date(db, nozzle.id, reading_date)
                 
                 if reading:
-                    opening_reading = reading.opening_reading
+                    opening_reading = reading.opening_reading if reading.opening_reading is not None else 0.0
                     closing_reading = reading.closing_reading
                     sales = reading.sales
                     opening_time = safe_format_time(reading.opening_time)
                     closing_time = safe_format_time(reading.closing_time)
                     interim_6am_reading = reading.interim_6am_reading
-                    testing = reading.testing_liters
+                    testing = reading.testing_liters if reading.testing_liters is not None else 0.0
                 else:
                     # Auto-rollover: load previous final reading as opening
                     opening_reading = self.get_opening_readings(db, nozzle.uuid, reading_date)
+                    if opening_reading is None:
+                        opening_reading = 0.0
                     closing_reading = None
                     sales = None
                     opening_time = "19:30"
@@ -355,12 +361,15 @@ class NozzleService:
                     interim_6am_reading = None
                     testing = 0.0
 
+                # Ensure fuel type has fallback
+                fuel_type_val = nozzle.fuel_type if nozzle.fuel_type else FuelType.PETROL
+
                 items.append(
                     BulkFormNozzleItem(
-                        nozzle_uuid=nozzle.uuid,
-                        nozzle_name=nozzle.name,
-                        dispenser_name=dispenser.name,
-                        fuel_type=nozzle.fuel_type,
+                        nozzle_uuid=nozzle.uuid or "",
+                        nozzle_name=nozzle.name or "Unknown Nozzle",
+                        dispenser_name=dispenser.name or "Unknown Dispenser",
+                        fuel_type=fuel_type_val,
                         opening_reading=opening_reading,
                         closing_reading=closing_reading,
                         sales=sales,
