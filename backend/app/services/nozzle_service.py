@@ -318,6 +318,7 @@ class NozzleService:
                     opening_time = reading.opening_time.strftime("%H:%M") if reading.opening_time else "19:30"
                     closing_time = reading.closing_time.strftime("%H:%M") if reading.closing_time else "19:30"
                     interim_6am_reading = reading.interim_6am_reading
+                    testing = reading.testing_liters
                 else:
                     # Auto-rollover: load previous final reading as opening
                     opening_reading = self.get_opening_readings(db, nozzle.uuid, reading_date)
@@ -326,6 +327,7 @@ class NozzleService:
                     opening_time = "19:30"
                     closing_time = "19:30"
                     interim_6am_reading = None
+                    testing = 0.0
 
                 items.append(
                     BulkFormNozzleItem(
@@ -339,6 +341,7 @@ class NozzleService:
                         opening_time=opening_time,
                         closing_time=closing_time,
                         interim_6am_reading=interim_6am_reading,
+                        testing=testing,
                     )
                 )
 
@@ -350,6 +353,8 @@ class NozzleService:
         data: BulkNozzleReadingCreate,
         actor_id: int | None = None,
     ) -> list[NozzleReading]:
+        from app.services.fuel_tank_service import FuelTankService
+        tank_service = FuelTankService()
         readings = []
         r_date = data.reading_date
 
@@ -361,11 +366,14 @@ class NozzleService:
             # Get or calculate opening reading
             opening = item.opening_reading if item.opening_reading is not None else self.get_opening_readings(db, nozzle.uuid, r_date)
 
-            sales = item.closing_reading - opening
-            if sales < 0:
-                sales = (nozzle.meter_capacity - opening) + item.closing_reading
-            if sales > nozzle.meter_capacity * 0.1:
+            gross_sales = item.closing_reading - opening
+            if gross_sales < 0:
+                gross_sales = (nozzle.meter_capacity - opening) + item.closing_reading
+            if gross_sales > nozzle.meter_capacity * 0.1:
                 raise ValueError(f"Meter sales for nozzle '{nozzle.name}' are implausibly high; review the reading.")
+
+            testing_liters = item.testing_liters or 0.0
+            sales = gross_sales - testing_liters
 
             existing = self.reading_repo.get_by_date(db, nozzle.id, r_date)
 
@@ -383,20 +391,33 @@ class NozzleService:
             closing_time = parse_time(item.closing_time)
 
             if existing:
+                old_sales = existing.sales
                 existing.opening_reading = opening
                 existing.closing_reading = item.closing_reading
+                existing.testing_liters = testing_liters
                 existing.sales = sales
                 existing.total_sales = sales
                 existing.opening_time = opening_time
                 existing.closing_time = closing_time
                 existing.interim_6am_reading = item.interim_6am_reading
                 reading = self.reading_repo.update(db, existing)
+
+                # Deduct stock based on differences
+                if nozzle.tank_id:
+                    # If tank changed, restore to old tank and deduct from new tank
+                    if existing.nozzle.tank_id and existing.nozzle.tank_id != nozzle.tank_id:
+                        tank_service.restore_tank_stock(db, existing.nozzle.tank_id, old_sales)
+                        tank_service.deduct_tank_stock(db, nozzle.tank_id, sales)
+                    else:
+                        diff = sales - old_sales
+                        tank_service.deduct_tank_stock(db, nozzle.tank_id, diff)
             else:
                 new_reading = NozzleReading(
                     nozzle_id=nozzle.id,
                     reading_date=r_date,
                     opening_reading=opening,
                     closing_reading=item.closing_reading,
+                    testing_liters=testing_liters,
                     sales=sales,
                     total_sales=sales,
                     opening_time=opening_time,
@@ -404,6 +425,10 @@ class NozzleService:
                     interim_6am_reading=item.interim_6am_reading,
                 )
                 reading = self.reading_repo.create(db, new_reading)
+
+                # Deduct stock for new reading
+                if nozzle.tank_id:
+                    tank_service.deduct_tank_stock(db, nozzle.tank_id, sales)
 
             # Update the nozzle's last_reading (latest state)
             nozzle.last_reading = item.closing_reading

@@ -118,6 +118,15 @@ class InventoryService {
   async deletePriceSchedule(uuid: string): Promise<void> {
     await api.delete(`/v1/price-schedules/${uuid}`);
   }
+
+  async updateTank(tankUuid: string, data: Partial<FuelTankCreate> & { ignore_capacity?: boolean }): Promise<FuelTank> {
+    const response = await api.put<FuelTank>(`/v1/tanks/${tankUuid}`, data);
+    return response.data;
+  }
+
+  async deleteTank(tankUuid: string): Promise<void> {
+    await api.delete(`/v1/tanks/${tankUuid}`);
+  }
 }
 
 const inventoryService = new InventoryService();

@@ -18,7 +18,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   // Local state
   const [readingsDate, setReadingsDate] = useState(new Date().toISOString().split("T")[0]);
   const [formItems, setFormItems] = useState<
-    Record<string, { opening: string | number; closing: string | number; interim6am: string | number }>
+    Record<string, { opening: string | number; closing: string | number; interim6am: string | number; testing: string | number }>
   >({});
   const [isEditingSaved, setIsEditingSaved] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
@@ -66,12 +66,13 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
     if (bulkForm?.items) {
-      const initialMap: Record<string, { opening: string | number; closing: string | number; interim6am: string | number }> = {};
+      const initialMap: Record<string, { opening: string | number; closing: string | number; interim6am: string | number; testing: string | number }> = {};
       bulkForm.items.forEach((item) => {
         initialMap[item.nozzle_uuid] = {
           opening: item.opening_reading,
           closing: item.closing_reading !== null ? item.closing_reading : "",
           interim6am: item.interim_6am_reading !== null ? item.interim_6am_reading : "",
+          testing: item.testing !== null ? item.testing : 0.0,
         };
       });
       setFormItems(initialMap);
@@ -144,6 +145,8 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           const closing = parseFloat(vals.closing.toString());
           const interimRaw = vals.interim6am.toString();
           const interim = interimRaw !== "" ? parseFloat(interimRaw) : null;
+          const testingRaw = vals.testing?.toString() || "0";
+          const testing = parseFloat(testingRaw) || 0.0;
 
           if (isNaN(opening) || isNaN(closing)) {
             throw new Error(`Reading values for nozzle ${item.nozzle_name} must be numeric.`);
@@ -154,6 +157,9 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           if (interim !== null && (interim < opening || interim > closing)) {
             throw new Error(`6 AM reading for nozzle ${item.nozzle_name} must be between the opening and closing readings.`);
           }
+          if (isNaN(testing) || testing < 0) {
+            throw new Error(`Testing liters for nozzle ${item.nozzle_name} must be a non-negative number.`);
+          }
 
           return {
             nozzle_uuid: item.nozzle_uuid,
@@ -162,6 +168,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
             opening_time: sharedOpeningTime,
             closing_time: sharedClosingTime,
             interim_6am_reading: interim,
+            testing_liters: testing,
           };
         });
 
@@ -351,6 +358,9 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                       <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-44">
                         Closing Reading (L)
                       </TableHead>
+                      <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-32">
+                        Testing (L)
+                      </TableHead>
                       <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle text-right w-36">
                         Sales (Liters)
                       </TableHead>
@@ -500,23 +510,43 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>
+                          <TableCell className="py-2.5">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              placeholder="0.000"
+                              value={stateVals.testing}
+                              onChange={(e) => {
+                                setFormItems((prev) => ({
+                                  ...prev,
+                                  [item.nozzle_uuid]: {
+                                    ...prev[item.nozzle_uuid],
+                                    testing: e.target.value,
+                                  },
+                                }));
+                              }}
+                              disabled={isDisabled}
+                              className="w-24 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
+                            />
+                          </TableCell>
                           <TableCell className="px-5 py-2.5 text-right">
                             {/* Sales is editable: entering sales back-calculates
-                                closing = opening + sales. closing stays the source
+                                closing = opening + sales + testing. closing stays the source
                                 of truth, so this input just derives from/writes to it. */}
                             <Input
                               type="number"
                               step="0.001"
                               placeholder="0.000"
-                              value={closingEntered ? (closeVal - openVal).toFixed(3) : ""}
+                              value={closingEntered ? Math.max(0, closeVal - openVal - parseFloat(stateVals.testing?.toString() || "0")).toFixed(3) : ""}
                               onChange={(e) => {
                                 const raw = e.target.value;
+                                const testingL = parseFloat(stateVals.testing?.toString() || "0");
                                 setFormItems((prev) => ({
                                   ...prev,
                                   [item.nozzle_uuid]: {
                                     ...prev[item.nozzle_uuid],
-                                    // blank sales clears closing; otherwise closing = opening + sales
-                                    closing: raw === "" ? "" : openVal + parseFloat(raw || "0"),
+                                    // blank sales clears closing; otherwise closing = opening + sales + testing
+                                    closing: raw === "" ? "" : openVal + parseFloat(raw || "0") + testingL,
                                   },
                                 }));
                               }}

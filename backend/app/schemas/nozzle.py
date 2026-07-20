@@ -63,6 +63,7 @@ class NozzleReadingCreate(BaseModel):
     opening_time: str | None = "19:30"   # HH:MM local time, default 19:30
     closing_time: str | None = "19:30"   # HH:MM local time, default 19:30
     interim_6am_reading: float | None = None  # Optional meter reading at 6:00 AM
+    testing_liters: float | None = 0.0
 
 class NozzleReadingResponse(BaseModel):
     id: int
@@ -74,6 +75,7 @@ class NozzleReadingResponse(BaseModel):
     opening_time: str | None = None
     closing_time: str | None = None
     interim_6am_reading: float | None = None
+    testing_liters: float
     sales: float
     total_sales: float
     created_at: datetime
@@ -108,6 +110,7 @@ class BulkFormNozzleItem(BaseModel):
     opening_time: str | None = "19:30"
     closing_time: str | None = "19:30"
     interim_6am_reading: float | None = None
+    testing: float | None = 0.0
 
 class BulkFormResponse(BaseModel):
     reading_date: date

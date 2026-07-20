@@ -27,6 +27,18 @@ class FuelTankRepository(BaseRepository[FuelTank]):
             ).all()
         )
 
+    def get_active(
+        self,
+        db: Session,
+    ) -> list[FuelTank]:
+        return list(
+            db.scalars(
+                select(FuelTank).where(
+                    FuelTank.is_active == True
+                )
+            ).all()
+        )
+
 
 class DipReadingRepository(BaseRepository[DipReading]):
 

@@ -278,9 +278,19 @@ class DailySheetService:
 
                     # Handle meter rollover edge cases
                     if sales_before < 0:
-                        sales_before = 0
+                        sales_before = (nozzle.meter_capacity - nr.opening_reading) + nr.interim_6am_reading
                     if sales_after < 0:
-                        sales_after = 0
+                        sales_after = (nozzle.meter_capacity - nr.interim_6am_reading) + nr.closing_reading
+
+                    # Deduct testing liters from sales split (preferring post-6am sales first)
+                    testing = nr.testing_liters or 0.0
+                    if testing > 0:
+                        if sales_after >= testing:
+                            sales_after -= testing
+                        else:
+                            testing -= sales_after
+                            sales_after = 0.0
+                            sales_before = max(0.0, sales_before - testing)
 
                     rate_before = price_service.get_active_rate(db, nozzle.fuel_type, rate_at_yesterday_6am)
                     rate_after = price_service.get_active_rate(db, nozzle.fuel_type, rate_at_today_6am)

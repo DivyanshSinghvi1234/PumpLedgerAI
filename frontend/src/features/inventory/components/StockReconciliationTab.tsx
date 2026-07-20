@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Fuel, Plus, Calculator, History, AlertTriangle } from "lucide-react";
+import { Fuel, Plus, Calculator, History, AlertTriangle, Edit, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,17 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [tankFuelType, setTankFuelType] = useState<FuelType>("PETROL");
   const [tankCapacity, setTankCapacity] = useState("");
   const [tankInitialStock, setTankInitialStock] = useState("");
+
+  const [editTankDialogOpen, setEditTankDialogOpen] = useState(false);
+  const [editingTank, setEditingTank] = useState<any>(null);
+  const [editTankName, setEditTankName] = useState("");
+  const [editTankFuelType, setEditTankFuelType] = useState<FuelType>("PETROL");
+  const [editTankCapacity, setEditTankCapacity] = useState("");
+  const [editTankCurrentStock, setEditTankCurrentStock] = useState("");
+  const [editIgnoreCapacity, setEditIgnoreCapacity] = useState(false);
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingTank, setDeletingTank] = useState<any>(null);
 
   const [selectedTankUuid, setSelectedTankUuid] = useState("");
   const [dipDate, setDipDate] = useState(new Date().toISOString().split("T")[0]);
@@ -81,6 +92,33 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     },
   });
 
+  const updateTankMutation = useMutation({
+    mutationFn: ({ tankUuid, data }: { tankUuid: string; data: Partial<FuelTankCreate> & { ignore_capacity?: boolean } }) =>
+      inventoryService.updateTank(tankUuid, data),
+    onSuccess: () => {
+      toast.success("Fuel tank updated successfully!");
+      setEditTankDialogOpen(false);
+      setEditingTank(null);
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to update fuel tank.");
+    },
+  });
+
+  const deleteTankMutation = useMutation({
+    mutationFn: (tankUuid: string) => inventoryService.deleteTank(tankUuid),
+    onSuccess: () => {
+      toast.success("Fuel tank deleted successfully!");
+      setDeleteConfirmOpen(false);
+      setDeletingTank(null);
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to delete fuel tank.");
+    },
+  });
+
   // Submit Handlers
   const handleCreateTank = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +132,45 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       capacity_liters: parseFloat(tankCapacity),
       current_stock_liters: parseFloat(tankInitialStock),
     });
+  };
+
+  const handleOpenEdit = (tank: any) => {
+    setEditingTank(tank);
+    setEditTankName(tank.name);
+    setEditTankFuelType(tank.fuel_type);
+    setEditTankCapacity(String(tank.capacity_liters));
+    setEditTankCurrentStock(String(tank.current_stock_liters));
+    setEditIgnoreCapacity(false);
+    setEditTankDialogOpen(true);
+  };
+
+  const handleOpenDelete = (tank: any) => {
+    setDeletingTank(tank);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleUpdateTank = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTank) return;
+    if (!editTankName.trim() || !editTankCapacity || !editTankCurrentStock) {
+      toast.error("Please fill in all fuel tank configurations.");
+      return;
+    }
+    updateTankMutation.mutate({
+      tankUuid: editingTank.uuid,
+      data: {
+        name: editTankName,
+        fuel_type: editTankFuelType,
+        capacity_liters: parseFloat(editTankCapacity),
+        current_stock_liters: parseFloat(editTankCurrentStock),
+        ignore_capacity: editIgnoreCapacity,
+      },
+    });
+  };
+
+  const handleDeleteTank = () => {
+    if (!deletingTank) return;
+    deleteTankMutation.mutate(deletingTank.uuid);
   };
 
   const handlePostDipReading = (e: React.FormEvent) => {
@@ -112,6 +189,9 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     });
   };
 
+  // Derive negative stock tanks
+  const negativeTanks = tanks?.filter((t) => t.current_stock_liters < 0) || [];
+
   return (
     <div className="space-y-6">
       {/* Header Add Button (Mounted inside the main page, but triggers tank dialog) */}
@@ -123,6 +203,26 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
           >
             <Plus size={16} className="mr-2" /> Add Fuel Tank
           </Button>
+        </div>
+      )}
+
+      {/* Negative Stock Warning Banner */}
+      {negativeTanks.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-start gap-3 animate-pulse">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider font-mono">Negative Stock Alert</h4>
+            <p className="text-[11px] opacity-90 leading-relaxed">
+              The following tanks have negative stock levels, indicating potential timing/ordering errors in recording physical deliveries:
+            </p>
+            <ul className="list-disc pl-5 text-[11px] space-y-0.5 font-bold mt-1.5">
+              {negativeTanks.map((t) => (
+                <li key={t.uuid}>
+                  {t.name} ({t.fuel_type}): {t.current_stock_liters.toLocaleString(undefined, { minimumFractionDigits: 1 })} L
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
@@ -164,9 +264,31 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                       </Badge>
                       <span className="text-[10px] font-mono text-ink-subtle">Cap: {tank.capacity_liters.toLocaleString()} L</span>
                     </div>
-                    <CardTitle className="text-sm font-bold tracking-tight text-ink mt-2">
-                      {tank.name}
-                    </CardTitle>
+                    <div className="flex items-center justify-between mt-2">
+                      <CardTitle className="text-sm font-bold tracking-tight text-ink">
+                        {tank.name}
+                      </CardTitle>
+                      {isAdminOrManager && (
+                        <div className="flex items-center gap-1.5 no-print">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(tank)}
+                            className="p-1 text-ink-subtle hover:text-fuel-amber hover:bg-surface-3 rounded transition-colors cursor-pointer"
+                            title="Edit Tank"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDelete(tank)}
+                            className="p-1 text-ink-subtle hover:text-red-400 hover:bg-surface-3 rounded transition-colors cursor-pointer"
+                            title="Delete Tank"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent className="pt-2 pb-4 space-y-3">
                     <div className="flex items-baseline justify-between">
@@ -521,6 +643,146 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Fuel Tank Dialog */}
+      <Dialog open={editTankDialogOpen} onOpenChange={setEditTankDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <Fuel size={18} className="text-fuel-amber" /> Edit Fuel Tank
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateTank} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="editTankNameInput" className="text-xs font-bold text-ink-muted">Tank Name</Label>
+              <Input
+                id="editTankNameInput"
+                placeholder="e.g. Tank A - Diesel Main"
+                value={editTankName}
+                onChange={(e) => setEditTankName(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="editTankFuelTypeSelect" className="text-xs font-bold text-ink-muted">Fuel Type</Label>
+                <select
+                  id="editTankFuelTypeSelect"
+                  value={editTankFuelType}
+                  onChange={(e) => setEditTankFuelType(e.target.value as FuelType)}
+                  className="w-full bg-surface-2 border border-hairline rounded-lg outline-none text-sm text-ink px-3 h-10 transition-colors focus:border-fuel-amber"
+                  required
+                >
+                  <option value="PETROL">PETROL</option>
+                  <option value="SPEED">SPEED</option>
+                  <option value="DIESEL">DIESEL</option>
+                  <option value="LUBRICANT">LUBRICANT</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="editTankCapacityInput" className="text-xs font-bold text-ink-muted">Capacity (Liters)</Label>
+                <Input
+                  id="editTankCapacityInput"
+                  type="number"
+                  placeholder="e.g. 20000"
+                  value={editTankCapacity}
+                  onChange={(e) => setEditTankCapacity(e.target.value)}
+                  className="bg-surface-2 border-hairline text-xs text-ink"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editTankCurrentStockInput" className="text-xs font-bold text-ink-muted">Current Stock (Liters)</Label>
+              <Input
+                id="editTankCurrentStockInput"
+                type="number"
+                placeholder="e.g. 15000"
+                value={editTankCurrentStock}
+                onChange={(e) => setEditTankCurrentStock(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink"
+                required
+              />
+            </div>
+
+            {parseFloat(editTankCapacity) < parseFloat(editTankCurrentStock) && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-2.5 rounded-lg text-[11px] flex items-start gap-2 mt-2">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Capacity Warning</p>
+                  <p className="opacity-90">The new capacity is below the current stock level. Please check the stock or verify the ignore checkbox below.</p>
+                  <label className="flex items-center gap-1.5 mt-2 font-bold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editIgnoreCapacity}
+                      onChange={(e) => setEditIgnoreCapacity(e.target.checked)}
+                      className="rounded accent-red-500 h-3.5 w-3.5"
+                    />
+                    Ignore capacity validation (Force save)
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="pt-3 border-t border-hairline">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditTankDialogOpen(false)}
+                className="text-xs h-9 cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateTankMutation.isPending}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold text-xs h-9 cursor-pointer"
+              >
+                {updateTankMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Fuel Tank Confirm Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold text-ink flex items-center gap-2">
+              <AlertTriangle className="text-red-500" size={16} /> Confirm Deletion
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 text-xs text-ink-muted leading-relaxed">
+            Are you sure you want to delete the fuel tank <strong className="text-ink">"{deletingTank?.name}"</strong>?
+            <p className="mt-2 text-[11px] text-red-500/90 bg-red-500/5 p-2 rounded border border-red-500/10">
+              <strong>Important:</strong> This will disassociate referencing nozzles. Historical delivery and physical dip records will be preserved for audits.
+            </p>
+          </div>
+          <DialogFooter className="pt-3 border-t border-hairline">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteConfirmOpen(false)}
+              className="text-xs h-9 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleDeleteTank}
+              disabled={deleteTankMutation.isPending}
+              className="bg-red-500 hover:bg-red-600 text-canvas font-bold text-xs h-9 cursor-pointer"
+            >
+              {deleteTankMutation.isPending ? "Deleting..." : "Delete Tank"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

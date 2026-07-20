@@ -12,6 +12,14 @@ class FuelTankCreate(BaseModel):
     current_stock_liters: float = 0.0
 
 
+class FuelTankUpdate(BaseModel):
+    name: str | None = None
+    fuel_type: FuelType | None = None
+    capacity_liters: float | None = None
+    current_stock_liters: float | None = None
+    ignore_capacity: bool = False
+
+
 class FuelTankResponse(BaseModel):
     id: int
     uuid: str
@@ -59,6 +67,7 @@ class TankerDeliveryCreate(BaseModel):
     density: float | None = None
     supplier_name: str | None = None
     remarks: str | None = None
+    ignore_capacity: bool = False
 
 
 class TankerDeliveryResponse(BaseModel):

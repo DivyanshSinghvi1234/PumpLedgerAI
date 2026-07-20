@@ -72,6 +72,12 @@ class NozzleReading(
         nullable=False,
     )
 
+    testing_liters: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
+    )
+
     # Aggregates
     total_sales: Mapped[float] = mapped_column(
         Float,

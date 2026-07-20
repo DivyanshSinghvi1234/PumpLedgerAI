@@ -169,6 +169,13 @@ export default function SheetDetail({
     queryFn: () => dailySheetService.getReconciliation(sheet.date),
   });
 
+  const { data: tanks } = useQuery({
+    queryKey: ["tanks"],
+    queryFn: () => inventoryService.getTanks(),
+  });
+
+  const negativeTanks = tanks?.filter((t) => t.current_stock_liters < 0) || [];
+
   // Shifts run 6:00 AM to 6:00 AM — look up active rates at 6:00 AM for today and yesterday.
   const { data: ratesMap } = useQuery({
     queryKey: ["sheetRatesMap", sheet.uuid, sheet.date],
@@ -260,7 +267,7 @@ export default function SheetDetail({
       const opening = item.opening_reading || 0;
       const closing = item.closing_reading !== null ? item.closing_reading : null;
       const interim = item.interim_6am_reading !== null ? item.interim_6am_reading : null;
-      const testing = 0; // testing quantity - reserved for future
+      const testing = item.testing || 0;
       const sold = closing !== null && closing >= opening ? closing - opening - testing : 0;
       
       let amount = 0;
@@ -275,6 +282,18 @@ export default function SheetDetail({
         isSplit = true;
         soldBefore = Math.max(0, interim - opening);
         soldAfter = Math.max(0, closing - interim);
+
+        // Deduct testing from split sales (preferring post-6am sales first)
+        let tLiters = testing;
+        if (tLiters > 0) {
+          if (soldAfter >= tLiters) {
+            soldAfter -= tLiters;
+          } else {
+            tLiters -= soldAfter;
+            soldAfter = 0;
+            soldBefore = Math.max(0, soldBefore - tLiters);
+          }
+        }
 
         // Fallbacks if one rate is missing
         if (!rateBefore && rateAfter) rateBefore = rateAfter;
@@ -597,6 +616,26 @@ export default function SheetDetail({
             >
               Save Timeline
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Negative Stock Warning Banner */}
+      {negativeTanks.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl flex items-start gap-3 mb-4 no-print">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider font-mono">Negative Stock Alert</h4>
+            <p className="text-[11px] opacity-90 leading-relaxed">
+              The following tanks have negative stock levels, indicating potential timing/ordering errors in recording physical deliveries:
+            </p>
+            <ul className="list-disc pl-5 text-[11px] space-y-0.5 font-bold mt-1.5">
+              {negativeTanks.map((t) => (
+                <li key={t.uuid}>
+                  {t.name} ({t.fuel_type}): {t.current_stock_liters.toLocaleString(undefined, { minimumFractionDigits: 1 })} L
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

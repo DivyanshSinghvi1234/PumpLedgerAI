@@ -7,6 +7,7 @@ from app.core.dependencies import get_db, require_roles
 from app.core.enums import UserRole
 from app.schemas.fuel_tank import (
     FuelTankCreate,
+    FuelTankUpdate,
     FuelTankResponse,
     DipReadingCreate,
     DipReadingResponse,
@@ -67,7 +68,7 @@ def create_tank(
 def list_tanks(
     db: Session = Depends(get_db),
 ):
-    return service.tank_repo.get_all(db)
+    return service.tank_repo.get_active(db)
 
 
 @router.get(
@@ -108,6 +109,57 @@ def post_dip_reading(
             closing_dip=data.closing_dip_liters,
             reading_date=data.reading_date,
         )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.put(
+    "/{uuid}",
+    response_model=FuelTankResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def update_tank(
+    uuid: str,
+    data: FuelTankUpdate,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.update_tank(
+            db,
+            uuid=uuid,
+            name=data.name,
+            fuel_type=data.fuel_type,
+            capacity_liters=data.capacity_liters,
+            current_stock_liters=data.current_stock_liters,
+            ignore_capacity=data.ignore_capacity,
+        )
+    except ValueError as e:
+        err_msg = str(e)
+        if "CAPACITY_WARNING" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=err_msg,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=err_msg,
+        )
+
+
+@router.delete(
+    "/{uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def delete_tank(
+    uuid: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        service.delete_tank(db, uuid=uuid)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
