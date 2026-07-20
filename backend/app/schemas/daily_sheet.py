@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 
@@ -8,6 +9,10 @@ class DailySheetExpense(BaseModel):
     category: str
     description: str
     amount: float
+    # type/payment_mode are optional + defaulted so rows stored before this
+    # change still parse. "income" adds to its payment mode, "expense" subtracts.
+    type: Literal["expense", "income"] = "expense"
+    payment_mode: Literal["cash", "upi", "card", "credit"] = "cash"
 
 
 class DailySheetPaymentModeAmounts(BaseModel):

@@ -147,54 +147,54 @@
     --pl-ink-tertiary:      #a8a29e;
 }
 
-/* 🌑🌑 Dark theme (.dark class) 🌑🌑 */
+/* 🌑🌑 Dark theme (.dark class) — cool blue-tinted ── 🌑🌑 */
 .dark {
     /* ── Shadcn / Radix base tokens ── */
-    --background: #09090b;
-    --foreground: #fafafa;
-    --card: #0c0c0e;
-    --card-foreground: #fafafa;
-    --popover: #0c0c0e;
-    --popover-foreground: #fafafa;
+    --background: #090b14;
+    --foreground: #f0f4fa;
+    --card: #0c0f18;
+    --card-foreground: #f0f4fa;
+    --popover: #0c0f18;
+    --popover-foreground: #f0f4fa;
     --primary: #f59e0b;
-    --primary-foreground: #09090b;
-    --secondary: #18181b;
-    --secondary-foreground: #fafafa;
-    --muted: #18181b;
-    --muted-foreground: #a1a1aa;
-    --accent: #18181b;
-    --accent-foreground: #fafafa;
+    --primary-foreground: #090b14;
+    --secondary: #141828;
+    --secondary-foreground: #f0f4fa;
+    --muted: #141828;
+    --muted-foreground: #8e99b0;
+    --accent: #141828;
+    --accent-foreground: #f0f4fa;
     --destructive: #ef4444;
-    --border: #27272a;
-    --input: #27272a;
+    --border: #1e2540;
+    --input: #1e2540;
     --ring: #f59e0b;
     --chart-1: #10b981;
     --chart-2: #3b82f6;
     --chart-3: #f59e0b;
     --chart-4: #8b5cf6;
     --chart-5: #ec4899;
-    --sidebar: #09090b;
-    --sidebar-foreground: #fafafa;
+    --sidebar: #090b14;
+    --sidebar-foreground: #f0f4fa;
     --sidebar-primary: #f59e0b;
-    --sidebar-primary-foreground: #09090b;
-    --sidebar-accent: #18181b;
-    --sidebar-accent-foreground: #fafafa;
-    --sidebar-border: #27272a;
+    --sidebar-primary-foreground: #090b14;
+    --sidebar-accent: #141828;
+    --sidebar-accent-foreground: #f0f4fa;
+    --sidebar-border: #1e2540;
     --sidebar-ring: #f59e0b;
 
-    /* ── PumpLedger surface & ink — DARK values ── */
-    --pl-canvas:            #09090b;
-    --pl-surface-1:         #0c0c0e;
-    --pl-surface-2:         #121215;
-    --pl-surface-3:         #18181b;
-    --pl-surface-4:         #1e1e22;
-    --pl-hairline:          #27272a;
-    --pl-hairline-strong:   #3f3f46;
-    --pl-hairline-tertiary: #52525b;
-    --pl-ink:               #fafafa;
-    --pl-ink-muted:         #d4d4d8;
-    --pl-ink-subtle:        #a1a1aa;
-    --pl-ink-tertiary:      #71717a;
+    /* ── PumpLedger surface & ink — DARK values (blue-tinted) ── */
+    --pl-canvas:            #090b14;
+    --pl-surface-1:         #0c0f18;
+    --pl-surface-2:         #101420;
+    --pl-surface-3:         #141828;
+    --pl-surface-4:         #1a1f32;
+    --pl-hairline:          #1e2540;
+    --pl-hairline-strong:   #2e3654;
+    --pl-hairline-tertiary: #3d4768;
+    --pl-ink:               #f0f4fa;
+    --pl-ink-muted:         #c8d0e0;
+    --pl-ink-subtle:        #8e99b0;
+    --pl-ink-tertiary:      #5e6b88;
 }
 
 @layer base {
@@ -238,8 +238,8 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 .dark .glass {
-  background: rgba(12, 12, 14, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(12, 15, 24, 0.7);
+  border: 1px solid rgba(160, 180, 255, 0.06);
 }
 
 /* Card hover glow effect */

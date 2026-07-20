@@ -1,9 +1,16 @@
 import api from "@/api/client";
 
+export type ExpenseType = "expense" | "income";
+export type ExpensePaymentMode = "cash" | "upi" | "card" | "credit";
+
 export interface DailySheetExpense {
   category: string;
   description: string;
   amount: number;
+  // Optional + defaulted on the backend so sheets saved before this change
+  // still parse. "income" adds to the mode total, "expense" subtracts.
+  type?: ExpenseType;
+  payment_mode?: ExpensePaymentMode;
 }
 
 export interface DailySheetPaymentModeAmounts {

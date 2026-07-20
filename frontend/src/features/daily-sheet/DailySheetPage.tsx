@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 import dailySheetService from "@/features/daily-sheet/services/dailySheetService";
-import type { DailySheetPaymentModeAmounts } from "@/features/daily-sheet/services/dailySheetService";
+import type { DailySheetPaymentModeAmounts, DailySheetExpense } from "@/features/daily-sheet/services/dailySheetService";
 import SheetDetail from "./components/SheetDetail";
 import SheetPreview from "./components/SheetPreview";
 import StoredSheetsList from "./components/StoredSheetsList";
@@ -179,11 +179,12 @@ export default function DailySheetPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const generateSheetMutation = useMutation({
-    mutationFn: (manualPaymentModeAmounts: DailySheetPaymentModeAmounts) =>
+    mutationFn: (payload: { manualPaymentModeAmounts: DailySheetPaymentModeAmounts; expenses: DailySheetExpense[] }) =>
       dailySheetService.createDailySheet(createDate, {
         period_start: new Date(periodStart).toISOString(),
         period_end: new Date(periodEnd).toISOString(),
-        manual_payment_mode_amounts: manualPaymentModeAmounts,
+        manual_payment_mode_amounts: payload.manualPaymentModeAmounts,
+        expenses: payload.expenses,
       }),
     onSuccess: () => {
       setCreateError(null);
@@ -456,9 +457,9 @@ export default function DailySheetPage() {
               periodStart={periodStart}
               periodEnd={periodEnd}
               sheetAlreadyExists={sheetAlreadyExists}
-              onGenerate={(manualPaymentModeAmounts) => {
+              onGenerate={(manualPaymentModeAmounts, expenses) => {
                 setCreateError(null);
-                generateSheetMutation.mutate(manualPaymentModeAmounts);
+                generateSheetMutation.mutate({ manualPaymentModeAmounts, expenses });
               }}
               isGenerating={generateSheetMutation.isPending}
               createError={createError}

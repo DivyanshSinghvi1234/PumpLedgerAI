@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Plus,
+  Trash2,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +16,27 @@ import inventoryService from "@/features/inventory/services/inventoryService";
 import paymentService from "@/features/payments/services/paymentService";
 import voucherService from "@/features/vouchers/services/voucherService";
 import type { FuelType } from "@/features/inventory/types";
-import type { DailySheetPaymentModeAmounts } from "../services/dailySheetService";
+import type {
+  DailySheetPaymentModeAmounts,
+  DailySheetExpense,
+  ExpenseType,
+  ExpensePaymentMode,
+} from "../services/dailySheetService";
+
+/* Fixed starter list. ponytail: hardcoded categories; upgrade path is a small
+   expense_categories settings table if user-defined categories are needed. */
+const EXPENSE_CATEGORIES = [
+  "Fuel purchase",
+  "Salary",
+  "Tea / snacks",
+  "Owner drawing",
+  "Repair / maintenance",
+  "Electricity",
+  "Other",
+];
+
+// ₹2000 note intentionally excluded (demonetised from circulation).
+const DENOMINATION_NOTES = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
 /* ─────────────────────────────────────────────────────────────── helpers ── */
 function fmt(n: number, decimals = 2): string {
@@ -54,7 +76,10 @@ interface SheetPreviewProps {
   periodStart: string;
   periodEnd: string;
   sheetAlreadyExists: boolean;
-  onGenerate: (manualPaymentModeAmounts: DailySheetPaymentModeAmounts) => void;
+  onGenerate: (
+    manualPaymentModeAmounts: DailySheetPaymentModeAmounts,
+    expenses: DailySheetExpense[],
+  ) => void;
   isGenerating: boolean;
   createError: string | null;
 }
@@ -70,15 +95,49 @@ export default function SheetPreview({
   createError: _createError,
 }: SheetPreviewProps) {
   const [manualPaymentAmounts, setManualPaymentAmounts] = useState<DailySheetPaymentModeAmounts>({ cash: 0, upi: 0, card: 0, credit: 0 });
+
+  // Expense / income rows entered in the preview, persisted on Generate & Save.
+  const [expenses, setExpenses] = useState<DailySheetExpense[]>([]);
+  const [newExpense, setNewExpense] = useState<{
+    category: string; description: string; amount: string;
+    type: ExpenseType; payment_mode: ExpensePaymentMode;
+  }>({ category: EXPENSE_CATEGORIES[0], description: "", amount: "", type: "expense", payment_mode: "cash" });
+
+  const addExpense = () => {
+    const amt = parseFloat(newExpense.amount);
+    if (!Number.isFinite(amt) || amt <= 0) return;
+    setExpenses((prev) => [...prev, {
+      category: newExpense.category,
+      description: newExpense.description || newExpense.category,
+      amount: amt,
+      type: newExpense.type,
+      payment_mode: newExpense.payment_mode,
+    }]);
+    setNewExpense((p) => ({ ...p, description: "", amount: "" }));
+  };
+  const removeExpense = (idx: number) => setExpenses((prev) => prev.filter((_, i) => i !== idx));
+
+  // Denomination cash cross-check. Display-only, not persisted (matches the
+  // saved-sheet view). ₹2000 note excluded.
+  const [denomCounts, setDenomCounts] = useState<Record<number, string>>({});
+  const denominationTotal = DENOMINATION_NOTES.reduce(
+    (s, note) => s + note * (parseInt(denomCounts[note] || "0", 10) || 0),
+    0,
+  );
+
   /* ── queries ───────────────────────────────────────────────────────────── */
   const { data: salesForm, isLoading: salesFormLoading } = useQuery({
     queryKey: ["previewReadings", createDate],
     queryFn: () => inventoryService.getBulkReadingsForm(createDate),
   });
 
+  // Match the saved sheet, which sums vouchers by invoice_date (see
+  // daily_sheet_service). Filtering the preview by the created_at window
+  // instead made a voucher back-dated to 19 Jul but saved on 20 Jul show in
+  // the wrong day's preview. from_date/to_date filter on invoice_date.
   const voucherParams = {
-    from_datetime: new Date(periodStart).toISOString(),
-    to_datetime: new Date(periodEnd).toISOString(),
+    from_date: createDate,
+    to_date: createDate,
     page_size: 200,
   };
 
@@ -303,7 +362,7 @@ export default function SheetPreview({
         ) : (
           <Button
             type="button"
-            onClick={() => onGenerate(manualPaymentAmounts)}
+            onClick={() => onGenerate(manualPaymentAmounts, expenses)}
             disabled={isGenerating || isLoading}
             className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold text-xs h-9 gap-1.5 cursor-pointer shadow-md shadow-fuel-amber/15"
           >
@@ -711,6 +770,114 @@ export default function SheetPreview({
                   </div>
                 </div>
 
+                {/* Expenses / Income */}
+                <div className="no-print border-t border-hairline bg-surface-2/50 p-3 space-y-2">
+                  <p className="text-[9px] uppercase font-bold text-ink-subtle tracking-wider">Expenses / Income</p>
+                  <p className="text-[10px] text-ink-subtle">Income adds to the chosen payment mode; expense subtracts. Cash entries also adjust the expected cash handover.</p>
+
+                  {expenses.length > 0 && (
+                    <div className="space-y-1">
+                      {expenses.map((e, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-[10px] bg-surface-1 rounded px-2 py-1">
+                          <span className={`font-bold uppercase w-14 ${e.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
+                            {e.type === "income" ? "+ In" : "− Out"}
+                          </span>
+                          <span className="flex-1 text-ink-muted truncate">{e.category}{e.description && e.description !== e.category ? ` · ${e.description}` : ""}</span>
+                          <span className="uppercase text-ink-subtle w-12 text-right">{e.payment_mode}</span>
+                          <span className="font-mono text-ink w-20 text-right">{fmtRs(e.amount)}</span>
+                          <button type="button" onClick={() => removeExpense(idx)} className="text-ink-subtle hover:text-red-500">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 items-end">
+                    <label className="text-[10px] text-ink-muted">
+                      Category
+                      <select
+                        value={newExpense.category}
+                        onChange={(ev) => setNewExpense((p) => ({ ...p, category: ev.target.value }))}
+                        className="mt-1 w-full bg-surface-1 border border-hairline rounded text-[11px] h-7 px-2 text-ink"
+                      >
+                        {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-[10px] text-ink-muted">
+                      Type
+                      <select
+                        value={newExpense.type}
+                        onChange={(ev) => setNewExpense((p) => ({ ...p, type: ev.target.value as ExpenseType }))}
+                        className="mt-1 w-full bg-surface-1 border border-hairline rounded text-[11px] h-7 px-2 text-ink"
+                      >
+                        <option value="expense">Expense (given)</option>
+                        <option value="income">Income (received)</option>
+                      </select>
+                    </label>
+                    <label className="text-[10px] text-ink-muted">
+                      Payment mode
+                      <select
+                        value={newExpense.payment_mode}
+                        onChange={(ev) => setNewExpense((p) => ({ ...p, payment_mode: ev.target.value as ExpensePaymentMode }))}
+                        className="mt-1 w-full bg-surface-1 border border-hairline rounded text-[11px] h-7 px-2 text-ink"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="card">Card</option>
+                        <option value="credit">Credit</option>
+                      </select>
+                    </label>
+                    <label className="text-[10px] text-ink-muted">
+                      Amount
+                      <Input
+                        type="number" min="0" step="0.01"
+                        value={newExpense.amount}
+                        onChange={(ev) => setNewExpense((p) => ({ ...p, amount: ev.target.value }))}
+                        onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); addExpense(); } }}
+                        placeholder="0.00"
+                        className="mt-1 bg-surface-1 border-hairline text-[11px] h-7 px-2 text-right font-mono"
+                      />
+                    </label>
+                    <label className="text-[10px] text-ink-muted col-span-2">
+                      Note (optional)
+                      <Input
+                        value={newExpense.description}
+                        onChange={(ev) => setNewExpense((p) => ({ ...p, description: ev.target.value }))}
+                        onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); addExpense(); } }}
+                        placeholder="e.g. paid to vendor"
+                        className="mt-1 bg-surface-1 border-hairline text-[11px] h-7 px-2"
+                      />
+                    </label>
+                  </div>
+                  <Button type="button" onClick={addExpense} size="sm" variant="outline" className="h-7 text-[10px] gap-1">
+                    <Plus size={11} /> Add entry
+                  </Button>
+                </div>
+
+                {/* Denomination cross-check (display only, not saved) */}
+                <div className="no-print border-t border-hairline bg-surface-2/50 p-3 space-y-2">
+                  <p className="text-[9px] uppercase font-bold text-ink-subtle tracking-wider">Cash Denomination</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {DENOMINATION_NOTES.map((note) => (
+                      <label key={note} className="text-[10px] text-ink-muted flex items-center gap-1">
+                        <span className="w-8 font-mono text-right">₹{note}</span>
+                        <Input
+                          type="number" min="0" step="1"
+                          value={denomCounts[note] || ""}
+                          onChange={(ev) => setDenomCounts((c) => ({ ...c, [note]: ev.target.value }))}
+                          placeholder="0"
+                          className="bg-surface-1 border-hairline text-[11px] h-7 px-2 text-right font-mono"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-[11px] font-bold border-t border-hairline pt-1.5">
+                    <span className="text-ink-subtle uppercase">Total Denomination</span>
+                    <span className="font-mono text-ink">{fmtRs(denominationTotal)}</span>
+                  </div>
+                </div>
+
                 {/* Payments log if any */}
                 {dailyPayments?.items && dailyPayments.items.length > 0 && (
                   <table className="w-full text-[11px] border-t border-hairline">
@@ -770,7 +937,7 @@ export default function SheetPreview({
               {!sheetAlreadyExists && (
                 <Button
                   type="button"
-                  onClick={() => onGenerate(manualPaymentAmounts)}
+                  onClick={() => onGenerate(manualPaymentAmounts, expenses)}
                   disabled={isGenerating || isLoading}
                   size="sm"
                   className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold text-xs h-8 gap-1.5 cursor-pointer"

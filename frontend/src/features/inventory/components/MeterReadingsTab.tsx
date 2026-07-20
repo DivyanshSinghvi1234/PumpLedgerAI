@@ -369,7 +369,6 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                       // closing < opening is invalid (meter can't run backwards);
                       // closing == opening is valid zero sales.
                       const isNegative = closingEntered && closeVal < openVal;
-                      const salesAmt = closingEntered && closeVal >= openVal ? closeVal - openVal : 0;
                       const is6amExpanded = expanded6am[item.nozzle_uuid] ?? false;
 
                       // Show split if interim reading entered
@@ -501,16 +500,30 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>
-                          <TableCell className="px-5 text-right font-semibold text-xs">
-                            {!closingEntered ? (
-                              <span className="text-ink">—</span>
-                            ) : isNegative ? (
-                              <span className="text-red-400 font-bold" title="Closing reading cannot be less than the opening reading.">
-                                Invalid
-                              </span>
-                            ) : (
-                              <span className="text-ink">{salesAmt.toFixed(3)} L</span>
-                            )}
+                          <TableCell className="px-5 py-2.5 text-right">
+                            {/* Sales is editable: entering sales back-calculates
+                                closing = opening + sales. closing stays the source
+                                of truth, so this input just derives from/writes to it. */}
+                            <Input
+                              type="number"
+                              step="0.001"
+                              placeholder="0.000"
+                              value={closingEntered ? (closeVal - openVal).toFixed(3) : ""}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                setFormItems((prev) => ({
+                                  ...prev,
+                                  [item.nozzle_uuid]: {
+                                    ...prev[item.nozzle_uuid],
+                                    // blank sales clears closing; otherwise closing = opening + sales
+                                    closing: raw === "" ? "" : openVal + parseFloat(raw || "0"),
+                                  },
+                                }));
+                              }}
+                              disabled={isDisabled}
+                              title={isNegative ? "Sales cannot be negative — closing is below opening." : undefined}
+                              className={`w-28 text-right bg-surface-2 border-hairline outline-none text-xs py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed ${isNegative ? "border-red-400/60 text-red-400 font-bold" : "text-ink"}`}
+                            />
                           </TableCell>
                         </TableRow>
                       );

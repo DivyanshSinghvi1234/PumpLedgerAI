@@ -205,21 +205,45 @@ class DailySheetService:
                 except (TypeError, ValueError, json.JSONDecodeError):
                     pass
 
-        total_expenses = sum(float(e.get("amount", 0)) for e in expenses_list)
+        # total_expenses counts only expense-type rows (income excluded).
+        # Legacy rows have no "type" and default to expense.
+        total_expenses = sum(
+            float(e.get("amount", 0))
+            for e in expenses_list
+            if e.get("type", "expense") == "expense"
+        )
+
+        # Net effect of expense/income rows on each payment mode: income adds,
+        # expense subtracts. Legacy rows (no payment_mode) default to cash.
+        expense_net_by_mode = {"cash": 0.0, "upi": 0.0, "card": 0.0, "credit": 0.0}
+        for e in expenses_list:
+            mode_key = e.get("payment_mode", "cash")
+            if mode_key not in expense_net_by_mode:
+                mode_key = "cash"
+            amt = float(e.get("amount", 0))
+            expense_net_by_mode[mode_key] += amt if e.get("type", "expense") == "income" else -amt
 
         billed_by_mode = {mode.value: float(db.scalar(select(func.sum(Voucher.total_amount)).where(Voucher.invoice_date == date_val, Voucher.payment_mode == mode, Voucher.is_active == True)) or 0) for mode in PaymentMode}
         total_billed = sum(billed_by_mode.values())
         credit_sales = billed_by_mode.get(PaymentMode.CREDIT.value, 0.0)
         digital_sales = billed_by_mode.get(PaymentMode.CARD.value, 0.0) + billed_by_mode.get(PaymentMode.UPI.value, 0.0)
         cash_vouchers_sales = billed_by_mode.get(PaymentMode.CASH.value, 0.0)
+        # recorded_amount_by_mode stays PURE recorded sales (voucher + manual).
+        # The frontend holds the live expenses list and applies income/expense per
+        # mode itself (expense_net_by_mode), so per-mode display totals stay correct
+        # even while a saved sheet is being edited before re-save.
         recorded_by_mode = {
             PaymentMode.CASH.value: cash_vouchers_sales + manual_amounts["cash"],
             PaymentMode.UPI.value: billed_by_mode.get(PaymentMode.UPI.value, 0.0) + manual_amounts["upi"],
             PaymentMode.CARD.value: billed_by_mode.get(PaymentMode.CARD.value, 0.0) + manual_amounts["card"],
             PaymentMode.CREDIT.value: credit_sales + manual_amounts["credit"],
         }
-        credit_sales = recorded_by_mode[PaymentMode.CREDIT.value]
-        digital_sales = recorded_by_mode[PaymentMode.CARD.value] + recorded_by_mode[PaymentMode.UPI.value]
+        # For the cash-handover formula, credit/digital are money NOT in the cash
+        # drawer — voucher + manual only. Expense/income in those modes hit their
+        # own bank/credit bucket, not physical cash, so they're excluded here and
+        # the cash-mode net is applied separately below.
+        credit_sales = credit_sales + manual_amounts["credit"]
+        digital_sales = digital_sales + manual_amounts["upi"] + manual_amounts["card"]
 
         # Calculate gross fuel sales from nozzle readings if present
         from app.models.nozzle_reading import NozzleReading
@@ -278,7 +302,13 @@ class DailySheetService:
         else:
             gross_fuel_sales = total_billed
 
-        expected_cash_handover = gross_fuel_sales - (credit_sales + digital_sales + total_expenses)
+        # Only cash-mode entries move the physical drawer: subtract cash expenses,
+        # add cash income (expense_net_by_mode["cash"] is +income − expense).
+        # Legacy rows default to cash mode, preserving prior behaviour where every
+        # expense reduced the cash handover.
+        expected_cash_handover = (
+            gross_fuel_sales - credit_sales - digital_sales + expense_net_by_mode["cash"]
+        )
 
         if actual_cash is not None:
             shortage_excess = actual_cash - expected_cash_handover

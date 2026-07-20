@@ -28,6 +28,8 @@ import type {
   DailySheet,
   DailySheetExpense,
   DailySheetPaymentModeAmounts,
+  ExpenseType,
+  ExpensePaymentMode,
 } from "@/features/daily-sheet/services/dailySheetService";
 import type { FuelType } from "@/features/inventory/types";
 
@@ -64,7 +66,8 @@ const FUEL_TYPE_LABELS: Record<string, string> = {
   CNG: "CNG",
 };
 
-const DENOMINATION_NOTES = [2000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+// ₹2000 note excluded (demonetised from circulation).
+const DENOMINATION_NOTES = [500, 200, 100, 50, 20, 10, 5, 2, 1];
 
 const EXPENSE_CATEGORIES = [
   "Generator Fuel (DG)",
@@ -117,6 +120,8 @@ export default function SheetDetail({
   const [newCategory, setNewCategory] = useState(EXPENSE_CATEGORIES[0]);
   const [newDesc, setNewDesc] = useState("");
   const [newAmount, setNewAmount] = useState("");
+  const [newType, setNewType] = useState<ExpenseType>("expense");
+  const [newPaymentMode, setNewPaymentMode] = useState<ExpensePaymentMode>("cash");
 
   // Physical cash handover
   const [actualCashInput, setActualCashInput] = useState<string>(
@@ -320,17 +325,45 @@ export default function SheetDetail({
   const grossFuelSales =
     reconciliation?.gross_fuel_sales ?? grandTotalNozzleAmount;
   const recordedByMode = reconciliation?.recorded_amount_by_mode ?? {};
-  const cashSales = recordedByMode.CASH ?? 0;
-  const upiSales = recordedByMode.UPI ?? 0;
-  const cardSales = recordedByMode.CARD ?? 0;
-  const creditSales = recordedByMode.CREDIT ?? 0;
+  // Per-mode net of the live expenses list: income adds, expense subtracts.
+  // Mirrors the backend so per-mode totals + cash handover recompute as rows
+  // are edited before re-save. Legacy rows default to expense / cash.
+  const expenseNetByMode = useMemo(() => {
+    const m: Record<string, number> = { CASH: 0, UPI: 0, CARD: 0, CREDIT: 0 };
+    for (const e of expenses) {
+      const key = (e.payment_mode ?? "cash").toUpperCase();
+      if (!(key in m)) continue;
+      const amt = Number(e.amount || 0);
+      m[key] += (e.type ?? "expense") === "income" ? amt : -amt;
+    }
+    return m;
+  }, [expenses]);
+  // Displayed per-mode totals = recorded sales net of income/expense in that mode.
+  const cashSales = (recordedByMode.CASH ?? 0) + expenseNetByMode.CASH;
+  const upiSales = (recordedByMode.UPI ?? 0) + expenseNetByMode.UPI;
+  const cardSales = (recordedByMode.CARD ?? 0) + expenseNetByMode.CARD;
+  const creditSales = (recordedByMode.CREDIT ?? 0) + expenseNetByMode.CREDIT;
   const digitalSales = upiSales + cardSales;
+
+  // total_expenses shown on the sheet counts expense-type rows only (income excluded).
   const totalCounterExpenses = useMemo(
-    () => expenses.reduce((s, e) => s + Number(e.amount || 0), 0),
+    () =>
+      expenses.reduce(
+        (s, e) => ((e.type ?? "expense") === "expense" ? s + Number(e.amount || 0) : s),
+        0
+      ),
     [expenses]
   );
+
+  // Cash-handover formula (mirrors backend): credit/digital are recorded sales
+  // only (money never in the drawer); only cash-mode income/expense moves cash.
+  const recordedCreditForCash = recordedByMode.CREDIT ?? 0;
+  const recordedDigitalForCash = (recordedByMode.UPI ?? 0) + (recordedByMode.CARD ?? 0);
   const expectedCash =
-    grossFuelSales - (creditSales + digitalSales + totalCounterExpenses);
+    grossFuelSales -
+    recordedCreditForCash -
+    recordedDigitalForCash +
+    expenseNetByMode.CASH;
   const parsedActualCash =
     actualCashInput !== "" ? parseFloat(actualCashInput) : null;
   const cashVariance =
@@ -413,6 +446,8 @@ export default function SheetDetail({
       category: newCategory,
       description: newDesc || newCategory,
       amount: amt,
+      type: newType,
+      payment_mode: newPaymentMode,
     };
     setExpenses((prev) => [...prev, item]);
     setNewDesc("");
@@ -931,6 +966,10 @@ export default function SheetDetail({
                           <td className="px-3 py-1.5">
                             <p className="text-ink font-semibold">
                               {exp.category}
+                              <span className="ml-1.5 text-[8px] uppercase font-bold text-ink-subtle">
+                                {(exp.payment_mode ?? "cash")}
+                                {(exp.type ?? "expense") === "income" ? " · in" : ""}
+                              </span>
                             </p>
                             {exp.description !== exp.category && (
                               <p className="text-[9px] text-ink-subtle">
@@ -938,8 +977,8 @@ export default function SheetDetail({
                               </p>
                             )}
                           </td>
-                          <td className="px-3 py-1.5 text-right font-mono text-ink">
-                            {fmt(exp.amount)}
+                          <td className={`px-3 py-1.5 text-right font-mono ${(exp.type ?? "expense") === "income" ? "text-emerald-500" : "text-ink"}`}>
+                            {(exp.type ?? "expense") === "income" ? "+" : ""}{fmt(exp.amount)}
                           </td>
                           <td className="py-1.5 pr-2 no-print">
                             <button
@@ -993,7 +1032,7 @@ export default function SheetDetail({
                   className="no-print p-3 border-t border-hairline bg-surface-2/50 space-y-2"
                 >
                   <p className="text-[9px] uppercase font-bold text-ink-subtle tracking-wider">
-                    Add Expense
+                    Add Expense / Income
                   </p>
                   <select
                     value={newCategory}
@@ -1006,6 +1045,26 @@ export default function SheetDetail({
                       </option>
                     ))}
                   </select>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={newType}
+                      onChange={(e) => setNewType(e.target.value as ExpenseType)}
+                      className="flex-1 bg-surface-1 border border-hairline rounded text-[11px] text-ink p-1.5 outline-none focus:border-fuel-amber"
+                    >
+                      <option value="expense">Expense (given)</option>
+                      <option value="income">Income (received)</option>
+                    </select>
+                    <select
+                      value={newPaymentMode}
+                      onChange={(e) => setNewPaymentMode(e.target.value as ExpensePaymentMode)}
+                      className="flex-1 bg-surface-1 border border-hairline rounded text-[11px] text-ink p-1.5 outline-none focus:border-fuel-amber"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="upi">UPI</option>
+                      <option value="card">Card</option>
+                      <option value="credit">Credit</option>
+                    </select>
+                  </div>
                   <div className="flex gap-1.5">
                     <Input
                       type="text"
