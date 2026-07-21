@@ -103,6 +103,9 @@ export interface IncomeSummary {
   /** Sum of the day's DEPOSIT rows. */
   total_deposits: number;
 
-  /** total_sales + total_incomes - total_expenses - total_deposits. */
+  /** Sum of customer payments received on this date. */
+  total_payments: number;
+
+  /** total_sales + total_incomes + total_payments - total_expenses - total_deposits. */
   cash_in_hand: number;
 }

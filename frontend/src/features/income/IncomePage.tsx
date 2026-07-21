@@ -175,7 +175,7 @@ export default function IncomePage() {
       ) : summaryLoading ? (
         <LoadingState />
       ) : summary ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="rounded-2xl border border-hairline bg-card p-5">
             <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
               Total Sales
@@ -190,6 +190,14 @@ export default function IncomePage() {
             </p>
             <p className="mt-2 text-2xl font-bold text-ink">
               ₹{formatMoney(summary.total_incomes)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-hairline bg-card p-5">
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+              Payments Received
+            </p>
+            <p className="mt-2 text-2xl font-bold text-green-600">
+              ₹{formatMoney(summary.total_payments ?? 0)}
             </p>
           </div>
           <div className="rounded-2xl border border-hairline bg-card p-5">

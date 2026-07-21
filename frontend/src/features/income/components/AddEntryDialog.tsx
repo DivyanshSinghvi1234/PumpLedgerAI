@@ -141,16 +141,19 @@ export default function AddEntryDialog({
       customer_name: isExpense && lend && !customerUuid ? lendName : null,
     };
 
-    if (incomeToEdit) {
-      await updateMutation.mutateAsync({
-        uuid: incomeToEdit.uuid,
-        data: payload,
-      });
-    } else {
-      await createMutation.mutateAsync(payload);
+    try {
+      if (incomeToEdit) {
+        await updateMutation.mutateAsync({
+          uuid: incomeToEdit.uuid,
+          data: payload,
+        });
+      } else {
+        await createMutation.mutateAsync(payload);
+      }
+      onOpenChange(false);
+    } catch {
+      // onError in the mutation hook already shows a toast.
     }
-
-    onOpenChange(false);
   }
 
   const title = preset?.title ?? (incomeToEdit ? `Edit ${activeKind === "DEPOSIT" ? "Deposit" : isExpense ? "Expense" : "Income"}` : kind === "DEPOSIT" ? "Add Deposit" : isExpense ? "Add Expense / Variable" : "Add Income / Variable");

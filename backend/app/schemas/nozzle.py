@@ -98,6 +98,7 @@ class NozzleReadingResponse(BaseModel):
 class BulkNozzleReadingCreate(BaseModel):
     reading_date: date
     readings: list[NozzleReadingCreate]
+    tank_testing: dict[str, float] | None = None
 
 class BulkFormNozzleItem(BaseModel):
     nozzle_uuid: str

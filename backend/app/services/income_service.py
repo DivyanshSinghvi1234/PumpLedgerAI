@@ -11,6 +11,7 @@ from app.core.exceptions import IncomeNotFoundError
 from app.models.income import Income
 from app.models.nozzle import Nozzle
 from app.models.nozzle_reading import NozzleReading
+from app.models.payment import Payment
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.income_repository import IncomeRepository
 from app.schemas.income import (
@@ -284,12 +285,13 @@ class IncomeService:
         headline totals for the day."""
 
         # Aggregate net liters sold per fuel type from the day's nozzle
-        # readings. total_sales holds the net (post-testing) liters per nozzle;
-        # each nozzle carries its fuel_type.
+        # readings. total_sales includes testing, so we subtract testing_liters
+        # to get actual customer-facing sales volume.
         rows = db.execute(
             select(
                 Nozzle.fuel_type,
                 func.coalesce(func.sum(NozzleReading.total_sales), 0.0),
+                func.coalesce(func.sum(NozzleReading.testing_liters), 0.0),
             )
             .join(Nozzle, NozzleReading.nozzle_id == Nozzle.id)
             .where(NozzleReading.reading_date == on_date)
@@ -303,9 +305,12 @@ class IncomeService:
         fuel_sales: list[FuelSaleRow] = []
         total_sales = Decimal("0.00")
 
-        for fuel_type, liters_raw in rows:
-            liters = Decimal(str(liters_raw or 0)).quantize(Decimal("0.001"))
-            if liters == 0:
+        for fuel_type, liters_raw, testing_raw in rows:
+            gross_liters = Decimal(str(liters_raw or 0))
+            testing_liters = Decimal(str(testing_raw or 0))
+            # Net liters = total meter qty minus nozzle testing
+            liters = (gross_liters - testing_liters).quantize(Decimal("0.001"))
+            if liters <= 0:
                 continue
 
             rate = self.price_service.get_active_rate(
@@ -336,10 +341,24 @@ class IncomeService:
             str(totals.get(IncomeKind.DEPOSIT, 0))
         ).quantize(Decimal("0.01"))
 
-        # Cash actually in hand = fuel sales + other income, less money paid out (expenses and deposits).
-        cash_in_hand = (total_sales + total_incomes - total_expenses - total_deposits).quantize(
-            Decimal("0.01")
-        )
+        # Sum of all customer payments received on this date (money coming in
+        # from credit customers settling their outstanding balances).
+        total_payments = Decimal(
+            str(
+                db.scalar(
+                    select(func.coalesce(func.sum(Payment.amount), 0))
+                    .where(Payment.payment_date == on_date)
+                    .where(Payment.is_active == True)
+                )
+                or 0
+            )
+        ).quantize(Decimal("0.01"))
+
+        # Cash actually in hand = fuel sales + other income + payments received,
+        # less money paid out (expenses and deposits).
+        cash_in_hand = (
+            total_sales + total_incomes + total_payments - total_expenses - total_deposits
+        ).quantize(Decimal("0.01"))
 
         return IncomeSummaryResponse(
             summary_date=on_date,
@@ -348,5 +367,6 @@ class IncomeService:
             total_incomes=total_incomes,
             total_expenses=total_expenses,
             total_deposits=total_deposits,
+            total_payments=total_payments,
             cash_in_hand=cash_in_hand,
         )
