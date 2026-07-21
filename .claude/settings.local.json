@@ -39,7 +39,13 @@
       "Bash(curl -s -o /dev/null http://127.0.0.1:8000/)",
       "Bash(curl -s -o /dev/null http://localhost:5173/)",
       "Bash(uv run python -c ' *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Skill(run)",
+      "Bash(curl -s -o /dev/null -w \"backend:%{http_code}\\\\n\" http://127.0.0.1:8000/)",
+      "Bash(curl -s -o /dev/null -w \"front5173:%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(command -v chromium-cli chromium chrome google-chrome)",
+      "Bash(pkill -f \"vite\")",
+      "WebSearch"
     ]
   }
 }

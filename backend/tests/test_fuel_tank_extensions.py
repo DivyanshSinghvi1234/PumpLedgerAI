@@ -192,7 +192,7 @@ class TestFuelTankExtensions:
         finally:
             db.close()
 
-        # 1. Post initial reading: opening=1000.0, closing=1100.0, testing=10.0 -> net sales = 90.0
+        # 1. Post initial reading: opening=1000.0, closing=1100.0, testing=10.0 -> net sales = 110.0
         post_resp = client.post(
             "/api/v1/nozzles/readings/bulk",
             headers=auth_headers,
@@ -212,15 +212,15 @@ class TestFuelTankExtensions:
         # Verification: check returned reading fields
         reading_data = post_resp.json()[0]
         assert reading_data["testing_liters"] == 10.0
-        assert reading_data["sales"] == 90.0
+        assert reading_data["sales"] == 110.0
 
-        # Check tank stock: 5000.0 - 90.0 = 4910.0
+        # Check tank stock: 5000.0 - 110.0 = 4890.0
         tank_resp = client.get("/api/v1/tanks", headers=auth_headers)
         target_tank = next(t for t in tank_resp.json() if t["uuid"] == tank["uuid"])
-        assert target_tank["current_stock_liters"] == 4910.0
+        assert target_tank["current_stock_liters"] == 4890.0
 
-        # 2. Sequential Edit 1: change closing to 1120.0, testing to 20.0 -> net sales = 100.0
-        # Stock difference = 100.0 - 90.0 = 10.0. Stock should become 4910.0 - 10.0 = 4900.0
+        # 2. Sequential Edit 1: change closing to 1120.0, testing to 20.0 -> net sales = 140.0
+        # Stock difference = 140.0 - 110.0 = 30.0. Stock should become 4890.0 - 30.0 = 4860.0
         edit1_resp = client.post(
             "/api/v1/nozzles/readings/bulk",
             headers=auth_headers,
@@ -237,14 +237,14 @@ class TestFuelTankExtensions:
             },
         )
         assert edit1_resp.status_code in (200, 201)
-        assert edit1_resp.json()[0]["sales"] == 100.0
+        assert edit1_resp.json()[0]["sales"] == 140.0
 
         tank_resp = client.get("/api/v1/tanks", headers=auth_headers)
         target_tank = next(t for t in tank_resp.json() if t["uuid"] == tank["uuid"])
-        assert target_tank["current_stock_liters"] == 4900.0
+        assert target_tank["current_stock_liters"] == 4860.0
 
-        # 3. Sequential Edit 2: change closing to 1150.0, testing to 10.0 -> net sales = 140.0
-        # Stock difference = 140.0 - 100.0 = 40.0. Stock should become 4900.0 - 40.0 = 4860.0
+        # 3. Sequential Edit 2: change closing to 1150.0, testing to 10.0 -> net sales = 160.0
+        # Stock difference = 160.0 - 140.0 = 20.0. Stock should become 4860.0 - 20.0 = 4840.0
         edit2_resp = client.post(
             "/api/v1/nozzles/readings/bulk",
             headers=auth_headers,
@@ -261,14 +261,14 @@ class TestFuelTankExtensions:
             },
         )
         assert edit2_resp.status_code in (200, 201)
-        assert edit2_resp.json()[0]["sales"] == 140.0
+        assert edit2_resp.json()[0]["sales"] == 160.0
 
         tank_resp = client.get("/api/v1/tanks", headers=auth_headers)
         target_tank = next(t for t in tank_resp.json() if t["uuid"] == tank["uuid"])
-        assert target_tank["current_stock_liters"] == 4860.0
+        assert target_tank["current_stock_liters"] == 4840.0
 
         # 4. Sequential Edit 3: change closing to 1080.0, testing to 0.0 -> net sales = 80.0
-        # Stock difference = 80.0 - 140.0 = -60.0. Stock should become 4860.0 - (-60.0) = 4920.0
+        # Stock difference = 80.0 - 160.0 = -80.0. Stock should become 4840.0 - (-80.0) = 4920.0
         edit3_resp = client.post(
             "/api/v1/nozzles/readings/bulk",
             headers=auth_headers,

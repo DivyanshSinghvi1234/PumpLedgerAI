@@ -689,6 +689,159 @@ tr.table-row-hover:hover {
   border-radius: 1.5rem;
 }
 
+/* Book shell — owns the 3D perspective (must be the cover's direct parent) and
+   a layered edge shadow that reads as the thickness of a bound register. */
+.pl-book-shell {
+  perspective: 2200px;
+  box-shadow:
+    2px 0 0 #d9cdb0, 4px 0 0 #cfc2a2, 6px 0 0 #c4b691,   /* stacked page edges (right) */
+    0 3px 0 #d9cdb0, 0 6px 0 #cfc2a2,                      /* stacked page edges (bottom) */
+    10px 14px 34px rgba(0,0,0,0.45);                       /* drop shadow off the desk */
+}
+
+/* Whole closed cover over the full spread; swings open on the left spine hinge
+   to reveal the register on first mount. backface-hidden so it clears past 90°. */
+@keyframes pl-cover-open {
+  0%   { transform: rotateY(0deg); }
+  100% { transform: rotateY(-168deg); }
+}
+.pl-book-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  transform-origin: left center;
+  backface-visibility: hidden;
+  animation: pl-cover-open 0.95s cubic-bezier(0.66, 0, 0.34, 1) 0.2s both;
+  background:
+    radial-gradient(circle at 68% 32%, rgba(255,255,255,0.09), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 7px),
+    linear-gradient(135deg, #6b2b1f 0%, #4a1c14 55%, #351009 100%);
+  border-left: 8px solid rgba(0,0,0,0.45); /* spine binding */
+  box-shadow: inset 0 0 90px rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Single sheet turning over the centre spine on next/prev day.
+   ponytail: blank ruled sheet, no printed faces; the whole day's spread swaps
+   underneath at the mid-point (edge-on) since one day == one full spread here.
+   Ceiling: a fast flick hides it, but it's not a true two-faced page turn.
+   Upgrade: render old-right + new-left onto a preserve-3d two-face sheet. */
+/* 3D Flipbook Animations & Layout */
+.pl-flip-container {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 50;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.pl-flip-next {
+  left: 50%;
+  transform-origin: left center;
+  animation: pl-page-next-3d 0.7s cubic-bezier(0.4, 0.1, 0.4, 1) forwards;
+}
+
+.pl-flip-prev {
+  left: 0;
+  transform-origin: right center;
+  animation: pl-page-prev-3d 0.7s cubic-bezier(0.4, 0.1, 0.4, 1) forwards;
+}
+
+@keyframes pl-page-next-3d {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(-180deg); }
+}
+
+@keyframes pl-page-prev-3d {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(180deg); }
+}
+
+/* Front & back faces of the flipping sheet */
+.pl-flip-page-front,
+.pl-flip-page-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  background-color: #F7F1E3; /* Aged paper color */
+  box-shadow: inset 0 0 35px rgba(0,0,0,0.06);
+  padding: 80px 2rem 2.25rem 4.5rem;
+  background-image: 
+    linear-gradient(to bottom, #F7F1E3 0px, #F7F1E3 80px, transparent 80px),
+    repeating-linear-gradient(to bottom, transparent 0px, transparent 19px, rgba(0, 0, 0, 0.28) 20px);
+  background-size: 100% 100%, 100% 20px;
+  line-height: 20px;
+  overflow: hidden;
+}
+
+/* Vertical double red margin lines for flipping sheet */
+.pl-flip-page-front::before,
+.pl-flip-page-back::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 54px;
+  width: 3px;
+  border-left: 1px solid #A33A32;
+  border-right: 1px solid #A33A32;
+  opacity: 0.72;
+  z-index: 10;
+}
+
+.pl-flip-page-front {
+  z-index: 2;
+  transform: rotateY(0deg);
+}
+
+.pl-flip-page-back {
+  transform: rotateY(180deg);
+}
+
+/* Shading sweep effect on turn (simulates crease shadows under light) */
+.pl-flip-page-front::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 100%);
+  animation: pl-shade-front 0.7s ease-in-out forwards;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.pl-flip-page-back::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to left, rgba(0,0,0,0) 0%, rgba(0,0,0,0.12) 100%);
+  animation: pl-shade-back 0.7s ease-in-out forwards;
+  pointer-events: none;
+  z-index: 20;
+}
+
+@keyframes pl-shade-front {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes pl-shade-back {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Shaded handwritten placeholder text on the flipping pages */
+.pl-flip-mock-content {
+  opacity: 0.65;
+  filter: blur(0.6px);
+  transform: skewY(-0.5deg);
+}
+
 .pl-register-page-left {
   background: #F7F1E3; /* Aged book ledger paper */
   color: #000000;
@@ -815,6 +968,45 @@ tr.table-row-hover:hover {
 /* Monospaced ledger totals divider */
 .pl-double-underline {
   border-bottom: 3px double rgba(43, 38, 33, 0.4);
+}
+
+/* Dog-ear corner fold effect for physical ledger look */
+.pl-page-corner-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 36px;
+  height: 36px;
+  z-index: 40;
+  cursor: pointer;
+  background: linear-gradient(135deg, transparent 50%, #e2d3b8 50%);
+  border-bottom-right-radius: 4px;
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.15);
+  transition: all 0.25s ease;
+}
+.pl-page-corner-left:hover {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, transparent 50%, #c4b391 50%);
+}
+
+.pl-page-corner-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  z-index: 40;
+  cursor: pointer;
+  background: linear-gradient(-135deg, transparent 50%, #e2d3b8 50%);
+  border-bottom-left-radius: 4px;
+  box-shadow: -1px 1px 3px rgba(0,0,0,0.15);
+  transition: all 0.25s ease;
+}
+.pl-page-corner-right:hover {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(-135deg, transparent 50%, #c4b391 50%);
 }
 
 /* Print Media Styles — Professional Standard Format */

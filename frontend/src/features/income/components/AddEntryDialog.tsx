@@ -16,8 +16,9 @@ import CustomerAutocomplete from "@/features/customers/components/CustomerAutoco
 import { getTodayDateString } from "@/lib/utils";
 
 import { useCreateIncome } from "../hooks/useCreateIncome";
+import { useUpdateIncome } from "../hooks/useUpdateIncome";
 import { useIncomeCategories } from "../hooks/useIncomeCategories";
-import type { IncomeKind, PaymentMode } from "../types/income";
+import type { Income, IncomeKind, PaymentMode } from "../types/income";
 
 // Enum values mirror the backend (app/core/enums.py).
 const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
@@ -52,6 +53,8 @@ interface Props {
   defaultDate: string;
   /** Optional prefill for preset entries (e.g. a bank deposit). */
   preset?: { title?: string; description?: string; category?: string };
+  /** Optional entry to edit. */
+  incomeToEdit?: Income;
 }
 
 export default function AddEntryDialog({
@@ -60,10 +63,13 @@ export default function AddEntryDialog({
   kind,
   defaultDate,
   preset,
+  incomeToEdit,
 }: Props) {
-  const isExpense = kind === "EXPENSE";
+  const activeKind = incomeToEdit ? incomeToEdit.kind : kind;
+  const isExpense = activeKind === "EXPENSE";
 
   const createMutation = useCreateIncome();
+  const updateMutation = useUpdateIncome();
 
   // Previously-used category names power the datalist autocomplete.
   const { data: categories = [] } = useIncomeCategories();
@@ -89,25 +95,26 @@ export default function AddEntryDialog({
     },
   });
 
-  // Reset the form each time the dialog opens so the date tracks the view.
+  // Reset the form each time the dialog opens or incomeToEdit changes so the values sync.
   useEffect(() => {
     if (open) {
       reset({
-        income_date: defaultDate || getTodayDateString(),
-        description: preset?.description ?? "",
-        amount: undefined,
-        category: preset?.category ?? "",
-        payment_mode: "CASH",
+        income_date: incomeToEdit?.income_date || defaultDate || getTodayDateString(),
+        description: incomeToEdit?.description ?? preset?.description ?? "",
+        amount: incomeToEdit?.amount ?? undefined,
+        category: incomeToEdit?.category ?? preset?.category ?? "",
+        payment_mode: incomeToEdit?.payment_mode ?? "CASH",
       });
-      setLend(false);
-      setCustomerName("");
-      setCustomerUuid(null);
+      setLend(!!incomeToEdit?.customer_uuid);
+      setCustomerName(incomeToEdit?.customer_name ?? "");
+      setCustomerUuid(incomeToEdit?.customer_uuid ?? null);
       setCustomerError(null);
     } else {
       createMutation.reset();
+      updateMutation.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultDate]);
+  }, [open, defaultDate, incomeToEdit]);
 
   async function submitForm(data: EntryFormData) {
     setCustomerError(null);
@@ -123,8 +130,8 @@ export default function AddEntryDialog({
       return;
     }
 
-    await createMutation.mutateAsync({
-      kind,
+    const payload = {
+      kind: activeKind,
       income_date: data.income_date,
       description: data.description,
       amount: data.amount,
@@ -132,15 +139,26 @@ export default function AddEntryDialog({
       payment_mode: data.payment_mode,
       customer_uuid: isExpense && lend ? customerUuid : null,
       customer_name: isExpense && lend && !customerUuid ? lendName : null,
-    });
+    };
+
+    if (incomeToEdit) {
+      await updateMutation.mutateAsync({
+        uuid: incomeToEdit.uuid,
+        data: payload,
+      });
+    } else {
+      await createMutation.mutateAsync(payload);
+    }
 
     onOpenChange(false);
   }
 
-  const title = preset?.title ?? (isExpense ? "Add Expense / Variable" : "Add Income / Variable");
-  const descriptionPlaceholder = isExpense
-    ? "e.g. Generator diesel, staff advance, repairs"
-    : "e.g. Oil sale, scrap sale, misc receipt";
+  const title = preset?.title ?? (incomeToEdit ? `Edit ${activeKind === "DEPOSIT" ? "Deposit" : isExpense ? "Expense" : "Income"}` : kind === "DEPOSIT" ? "Add Deposit" : isExpense ? "Add Expense / Variable" : "Add Income / Variable");
+  const descriptionPlaceholder = activeKind === "DEPOSIT"
+    ? "e.g. Cash deposited in SBI"
+    : isExpense
+      ? "e.g. Generator diesel, staff advance, repairs"
+      : "e.g. Oil sale, scrap sale, misc receipt";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -231,9 +249,9 @@ export default function AddEntryDialog({
           )}
 
           <FormActions
-            loading={createMutation.isPending}
+            loading={createMutation.isPending || updateMutation.isPending}
             onCancel={() => onOpenChange(false)}
-            submitLabel={isExpense ? "Save Expense" : "Save Income"}
+            submitLabel={incomeToEdit ? "Save Changes" : activeKind === "DEPOSIT" ? "Save Deposit" : isExpense ? "Save Expense" : "Save Income"}
           />
         </form>
       </DialogContent>

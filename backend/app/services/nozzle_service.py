@@ -422,7 +422,7 @@ class NozzleService:
                 raise ValueError(f"Meter sales for nozzle '{nozzle.name}' are implausibly high; review the reading.")
 
             testing_liters = item.testing_liters or 0.0
-            sales = gross_sales - testing_liters
+            sales = gross_sales + testing_liters
 
             existing = self.reading_repo.get_by_date(db, nozzle.id, r_date)
             old_tank_id = existing.nozzle.tank_id if existing else None

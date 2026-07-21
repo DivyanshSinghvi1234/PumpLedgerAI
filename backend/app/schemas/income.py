@@ -116,5 +116,8 @@ class IncomeSummaryResponse(BaseModel):
     # Sum of the day's EXPENSE rows.
     total_expenses: Decimal
 
-    # total_sales + total_incomes - total_expenses.
+    # Sum of the day's DEPOSIT rows.
+    total_deposits: Decimal = Decimal("0.00")
+
+    # total_sales + total_incomes - total_expenses - total_deposits.
     cash_in_hand: Decimal

@@ -10,8 +10,8 @@ export type FuelType =
   | "DIESEL"
   | "LUBRICANT";
 
-/** INCOME = money in, EXPENSE = money out. */
-export type IncomeKind = "INCOME" | "EXPENSE";
+/** INCOME = money in, EXPENSE = money out, DEPOSIT = bank deposit. */
+export type IncomeKind = "INCOME" | "EXPENSE" | "DEPOSIT";
 
 export interface Income {
   uuid: string;
@@ -100,6 +100,9 @@ export interface IncomeSummary {
   /** Sum of the day's EXPENSE rows. */
   total_expenses: number;
 
-  /** total_sales + total_incomes - total_expenses. */
+  /** Sum of the day's DEPOSIT rows. */
+  total_deposits: number;
+
+  /** total_sales + total_incomes - total_expenses - total_deposits. */
   cash_in_hand: number;
 }

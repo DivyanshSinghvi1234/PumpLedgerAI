@@ -91,7 +91,7 @@ class IncomeService:
 
         self.audit_service.log_action(
             db,
-            action="Recorded Expense" if data.kind == IncomeKind.EXPENSE else "Recorded Income",
+            action="Recorded Deposit" if data.kind == IncomeKind.DEPOSIT else "Recorded Expense" if data.kind == IncomeKind.EXPENSE else "Recorded Income",
             target_table="incomes",
             target_id=str(income.id),
             actor_id=actor_id,
@@ -181,12 +181,94 @@ class IncomeService:
 
         self.audit_service.log_action(
             db,
-            action="Deleted Expense" if income.kind == IncomeKind.EXPENSE else "Deleted Income",
+            action="Deleted Deposit" if income.kind == IncomeKind.DEPOSIT else "Deleted Expense" if income.kind == IncomeKind.EXPENSE else "Deleted Income",
             target_table="incomes",
             target_id=str(income.id),
             actor_id=actor_id,
             old_values=old_values,
         )
+
+
+    # -----------------------------------
+    # Update
+    # -----------------------------------
+
+    def update(
+        self,
+        db: Session,
+        income_uuid: str,
+        data: IncomeCreate,
+        actor_id: int | None = None,
+    ) -> Income:
+        income = self.repository.get_by_uuid(db, income_uuid)
+        if income is None:
+            raise IncomeNotFoundError(income_uuid)
+
+        # Reversing old ledger entry if customer was linked
+        if income.customer is not None:
+            self.ledger_service.reverse_reference(
+                db,
+                income.customer,
+                "INCOME",
+                income.id,
+                extra_deletes=[],
+                actor_id=actor_id,
+            )
+            # Clear link locally so we can resolve a new one
+            income.customer_id = None
+            income.customer = None
+            db.flush()
+
+        customer = self.customer_repository.resolve_or_create_customer(
+            db,
+            data.customer_uuid,
+            data.customer_name,
+        )
+
+        income.kind = data.kind
+        income.income_date = data.income_date
+        income.description = data.description.strip()
+        income.amount = data.amount
+        income.category = (data.category.strip() or None) if data.category else None
+        income.payment_mode = data.payment_mode
+        income.customer_id = customer.id if customer else None
+
+        if customer is not None:
+            db.flush()
+            self.ledger_service.post(
+                db,
+                customer,
+                LedgerEntryType.DEBIT_ADJUSTMENT,
+                data.amount,
+                entry_date=data.income_date,
+                reference_type="INCOME",
+                reference_id=income.id,
+                remarks=f"Loan — {income.description}",
+                extra_objects=[],
+                actor_id=actor_id,
+            )
+        else:
+            db.add(income)
+            db.flush()
+
+        self.audit_service.log_action(
+            db,
+            action="Updated Deposit" if data.kind == IncomeKind.DEPOSIT else "Updated Expense" if data.kind == IncomeKind.EXPENSE else "Updated Income",
+            target_table="incomes",
+            target_id=str(income.id),
+            actor_id=actor_id,
+            new_values={
+                "kind": data.kind.value,
+                "income_date": str(data.income_date),
+                "description": income.description,
+                "amount": str(data.amount),
+                "category": income.category,
+                "payment_mode": data.payment_mode.value,
+                "customer_id": str(customer.id) if customer else None,
+            },
+        )
+
+        return income
 
     # -----------------------------------
     # Daily summary
@@ -250,9 +332,12 @@ class IncomeService:
         total_expenses = Decimal(
             str(totals.get(IncomeKind.EXPENSE, 0))
         ).quantize(Decimal("0.01"))
+        total_deposits = Decimal(
+            str(totals.get(IncomeKind.DEPOSIT, 0))
+        ).quantize(Decimal("0.01"))
 
-        # Cash actually in hand = fuel sales + other income, less money paid out.
-        cash_in_hand = (total_sales + total_incomes - total_expenses).quantize(
+        # Cash actually in hand = fuel sales + other income, less money paid out (expenses and deposits).
+        cash_in_hand = (total_sales + total_incomes - total_expenses - total_deposits).quantize(
             Decimal("0.01")
         )
 
@@ -262,5 +347,6 @@ class IncomeService:
             total_sales=total_sales.quantize(Decimal("0.01")),
             total_incomes=total_incomes,
             total_expenses=total_expenses,
+            total_deposits=total_deposits,
             cash_in_hand=cash_in_hand,
         )

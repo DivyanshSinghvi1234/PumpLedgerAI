@@ -62,6 +62,18 @@ class IncomeService {
     return response.data;
   }
 
+  async updateIncome(
+    uuid: string,
+    data: CreateIncomeRequest
+  ): Promise<Income> {
+    const response = await api.put<Income>(
+      `/v1/income/${uuid}`,
+      data
+    );
+
+    return response.data;
+  }
+
   async deleteIncome(uuid: string): Promise<void> {
     await api.delete(`/v1/income/${uuid}`);
   }

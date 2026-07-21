@@ -19,6 +19,7 @@ class PaymentMode(str, Enum):
 class IncomeKind(str, Enum):
     INCOME = "INCOME"
     EXPENSE = "EXPENSE"
+    DEPOSIT = "DEPOSIT"
 
 
 class VerificationStatus(str, Enum):

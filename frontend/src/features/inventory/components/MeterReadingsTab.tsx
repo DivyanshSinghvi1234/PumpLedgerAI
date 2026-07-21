@@ -89,7 +89,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
         const openVal = item.opening_reading;
         const closeVal = item.closing_reading;
         const testingL = item.testing !== null ? item.testing : 0.0;
-        const salesVal = closeVal !== null ? Math.max(0, closeVal - openVal - testingL).toFixed(3) : "";
+        const salesVal = closeVal !== null ? Math.max(0, closeVal - openVal + testingL).toFixed(3) : "";
         initialMap[item.nozzle_uuid] = {
           opening: openVal,
           closing: closeVal !== null ? closeVal : "",
@@ -437,7 +437,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const openVal = parseFloat(raw || "0");
                                   const closeVal = parseFloat(prevItem.closing?.toString() || "0");
                                   const testingVal = parseFloat(prevItem.testing?.toString() || "0");
-                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal - testingVal).toFixed(3);
+                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal + testingVal).toFixed(3);
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {
@@ -541,7 +541,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
                                   const closeVal = parseFloat(raw || "0");
                                   const testingVal = parseFloat(prevItem.testing?.toString() || "0");
-                                  const salesVal = raw === "" ? "" : Math.max(0, closeVal - openVal - testingVal).toFixed(3);
+                                  const salesVal = raw === "" ? "" : Math.max(0, closeVal - openVal + testingVal).toFixed(3);
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {
@@ -583,13 +583,14 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
                                   const closeVal = parseFloat(prevItem.closing?.toString() || "0");
                                   const testingVal = parseFloat(raw || "0");
-                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal - testingVal).toFixed(3);
+                                  const salesVal = parseFloat(prevItem.sales?.toString() || "0");
+                                  const closingVal = prevItem.sales === "" ? "" : Math.max(0, openVal + salesVal - testingVal).toFixed(3);
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {
                                       ...prevItem,
                                       testing: raw,
-                                      sales: salesVal,
+                                      closing: closingVal,
                                     },
                                   };
                                 });
@@ -620,7 +621,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
                                   const testingVal = parseFloat(prevItem.testing?.toString() || "0");
                                   const salesVal = parseFloat(raw || "0");
-                                  const closingVal = raw === "" ? "" : (openVal + salesVal + testingVal).toFixed(3);
+                                  const closingVal = raw === "" ? "" : Math.max(0, openVal + salesVal - testingVal).toFixed(3);
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {

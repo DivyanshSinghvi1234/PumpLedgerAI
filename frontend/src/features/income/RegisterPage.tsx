@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/common/PageHeader";
 import { ChevronLeft, ChevronRight, Printer, RefreshCw, AlertCircle } from "lucide-react";
 import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
+import voucherService from "@/features/vouchers/services/voucherService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "@/features/inventory/services/inventoryService";
 
@@ -26,26 +27,22 @@ function formatLedgerAmount(val: number): string {
 
 export default function RegisterPage() {
   const { activePump } = useCurrentUser();
+  const queryClient = useQueryClient();
   const stationName = activePump?.name || "Shree Petroleum";
-  const [date, setDate] = useState("2026-07-19"); // Default to match the reference date: 19-07-2026
+  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]); // Opens to the current day
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+  const swipeStartX = useRef<number | null>(null);
 
   // Local state for cash denominations, cached to localStorage per date
   const cacheKey = `ledger_denominations_${date}`;
-  const [notes, setNotes] = useState({
-    n500: 771,
-    n200: 400,
-    n100: 420,
-    n50: 33,
-    n20: 15,
-    n10: 5,
-  });
+  const DEFAULT_NOTES = { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 };
 
-  // Other ledger variables editable by user
-  const [cashHome, setCashHome] = useState(347020);
-  const [prevDeposit, setPrevDeposit] = useState(8901070);
-  const [ledgerInterest, setLedgerInterest] = useState(2500);
+  const [notes, setNotes] = useState(DEFAULT_NOTES);
+  const [cashHome, setCashHome] = useState(0);
+  const [prevDeposit, setPrevDeposit] = useState(0);
+  const [ledgerInterest, setLedgerInterest] = useState(0);
 
   // Load cash denomination cache on date changes
   useEffect(() => {
@@ -53,19 +50,18 @@ export default function RegisterPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setNotes(parsed.notes || { n500: 771, n200: 400, n100: 420, n50: 33, n20: 15, n10: 5 });
-        setCashHome(parsed.cashHome ?? 347020);
-        setPrevDeposit(parsed.prevDeposit ?? 8901070);
-        setLedgerInterest(parsed.ledgerInterest ?? 2500);
+        setNotes(parsed.notes || DEFAULT_NOTES);
+        setCashHome(parsed.cashHome ?? 0);
+        setPrevDeposit(parsed.prevDeposit ?? 0);
+        setLedgerInterest(parsed.ledgerInterest ?? 0);
       } catch (e) {
         console.error("Failed to parse denominations", e);
       }
     } else {
-      // Defaults matching the image
-      setNotes({ n500: 771, n200: 400, n100: 420, n50: 33, n20: 15, n10: 5 });
-      setCashHome(347020);
-      setPrevDeposit(8901070);
-      setLedgerInterest(2500);
+      setNotes(DEFAULT_NOTES);
+      setCashHome(0);
+      setPrevDeposit(0);
+      setLedgerInterest(0);
     }
   }, [date, cacheKey]);
 
@@ -95,47 +91,91 @@ export default function RegisterPage() {
     year: "numeric",
   }).replace(/\//g, "-");
 
-  // Page turning handler
+  // Page turning handler — a single sheet turns over the spine; the day's spread
+  // swaps underneath at the mid-point, while the sheet is edge-on and hidden.
   function triggerPageTurn(dir: "next" | "prev") {
     if (isFlipping) return;
     setIsFlipping(true);
     setFlipDirection(dir);
 
-    const d = new Date(date);
-    d.setDate(d.getDate() + (dir === "next" ? 1 : -1));
-    const nextDateStr = d.toISOString().split("T")[0];
+    setTimeout(() => {
+      if (dir === "next") {
+        if (currentPageIndex < totalPages - 1) {
+          setPageIndex(currentPageIndex + 1);
+        } else {
+          const d = new Date(date);
+          d.setDate(d.getDate() + 1);
+          setDate(d.toISOString().split("T")[0]);
+          setPageIndex(0);
+        }
+      } else {
+        if (currentPageIndex > 0) {
+          setPageIndex(currentPageIndex - 1);
+        } else {
+          const d = new Date(date);
+          d.setDate(d.getDate() - 1);
+          setDate(d.toISOString().split("T")[0]);
+          setPageIndex(999); // 999 clamps to the last page of the previous date
+        }
+      }
+    }, 350);
 
     setTimeout(() => {
-      setDate(nextDateStr);
       setIsFlipping(false);
       setFlipDirection(null);
-    }, 600); // Wait for page flip keyframes
+    }, 700); // matches flip keyframe duration
+  }
+
+
+
+  // Speculative prefetching: keep a 30-day sliding window of surrounding dates pre-fetched
+  // in the background cache so page turns resolve instantaneously.
+  useEffect(() => {
+    const baseDate = new Date(date);
+    // Prefetch ±15 days around the current date
+    const prefetchOffsets = Array.from({ length: 30 }, (_, index) => index - 15).filter(offset => offset !== 0);
+
+    const timer = setTimeout(() => {
+      prefetchOffsets.forEach(offset => {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + offset);
+        const targetDateStr = d.toISOString().split("T")[0];
+
+        // Prefetch vouchers
+        queryClient.prefetchQuery({
+          queryKey: ["vouchers", { from_date: targetDateStr, to_date: targetDateStr }],
+          queryFn: () => voucherService.getVouchers({ from_date: targetDateStr, to_date: targetDateStr }),
+          staleTime: 5 * 60 * 1000,
+        });
+
+        // Prefetch nozzle readings bulk-form
+        queryClient.prefetchQuery({
+          queryKey: ["nozzleReadingsBulkForm", targetDateStr],
+          queryFn: () => inventoryService.getBulkReadingsForm(targetDateStr),
+          staleTime: 5 * 60 * 1000,
+        });
+      });
+    }, 100); // Small delay to prioritize the immediate layout queries
+
+    return () => clearTimeout(timer);
+  }, [date, queryClient]);
+
+  // Swipe left → next day, swipe right → previous day (touch + mouse drag).
+  function onSwipeStart(e: React.PointerEvent) {
+    swipeStartX.current = e.clientX;
+  }
+  function onSwipeEnd(e: React.PointerEvent) {
+    if (swipeStartX.current === null) return;
+    const dx = e.clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (Math.abs(dx) < 50) return; // ignore taps / tiny drags
+    triggerPageTurn(dx < 0 ? "next" : "prev");
   }
 
   // Fallback Mock data for Vouchers (English ONLY) matching reference photo
-  const MOCK_VOUCHERS = [
-    { quantity_liters: 152.45, customer_name: "C. Monu Bhadup [CREDIT]", amount: 15000 },
-    { quantity_liters: 142.59, customer_name: "C. Monu Bhadup [CREDIT]", amount: 14000 },
-    { quantity_liters: 141.28, customer_name: "C. Monu Bhadup [CREDIT]", amount: 13900.54 },
-    { quantity_liters: 172.78, customer_name: "C. Monu Bhadup [CREDIT]", amount: 17000 },
-    { quantity_liters: 13.48, customer_name: "C. Triji M. Gas [CREDIT]", amount: 1326.30 },
-    { quantity_liters: 13.00, customer_name: "C. Triji M. Gas [CREDIT]", amount: 1475.85 },
-    { quantity_liters: 5.00, customer_name: "C. Trideepam Gas [CREDIT]", amount: 491.95 },
-    { quantity_liters: 17.00, customer_name: "C. Trideepam Gas [CREDIT]", amount: 1673.63 },
-    { quantity_liters: 508.18, customer_name: "C. Ubheg Chobhari (MH01 MH7485) [CREDIT]", amount: 50000 },
-    { quantity_liters: 150.00, customer_name: "C. Rajia School [CREDIT]", amount: 14758.50 },
-    { quantity_liters: 553.91, customer_name: "C. Kol R.D. [CREDIT]", amount: 54500 },
-    { quantity_liters: 1501.83, customer_name: "Paytm Settlement [UPI]", amount: 147765.70 },
-    { quantity_liters: 23.04, customer_name: "C. R.R. (Yog) Machine [CREDIT]", amount: 2267 },
-    { quantity_liters: 0.88, customer_name: "C. Mukesh (Petrol) [CASH]", amount: 100 },
-  ];
+  const MOCK_VOUCHERS: any[] = [];
 
-  const MOCK_EXPENSES = [
-    { customer_name: "Cash Credit (Owner)", amount: 500 },
-    { customer_name: "Khinchwadi Salary Paid", amount: 2000 },
-    { customer_name: "Bhogiji Nagar Cash Paid", amount: 300 },
-    { customer_name: "Omprakash Garden Expense", amount: 1700 },
-  ];
+  const MOCK_EXPENSES: any[] = [];
 
   // Map vouchers
   const activeVouchers = vouchersData?.items?.length ? vouchersData.items.map(v => ({
@@ -157,6 +197,15 @@ export default function RegisterPage() {
     (a, b) => paymentRank(a.customer_name) - paymentRank(b.customer_name)
   );
 
+  // Multi-sheet pagination per date (14 rows fit per ledger sheet)
+  const ROWS_PER_PAGE = 14;
+  const totalPages = Math.max(1, Math.ceil(sortedVouchers.length / ROWS_PER_PAGE));
+  const currentPageIndex = Math.min(pageIndex, totalPages - 1);
+  const visibleVouchers = sortedVouchers.slice(
+    currentPageIndex * ROWS_PER_PAGE,
+    (currentPageIndex + 1) * ROWS_PER_PAGE
+  );
+
   // Cash Calculation Cascade — one row per denomination, summed for the total
   const totalCashCounted = DENOMINATIONS.reduce((sum, d) => sum + notes[d.key] * d.value, 0);
 
@@ -164,12 +213,7 @@ export default function RegisterPage() {
   const grandTotalLeft = totalCashCounted + totalVouchersAmount + cashHome + prevDeposit;
 
   // Nozzle Grid fallbacks matching image
-  const MOCK_NOZZLES = [
-    { nozzle_name: "Noz 142", dispenser_name: "HSD I", fuel_type: "DIESEL", opening_reading: 6379394, closing_reading: 6380205, testing: 70 },
-    { nozzle_name: "Noz 143", dispenser_name: "HSD I", fuel_type: "DIESEL", opening_reading: 6823402, closing_reading: 6825578, testing: 140 },
-    { nozzle_name: "Noz 142", dispenser_name: "MS I", fuel_type: "PETROL", opening_reading: 86644, closing_reading: 86681, testing: 0 },
-    { nozzle_name: "Noz 141", dispenser_name: "MS I", fuel_type: "PETROL", opening_reading: 439303, closing_reading: 439426, testing: 0 },
-  ];
+  const MOCK_NOZZLES: any[] = [];
 
   // Map Nozzles — Number() coerces Decimal fields that the API serializes as
   // strings, so the reading arithmetic below stays numeric.
@@ -185,7 +229,7 @@ export default function RegisterPage() {
   // Calculate grid sales
   const gridItems = activeNozzles.map((noz, index) => {
     const rawSales = Math.max(0, noz.closing_reading - noz.opening_reading);
-    const netVol = Math.max(0, rawSales - noz.testing);
+    const netVol = Math.max(0, rawSales + noz.testing);
     // Cumulative meter logic simulation
     const cumulative = 3316910 + (index * 2840518) + (netVol * 12);
     const previous = cumulative - netVol;
@@ -272,7 +316,10 @@ export default function RegisterPage() {
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setPageIndex(0);
+              }}
               className="bg-transparent text-xs font-mono font-bold text-ink outline-none px-3 text-center border-none focus:ring-0 w-28 cursor-pointer"
             />
             <button
@@ -293,31 +340,114 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Database sync status toast indicator (no-print) */}
-      {!vouchersData?.items?.length && (
-        <div className="no-print p-3.5 bg-yellow-950/15 border border-yellow-500/20 text-yellow-600 rounded-2xl flex items-center gap-2.5 text-xs">
-          <AlertCircle size={16} />
-          <span>No live vouchers found for <strong>{formattedDateHeader}</strong>. Showing mock historical items for register visualization.</span>
-        </div>
-      )}
+
 
       {/* Real bound book container */}
       <div className="pl-register-container overflow-x-auto min-w-[768px]">
         
         {/* Book Outer Spine layout */}
-        <div className="relative min-w-[1000px] w-full max-w-[1250px] mx-auto min-h-[820px] rounded-2xl overflow-hidden border border-amber-950/30">
-          
-          <div className="grid grid-cols-2 relative bg-[#F7F1E3] min-h-[820px]">
-            
-            {/* 3D Page flip animate wrapper container */}
-            <div className="absolute inset-0 grid grid-cols-2 pointer-events-none z-40">
-              <div className={`h-full bg-gradient-to-r from-black/5 to-transparent origin-right ${
-                isFlipping && flipDirection === "prev" ? "page-turn-l2r" : ""
-              }`} />
-              <div className={`h-full bg-gradient-to-l from-black/5 to-transparent origin-left ${
-                isFlipping && flipDirection === "next" ? "page-turn-r2l" : ""
-              }`} />
+        <div
+          className="pl-book-shell relative min-w-[1000px] w-full max-w-[1250px] mx-auto min-h-[820px] rounded-2xl overflow-hidden border border-amber-950/30 touch-pan-y"
+          onPointerDown={onSwipeStart}
+          onPointerUp={onSwipeEnd}
+        >
+          {/* Interactive page margins / stacked page edges for book navigation */}
+          {/* Left Stacked Page Edges (Clickable area to go back) */}
+          <div
+            onClick={() => triggerPageTurn("prev")}
+            className="absolute left-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 flex items-center justify-start pl-3 no-print"
+            title="Click to turn to previous day"
+          >
+            {/* Layered page edge lines (visual stack of paper on left margin) */}
+            <div className="absolute left-0 inset-y-0 w-[12px] flex pointer-events-none">
+              <div className="w-[3px] h-full bg-[#e7dcc2] border-r border-[#c4b391]/30" />
+              <div className="w-[3px] h-full bg-[#efe6d0] border-r border-[#c4b391]/30" />
+              <div className="w-[3px] h-full bg-[#faf6ee] border-r border-[#c4b391]/30" />
             </div>
+            {/* Animated chevron indicator */}
+            <div className="opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 bg-white/90 p-2.5 rounded-full shadow-lg border border-[#e5dac3] text-black ml-1.5 flex items-center justify-center">
+              <ChevronLeft size={18} />
+            </div>
+          </div>
+
+          {/* Right Stacked Page Edges (Clickable area to go forward) */}
+          <div
+            onClick={() => triggerPageTurn("next")}
+            className="absolute right-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 flex items-center justify-end pr-3 no-print"
+            title="Click to turn to next day"
+          >
+            {/* Layered page edge lines (visual stack of paper on right margin) */}
+            <div className="absolute right-0 inset-y-0 w-[12px] flex justify-end pointer-events-none">
+              <div className="w-[3px] h-full bg-[#faf6ee] border-l border-[#c4b391]/30" />
+              <div className="w-[3px] h-full bg-[#efe6d0] border-l border-[#c4b391]/30" />
+              <div className="w-[3px] h-full bg-[#e7dcc2] border-l border-[#c4b391]/30" />
+            </div>
+            {/* Animated chevron indicator */}
+            <div className="opacity-0 group-hover:opacity-100 group-hover:-translate-x-1 transition-all duration-300 bg-white/90 p-2.5 rounded-full shadow-lg border border-[#e5dac3] text-black mr-1.5 flex items-center justify-center">
+              <ChevronRight size={18} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 relative bg-[#F7F1E3] min-h-[820px]">
+
+            {/* 3D Double-Sided Flipbook sheet turning over the spine */}
+            {isFlipping && (
+              <div className={`pl-flip-container ${flipDirection === "next" ? "pl-flip-next" : "pl-flip-prev"}`}>
+                {/* Front side of turning page */}
+                <div className="pl-flip-page-front">
+                  <div className="pl-flip-mock-content space-y-4 font-handwritten">
+                    <div className="text-center pl-handwritten-red font-bold text-lg">श्रीगणेशाय नमः</div>
+                    <div className="border-b border-[#A33A32]/25 pb-1">
+                      <div className="grid grid-cols-[65px_1fr_95px] font-bold text-[#A33A32] text-xs">
+                        <span>Qty (L)</span>
+                        <span>Particulars / Accounts</span>
+                        <span className="text-right">Amount (₹)</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="grid grid-cols-[65px_1fr_95px] items-center py-0.5"><span className="text-neutral-500">152.45</span><span className="font-bold">C. Monu Bhadup</span><span className="text-right font-bold">15,000=00</span></div>
+                      <div className="grid grid-cols-[65px_1fr_95px] items-center py-0.5"><span className="text-neutral-500">142.59</span><span className="font-bold">C. Monu Bhadup</span><span className="text-right font-bold">14,000=00</span></div>
+                      <div className="grid grid-cols-[65px_1fr_95px] items-center py-0.5"><span className="text-neutral-500">13.48</span><span className="font-bold">C. Triji M. Gas</span><span className="text-right font-bold">1,326=30</span></div>
+                      <div className="grid grid-cols-[65px_1fr_95px] items-center py-0.5"><span className="text-neutral-500">508.18</span><span className="font-bold">C. Ubheg Chobhari</span><span className="text-right font-bold text-neutral-800">50,000=00</span></div>
+                      <div className="grid grid-cols-[65px_1fr_95px] items-center py-0.5"><span className="text-neutral-500">1501.83</span><span className="font-bold">Paytm Settlement</span><span className="text-right font-bold">1,47,765=70</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Back side of turning page */}
+                <div className="pl-flip-page-back">
+                  <div className="pl-flip-mock-content space-y-4 font-handwritten">
+                    <div className="text-center pl-handwritten-red font-bold text-lg">श्रीगणेशाय नमः</div>
+                    <div className="space-y-4 text-xs">
+                      <div>
+                        <div className="font-bold text-blue-900">H.S.D Dispenser Logs</div>
+                        <div className="border-b border-[#A33A32]/25 mb-1" />
+                        <div className="grid grid-cols-2 text-center font-bold">
+                          <span>Nozzle 1</span>
+                          <span>Nozzle 2</span>
+                        </div>
+                        <div className="grid grid-cols-2 text-center text-neutral-600">
+                          <span>Closing: 5129</span>
+                          <span>Closing: 13846</span>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-blue-900">M.S Dispenser Logs</div>
+                        <div className="border-b border-[#A33A32]/25 mb-1" />
+                        <div className="grid grid-cols-2 text-center font-bold">
+                          <span>Nozzle 1</span>
+                          <span>Nozzle 2</span>
+                        </div>
+                        <div className="grid grid-cols-2 text-center text-neutral-600">
+                          <span>Closing: 12950</span>
+                          <span>Closing: 3092</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Central spine fold crease */}
             <div className="absolute inset-y-0 left-1/2 -ml-2.5 w-5 bg-gradient-to-r from-black/10 via-black/30 to-black/10 z-30 pointer-events-none border-l border-r border-black/5" />
@@ -326,6 +456,12 @@ export default function RegisterPage() {
                 LEFT PAGE: VOUCHERS LEDGER & CASH CASCADE
                 ======================================================= */}
             <div className="pl-register-page-left flex flex-col justify-between select-none">
+              {/* Dog-ear corner fold (Clickable area to go back) */}
+              <div
+                onClick={() => triggerPageTurn("prev")}
+                className="pl-page-corner-left no-print"
+                title="Click to turn to previous day"
+              />
               
               {/* Header Title Section (Sitting inside 80px solid top margin) */}
               <div className="pl-register-page-header">
@@ -337,7 +473,9 @@ export default function RegisterPage() {
                   <span className="pl-handwritten-header pl-handwritten-red tracking-widest font-bold">
                     {stationName} — Daily Register
                   </span>
-                  <div className="text-[10px] font-mono font-bold inline-block px-4 select-all text-neutral-800">{formattedDateHeader}</div>
+                  <div className="text-[10px] font-mono font-bold inline-block px-4 select-all text-neutral-800">
+                    {formattedDateHeader}{totalPages > 1 ? ` (Sheet ${currentPageIndex + 1} of ${totalPages})` : ""}
+                  </div>
                 </div>
               </div>
 
@@ -352,7 +490,7 @@ export default function RegisterPage() {
 
                 {/* Vouchers Row Iterations (Adjusted to h-[20px] matching 20px gap) */}
                 <div className="space-y-[0px]">
-                  {sortedVouchers.map((row, idx) => (
+                  {visibleVouchers.map((row, idx) => (
                     <div key={idx} className="grid grid-cols-[65px_1fr_95px] h-[20px] items-center">
                       
                       {/* Qty liters column (on left of red line) */}
@@ -406,7 +544,8 @@ export default function RegisterPage() {
                         <span className="text-center">×</span>
                         <input
                           type="number"
-                          value={notes[key]}
+                          value={notes[key] || ""}
+                          placeholder="0"
                           onChange={(e) => {
                             const updated = { ...notes, [key]: parseInt(e.target.value) || 0 };
                             setNotes(updated);
@@ -447,7 +586,8 @@ export default function RegisterPage() {
                     <span className="truncate">Cash Sent Home:</span>
                     <input
                       type="number"
-                      value={cashHome}
+                      value={cashHome || ""}
+                      placeholder="0"
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
                         setCashHome(val);
@@ -462,7 +602,8 @@ export default function RegisterPage() {
                     <span className="truncate">Deposited Balance:</span>
                     <input
                       type="number"
-                      value={prevDeposit}
+                      value={prevDeposit || ""}
+                      placeholder="0"
                       onChange={(e) => {
                         const val = parseInt(e.target.value) || 0;
                         setPrevDeposit(val);
@@ -487,6 +628,12 @@ export default function RegisterPage() {
                 RIGHT PAGE: NOZZLE METER LOGS & RECONCILIATION MATH
                 ======================================================== */}
             <div className="pl-register-page-right flex flex-col select-none">
+              {/* Dog-ear corner fold (Clickable area to go forward) */}
+              <div
+                onClick={() => triggerPageTurn("next")}
+                className="pl-page-corner-right no-print"
+                title="Click to turn to next day"
+              />
               
               {/* Header dates (Sitting inside 80px solid top margin) */}
               <div className="pl-register-page-header">
@@ -556,7 +703,7 @@ export default function RegisterPage() {
                   <div key={label} className="flex items-center h-[20px] pl-handwritten text-[#103F91] text-[13px]">
                     <span className="font-bold text-[#A33A32] w-[50px] shrink-0">{label}</span>
                     <span className="pl-1">= {summary.rawQty.toLocaleString()}</span>
-                    <span className="pl-1">- {summary.testing.toLocaleString()}</span>
+                    <span className="pl-1">+ {summary.testing.toLocaleString()}</span>
                     <span className="pl-1">= {summary.netVol.toLocaleString()} L</span>
                     <span className="text-[#A33A32] pl-1">× {rate}</span>
                     <span className="ml-auto font-bold pl-handwritten-strong text-[13px] pr-1">

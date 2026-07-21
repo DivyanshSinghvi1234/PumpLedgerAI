@@ -4,7 +4,7 @@ import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { getTodayDateString } from "@/lib/utils";
-import { Plus, Minus, Fuel, Landmark } from "lucide-react";
+import { Plus, Minus, Fuel, Landmark, Pencil, Trash2 } from "lucide-react";
 
 import AddEntryDialog from "./components/AddEntryDialog";
 import NoBillSaleDialog from "./components/NoBillSaleDialog";
@@ -36,9 +36,8 @@ export default function IncomePage() {
   // Which kind the entry dialog is adding (null = closed).
   const [entryKind, setEntryKind] = useState<IncomeKind | null>(null);
   const [saleOpen, setSaleOpen] = useState(false);
-  // Bank deposit is just a cash expense with a fixed label; own dialog so it
-  // opens prefilled without disturbing the plain Add Expense flow.
   const [depositOpen, setDepositOpen] = useState(false);
+  const [incomeToEdit, setIncomeToEdit] = useState<Income | null>(null);
 
   const {
     data: summary,
@@ -54,17 +53,18 @@ export default function IncomePage() {
 
   const deleteMutation = useDeleteIncome();
 
-  // Split the single list into income and expense rows.
-  const { incomeRows, expenseRows } = useMemo(() => {
+  // Split the single list into income, expense, and deposit rows.
+  const { incomeRows, expenseRows, depositRows } = useMemo(() => {
     const items = incomeData?.items ?? [];
     return {
       incomeRows: items.filter((i) => i.kind === "INCOME"),
       expenseRows: items.filter((i) => i.kind === "EXPENSE"),
+      depositRows: items.filter((i) => i.kind === "DEPOSIT"),
     };
   }, [incomeData]);
 
   async function handleDelete(income: Income) {
-    const noun = income.kind === "EXPENSE" ? "expense" : "income";
+    const noun = income.kind === "DEPOSIT" ? "deposit" : income.kind === "EXPENSE" ? "expense" : "income";
     const loanNote = income.customer_name
       ? ` This will remove ₹${formatMoney(income.amount)} from ${income.customer_name}'s outstanding balance.`
       : "";
@@ -129,7 +129,7 @@ export default function IncomePage() {
         )}
       </div>
 
-      {/* Four headline totals */}
+      {/* Headline totals cards */}
       {summaryError ? (
         <p className="rounded-xl border border-error/30 bg-error/5 px-4 py-3 text-sm font-medium text-error">
           Unable to load the daily summary.
@@ -137,7 +137,7 @@ export default function IncomePage() {
       ) : summaryLoading ? (
         <LoadingState />
       ) : summary ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="rounded-2xl border border-hairline bg-card p-5">
             <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
               Total Sales
@@ -162,6 +162,14 @@ export default function IncomePage() {
               ₹{formatMoney(summary.total_expenses)}
             </p>
           </div>
+          <div className="rounded-2xl border border-hairline bg-card p-5">
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+              Total Deposits
+            </p>
+            <p className="mt-2 text-2xl font-bold text-ink-muted">
+              ₹{formatMoney(summary.total_deposits ?? 0)}
+            </p>
+          </div>
           <div className="rounded-2xl border border-fuel-amber/30 bg-fuel-amber/5 p-5">
             <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
               Cash in Hand
@@ -179,50 +187,52 @@ export default function IncomePage() {
           <div className="border-b border-hairline px-5 py-3">
             <h3 className="text-sm font-semibold text-ink">Fuel Sales by Type</h3>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-ink-muted">
-                <th className="px-5 py-2.5 font-medium">Fuel</th>
-                <th className="px-5 py-2.5 font-medium text-right">Qty (L)</th>
-                <th className="px-5 py-2.5 font-medium text-right">Rate</th>
-                <th className="px-5 py-2.5 font-medium text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.fuel_sales.map((row) => (
-                <tr
-                  key={row.fuel_type}
-                  className="border-t border-hairline text-ink"
-                >
-                  <td className="px-5 py-2.5">
-                    {FUEL_LABELS[row.fuel_type] ?? row.fuel_type}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="text-left text-ink-muted">
+                  <th className="px-5 py-2.5 font-medium">Fuel</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Qty (L)</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Rate</th>
+                  <th className="px-5 py-2.5 font-medium text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.fuel_sales.map((row) => (
+                  <tr
+                    key={row.fuel_type}
+                    className="border-t border-hairline text-ink"
+                  >
+                    <td className="px-5 py-2.5">
+                      {FUEL_LABELS[row.fuel_type] ?? row.fuel_type}
+                    </td>
+                    <td className="px-5 py-2.5 text-right">
+                      {Number(row.liters).toLocaleString("en-IN", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 3,
+                      })}
+                    </td>
+                    <td className="px-5 py-2.5 text-right">
+                      ₹{formatMoney(row.rate)}
+                    </td>
+                    <td className="px-5 py-2.5 text-right font-semibold">
+                      ₹{formatMoney(row.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-hairline bg-surface-2/50 font-bold text-ink">
+                  <td className="px-5 py-2.5" colSpan={3}>
+                    Total Sales
                   </td>
                   <td className="px-5 py-2.5 text-right">
-                    {Number(row.liters).toLocaleString("en-IN", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 3,
-                    })}
-                  </td>
-                  <td className="px-5 py-2.5 text-right">
-                    ₹{formatMoney(row.rate)}
-                  </td>
-                  <td className="px-5 py-2.5 text-right font-semibold">
-                    ₹{formatMoney(row.amount)}
+                    ₹{formatMoney(summary.total_sales)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-hairline bg-surface-2/50 font-bold text-ink">
-                <td className="px-5 py-2.5" colSpan={3}>
-                  Total Sales
-                </td>
-                <td className="px-5 py-2.5 text-right">
-                  ₹{formatMoney(summary.total_sales)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
         </div>
       )}
 
@@ -236,6 +246,7 @@ export default function IncomePage() {
           isLoading={listLoading}
           canManage={canManage}
           onDelete={handleDelete}
+          onEdit={setIncomeToEdit}
         />
         <EntryList
           title="Expenses"
@@ -245,20 +256,37 @@ export default function IncomePage() {
           isLoading={listLoading}
           canManage={canManage}
           onDelete={handleDelete}
+          onEdit={setIncomeToEdit}
           showCustomer
         />
       </div>
 
-      <AddEntryDialog
-        kind={entryKind ?? "INCOME"}
-        open={entryKind !== null}
-        onOpenChange={(open) => setEntryKind(open ? entryKind : null)}
-        defaultDate={date}
+      {/* Deposits Section */}
+      <EntryList
+        title="Deposits to Bank"
+        rows={depositRows}
+        emptyText="No bank deposits recorded for this date."
+        isError={listError}
+        isLoading={listLoading}
+        canManage={canManage}
+        onDelete={handleDelete}
+        onEdit={setIncomeToEdit}
       />
-      {/* Bank deposit is just a cash-out expense with a fixed label — reuses
-          the entry dialog so no separate form/endpoint is needed. */}
+
       <AddEntryDialog
-        kind="EXPENSE"
+        kind={incomeToEdit ? incomeToEdit.kind : (entryKind ?? "INCOME")}
+        open={entryKind !== null || incomeToEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEntryKind(null);
+            setIncomeToEdit(null);
+          }
+        }}
+        defaultDate={date}
+        incomeToEdit={incomeToEdit ?? undefined}
+      />
+      <AddEntryDialog
+        kind="DEPOSIT"
         open={depositOpen}
         onOpenChange={setDepositOpen}
         defaultDate={date}
@@ -285,6 +313,7 @@ interface EntryListProps {
   isLoading: boolean;
   canManage: boolean;
   onDelete(income: Income): void;
+  onEdit?(income: Income): void;
   /** Show a "To" column with the linked customer (for loans). */
   showCustomer?: boolean;
 }
@@ -297,6 +326,7 @@ function EntryList({
   isLoading,
   canManage,
   onDelete,
+  onEdit,
   showCustomer = false,
 }: EntryListProps) {
   return (
@@ -316,51 +346,63 @@ function EntryList({
       ) : rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-ink-muted">{emptyText}</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-ink-muted">
-              <th className="px-5 py-2.5 font-medium">Description</th>
-              {showCustomer && (
-                <th className="px-5 py-2.5 font-medium">To (loan)</th>
-              )}
-              <th className="px-5 py-2.5 font-medium">Category</th>
-              <th className="px-5 py-2.5 font-medium">Mode</th>
-              <th className="px-5 py-2.5 font-medium text-right">Amount</th>
-              {canManage && <th className="px-5 py-2.5" />}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.uuid} className="border-t border-hairline text-ink">
-                <td className="px-5 py-2.5">{row.description}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[500px]">
+            <thead>
+              <tr className="text-left text-ink-muted">
+                <th className="px-5 py-2.5 font-medium">Description</th>
                 {showCustomer && (
-                  <td className="px-5 py-2.5 text-ink-muted">
-                    {row.customer_name ?? "—"}
-                  </td>
+                  <th className="px-5 py-2.5 font-medium">To (loan)</th>
                 )}
-                <td className="px-5 py-2.5 text-ink-muted">
-                  {row.category ?? "—"}
-                </td>
-                <td className="px-5 py-2.5 text-ink-muted">
-                  {row.payment_mode}
-                </td>
-                <td className="px-5 py-2.5 text-right font-semibold">
-                  ₹{formatMoney(row.amount)}
-                </td>
-                {canManage && (
-                  <td className="px-5 py-2.5 text-right">
-                    <button
-                      onClick={() => onDelete(row)}
-                      className="text-xs font-medium text-error hover:underline cursor-pointer"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                )}
+                <th className="px-5 py-2.5 font-medium">Category</th>
+                <th className="px-5 py-2.5 font-medium">Mode</th>
+                <th className="px-5 py-2.5 font-medium text-right">Amount</th>
+                {canManage && <th className="px-5 py-2.5" />}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.uuid} className="border-t border-hairline text-ink">
+                  <td className="px-5 py-2.5">{row.description}</td>
+                  {showCustomer && (
+                    <td className="px-5 py-2.5 text-ink-muted">
+                      {row.customer_name ?? "—"}
+                    </td>
+                  )}
+                  <td className="px-5 py-2.5 text-ink-muted">
+                    {row.category ?? "—"}
+                  </td>
+                  <td className="px-5 py-2.5 text-ink-muted">
+                    {row.payment_mode}
+                  </td>
+                  <td className="px-5 py-2.5 text-right font-semibold">
+                    ₹{formatMoney(row.amount)}
+                  </td>
+                  {canManage && (
+                    <td className="px-5 py-2.5 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          onClick={() => onEdit?.(row)}
+                          className="text-ink-muted hover:text-fuel-amber transition duration-200 cursor-pointer"
+                          title="Edit"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => onDelete(row)}
+                          className="text-ink-muted hover:text-error transition duration-200 cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

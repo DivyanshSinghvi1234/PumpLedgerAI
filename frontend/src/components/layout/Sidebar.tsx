@@ -70,17 +70,17 @@ const menuItems: MenuGroup[] = [
         icon: Coins,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
+    ],
+  },
+  {
+    section: "Records",
+    items: [
       {
         title: "Daily Register",
         path: "/dashboard/register",
         icon: BookOpen,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
-    ],
-  },
-  {
-    section: "Records",
-    items: [
       {
         title: "Customers",
         path: "/dashboard/customers",

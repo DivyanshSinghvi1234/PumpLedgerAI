@@ -129,3 +129,29 @@ def delete_income(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+@router.put(
+    "/{income_uuid}",
+    response_model=IncomeResponse,
+    dependencies=manager,
+)
+def update_income(
+    income_uuid: str,
+    data: IncomeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return service.update(db, income_uuid, data, actor_id=current_user.id)
+    except IncomeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except CustomerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
