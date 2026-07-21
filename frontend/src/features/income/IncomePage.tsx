@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { getTodayDateString } from "@/lib/utils";
-import { Plus, Minus, Fuel, Landmark, Pencil, Trash2 } from "lucide-react";
+import { Plus, Minus, Fuel, Landmark, Pencil, Trash2, Coins } from "lucide-react";
 
 import AddEntryDialog from "./components/AddEntryDialog";
 import NoBillSaleDialog from "./components/NoBillSaleDialog";
@@ -28,6 +28,15 @@ const FUEL_LABELS: Record<string, string> = {
   LUBRICANT: "Lubricant",
 };
 
+const DENOMINATIONS = [
+  { value: 500, key: "n500" },
+  { value: 200, key: "n200" },
+  { value: 100, key: "n100" },
+  { value: 50, key: "n50" },
+  { value: 20, key: "n20" },
+  { value: 10, key: "n10" },
+] as const;
+
 export default function IncomePage() {
   const { hasRole } = useCurrentUser();
   const canManage = hasRole("ADMIN", "MANAGER");
@@ -38,6 +47,35 @@ export default function IncomePage() {
   const [saleOpen, setSaleOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [incomeToEdit, setIncomeToEdit] = useState<Income | null>(null);
+
+  // Local state for cash denominations per date
+  const cacheKey = `ledger_denominations_${date}`;
+  const DEFAULT_NOTES = { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 };
+  const [notes, setNotes] = useState(DEFAULT_NOTES);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(cacheKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setNotes(parsed.notes || DEFAULT_NOTES);
+      } catch (e) {
+        console.error("Failed to parse denominations", e);
+      }
+    } else {
+      setNotes(DEFAULT_NOTES);
+    }
+  }, [date, cacheKey]);
+
+  const handleNotesChange = (updatedNotes: typeof notes) => {
+    setNotes(updatedNotes);
+    const saved = localStorage.getItem(cacheKey);
+    let parsed: any = {};
+    if (saved) {
+      try { parsed = JSON.parse(saved); } catch {}
+    }
+    localStorage.setItem(cacheKey, JSON.stringify({ ...parsed, notes: updatedNotes }));
+  };
 
   const {
     data: summary,
@@ -180,6 +218,9 @@ export default function IncomePage() {
           </div>
         </div>
       ) : null}
+
+      {/* Cash Denomination Calculator Card */}
+      <CashDenominationsCard notes={notes} onChange={handleNotesChange} />
 
       {/* Fuel sales by type */}
       {summary && summary.fuel_sales.length > 0 && (
@@ -404,6 +445,65 @@ function EntryList({
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function CashDenominationsCard({
+  notes,
+  onChange,
+}: {
+  notes: Record<string, number>;
+  onChange: (updated: Record<string, number>) => void;
+}) {
+  const totalCashCounted = DENOMINATIONS.reduce(
+    (sum, d) => sum + (notes[d.key] || 0) * d.value,
+    0
+  );
+
+  return (
+    <div className="rounded-2xl border border-hairline bg-card p-5 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-3">
+        <div className="flex items-center gap-2">
+          <Coins className="text-fuel-amber" size={18} />
+          <h3 className="text-sm font-semibold text-ink">Cash Denomination Calculator</h3>
+        </div>
+        <span className="text-xs font-mono font-bold text-fuel-amber bg-fuel-amber/10 px-3 py-1.5 rounded-xl">
+          Total Cash Counted: ₹{totalCashCounted.toLocaleString("en-IN")}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {DENOMINATIONS.map(({ value, key }) => {
+          const count = notes[key] || 0;
+          const subtotal = count * value;
+          return (
+            <div
+              key={key}
+              className="rounded-xl border border-hairline bg-surface-2 p-3 space-y-2 text-center"
+            >
+              <div className="text-xs font-bold text-ink-muted">₹{value} Notes</div>
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-xs text-ink-muted">×</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={count || ""}
+                  placeholder="0"
+                  onChange={(e) => {
+                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                    onChange({ ...notes, [key]: val });
+                  }}
+                  className="w-16 rounded-lg border border-hairline bg-card px-2 py-1 text-center font-bold text-sm text-ink outline-none focus:border-fuel-amber"
+                />
+              </div>
+              <div className="text-xs font-mono font-semibold text-ink">
+                ₹{subtotal.toLocaleString("en-IN")}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

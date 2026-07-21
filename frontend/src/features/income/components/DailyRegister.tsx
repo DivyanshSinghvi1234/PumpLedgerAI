@@ -120,7 +120,6 @@ export default function DailyRegister({ date, onDateChange }: DailyRegisterProps
               
               {/* Salutation & Date */}
               <div className="text-center flex-1 pr-6">
-                <div className="text-sm font-semibold tracking-wider">श्रीगणेशाय नमः</div>
                 <div className="text-xs border-b border-blue-900/25 inline-block px-4 mt-0.5">{registerDate}</div>
               </div>
             </div>
@@ -265,7 +264,6 @@ export default function DailyRegister({ date, onDateChange }: DailyRegisterProps
             {/* Header Content */}
             <div className="relative border-b border-blue-900/20 pb-4 mb-4 handwritten-ink flex justify-between items-start">
               <div className="text-center flex-1">
-                <div className="text-sm font-semibold tracking-wider">श्रीगणेशाय नमः</div>
                 <div className="text-xs border-b border-blue-900/25 inline-block px-4 mt-0.5">{registerDate}</div>
               </div>
             </div>

@@ -222,14 +222,15 @@ export default function RegisterPage() {
     dispenser_name: item.dispenser_name,
     fuel_type: item.fuel_type,
     opening_reading: Number(item.opening_reading) || 0,
-    closing_reading: Number(item.closing_reading ?? item.opening_reading) || 0,
+    closing_reading: item.closing_reading != null ? Number(item.closing_reading) : null,
     testing: Number(item.testing) || 0,
   })) : MOCK_NOZZLES;
 
   // Calculate grid sales
   const gridItems = activeNozzles.map((noz, index) => {
-    const rawSales = Math.max(0, noz.closing_reading - noz.opening_reading);
-    const netVol = Math.max(0, rawSales + noz.testing);
+    const hasClosing = noz.closing_reading != null;
+    const rawSales = hasClosing ? Math.max(0, noz.closing_reading! - noz.opening_reading) : 0;
+    const netVol = hasClosing ? Math.max(0, rawSales + noz.testing) : 0;
     // Cumulative meter logic simulation
     const cumulative = 3316910 + (index * 2840518) + (netVol * 12);
     const previous = cumulative - netVol;
@@ -237,6 +238,7 @@ export default function RegisterPage() {
     const dispenser_name = noz.dispenser_name || (noz.fuel_type === "DIESEL" ? "HSD I" : "MS I");
     return {
       ...noz,
+      hasClosing,
       dispenser_name,
       rawSales,
       netVol,
@@ -396,7 +398,6 @@ export default function RegisterPage() {
                 {/* Front side of turning page */}
                 <div className="pl-flip-page-front">
                   <div className="pl-flip-mock-content space-y-4 font-handwritten">
-                    <div className="text-center pl-handwritten-red font-bold text-lg">श्रीगणेशाय नमः</div>
                     <div className="border-b border-[#A33A32]/25 pb-1">
                       <div className="grid grid-cols-[65px_1fr_95px] font-bold text-[#A33A32] text-xs">
                         <span>Qty (L)</span>
@@ -417,7 +418,6 @@ export default function RegisterPage() {
                 {/* Back side of turning page */}
                 <div className="pl-flip-page-back">
                   <div className="pl-flip-mock-content space-y-4 font-handwritten">
-                    <div className="text-center pl-handwritten-red font-bold text-lg">श्रीगणेशाय नमः</div>
                     <div className="space-y-4 text-xs">
                       <div>
                         <div className="font-bold text-blue-900">H.S.D Dispenser Logs</div>
@@ -650,10 +650,10 @@ export default function RegisterPage() {
                 
                 {Object.entries(groupedDispensers).map(([dispName, dispNozzles], dispIdx, arr) => {
                   const rows: { fn: (n: (typeof dispNozzles)[number]) => string; cls: string }[] = [
-                    { fn: (n) => n.nozzle_name,                       cls: "pl-handwritten-strong text-[#103F91] font-bold" },
-                    { fn: (n) => n.closing_reading.toLocaleString(),   cls: "pl-handwritten-strong text-[#103F91] font-bold" },
-                    { fn: (n) => n.opening_reading.toLocaleString(),   cls: "pl-handwritten text-[#103F91]" },
-                    { fn: (n) => `${n.rawSales.toLocaleString()} L`,  cls: "pl-handwritten-strong text-[#103F91] font-bold" },
+                    { fn: (n) => n.nozzle_name, cls: "pl-handwritten-strong text-[#103F91] font-bold" },
+                    { fn: (n) => n.hasClosing && n.closing_reading != null ? n.closing_reading.toLocaleString() : "—", cls: "pl-handwritten-strong text-[#103F91] font-bold" },
+                    { fn: (n) => n.opening_reading > 0 ? n.opening_reading.toLocaleString() : "—", cls: "pl-handwritten text-[#103F91]" },
+                    { fn: (n) => n.hasClosing ? `${n.rawSales.toLocaleString()} L` : "—", cls: "pl-handwritten-strong text-[#103F91] font-bold" },
                   ];
                   return (
                     <React.Fragment key={dispName}>
