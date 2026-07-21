@@ -20,6 +20,7 @@ import type {
 // Enum values mirror the backend (app/core/enums.py).
 const FUEL_OPTIONS: { label: string; value: FuelType }[] = [
   { label: "Petrol", value: "PETROL" },
+  { label: "Speed", value: "SPEED" },
   { label: "Diesel", value: "DIESEL" },
   { label: "Lubricant", value: "LUBRICANT" },
 ];
@@ -46,7 +47,7 @@ const voucherSchema = z.object({
 
   customer_uuid: z.string().optional(),
 
-  fuel_type: z.enum(["PETROL", "DIESEL", "LUBRICANT"]),
+  fuel_type: z.enum(["PETROL", "SPEED", "DIESEL", "LUBRICANT"]),
 
   quantity_liters: z.coerce
     .number()

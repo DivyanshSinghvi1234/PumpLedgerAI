@@ -75,7 +75,7 @@ export default function VoucherTable({
 
       <TableBody>
         {vouchers.map((voucher) => (
-          <TableRow key={voucher.uuid} className="border-hairline table-row-hover transition-colors">
+          <TableRow key={voucher.uuid} className="border-hairline pl-row transition-colors">
             <TableCell className="text-sm font-medium text-ink">
               <div className="flex items-center gap-2">
                 <span>{voucher.invoice_number}</span>
@@ -111,7 +111,7 @@ export default function VoucherTable({
               </span>
             </TableCell>
 
-            <TableCell className="text-sm font-semibold text-ink font-mono">
+            <TableCell className="text-sm font-semibold text-ink font-mono pl-numeric">
               <div className="flex flex-col">
                 <span>{formatCurrency(voucher.total_amount)}</span>
                 {voucher.is_amount_mismatch && (

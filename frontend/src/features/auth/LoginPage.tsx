@@ -49,10 +49,11 @@ export default function LoginPage() {
   return (
     <div className="relative flex min-h-screen font-sans items-center justify-center bg-canvas overflow-hidden">
       {/* Background glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-12%] left-[-8%] w-[700px] h-[700px] rounded-full bg-fuel-amber/8 blur-[160px]" />
-        <div className="absolute bottom-[-12%] right-[-8%] w-[600px] h-[600px] rounded-full bg-fuel-orange/6 blur-[130px]" />
-        <div className="absolute inset-0 dot-grid opacity-35" />
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* One restrained, off-center glow using our single hue theme-adapted primary color */}
+        <div className="login-glow top-[10%] right-[5%] md:top-[15%] md:right-[10%]" />
+        
+        <div className="absolute inset-0 dot-grid opacity-25" />
       </div>
 
       <div className="relative w-full max-w-2xl mx-auto px-4 py-10 z-10">

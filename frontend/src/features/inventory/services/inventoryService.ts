@@ -14,6 +14,8 @@ import type {
   FuelDispenserCreate,
   BulkNozzleReadingCreate,
   BulkFormResponse,
+  TankerDelivery,
+  TankerDeliveryCreate,
 } from "../types";
 
 class InventoryService {
@@ -34,6 +36,16 @@ class InventoryService {
 
   async postDipReading(tankUuid: string, data: DipReadingCreate): Promise<DipReading> {
     const response = await api.post<DipReading>(`/v1/tanks/${tankUuid}/dips`, data);
+    return response.data;
+  }
+
+  async getDeliveries(): Promise<TankerDelivery[]> {
+    const response = await api.get<TankerDelivery[]>("/v1/tanks/deliveries");
+    return response.data;
+  }
+
+  async createDelivery(data: TankerDeliveryCreate): Promise<TankerDelivery> {
+    const response = await api.post<TankerDelivery>("/v1/tanks/deliveries", data);
     return response.data;
   }
 

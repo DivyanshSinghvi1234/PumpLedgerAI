@@ -18,7 +18,16 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   // Local state
   const [readingsDate, setReadingsDate] = useState(new Date().toISOString().split("T")[0]);
   const [formItems, setFormItems] = useState<
-    Record<string, { opening: string | number; closing: string | number; interim6am: string | number; testing: string | number }>
+    Record<
+      string,
+      {
+        opening: string | number;
+        closing: string | number;
+        interim6am: string | number;
+        testing: string | number;
+        sales: string;
+      }
+    >
   >({});
   const [isEditingSaved, setIsEditingSaved] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
@@ -66,13 +75,27 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
     if (bulkForm?.items) {
-      const initialMap: Record<string, { opening: string | number; closing: string | number; interim6am: string | number; testing: string | number }> = {};
+      const initialMap: Record<
+        string,
+        {
+          opening: string | number;
+          closing: string | number;
+          interim6am: string | number;
+          testing: string | number;
+          sales: string;
+        }
+      > = {};
       bulkForm.items.forEach((item) => {
+        const openVal = item.opening_reading;
+        const closeVal = item.closing_reading;
+        const testingL = item.testing !== null ? item.testing : 0.0;
+        const salesVal = closeVal !== null ? Math.max(0, closeVal - openVal - testingL).toFixed(3) : "";
         initialMap[item.nozzle_uuid] = {
-          opening: item.opening_reading,
-          closing: item.closing_reading !== null ? item.closing_reading : "",
+          opening: openVal,
+          closing: closeVal !== null ? closeVal : "",
           interim6am: item.interim_6am_reading !== null ? item.interim_6am_reading : "",
-          testing: item.testing !== null ? item.testing : 0.0,
+          testing: testingL,
+          sales: salesVal,
         };
       });
       setFormItems(initialMap);
@@ -123,6 +146,9 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
       queryClient.invalidateQueries({ queryKey: ["dispensers"] });
       queryClient.invalidateQueries({ queryKey: ["bulkReadings", readingsDate] });
       queryClient.invalidateQueries({ queryKey: ["nozzleReadingsHistory"] });
+      // Readings deduct tank stock, so refresh the Fuel Storage view too.
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["dips"] });
       setIsEditingSaved(false);
       toast.success("All nozzle meter readings saved successfully!");
     },
@@ -368,7 +394,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                   </TableHeader>
                   <TableBody>
                     {bulkForm.items.map((item, idx) => {
-                      const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "" };
+                      const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                       const openVal = parseFloat(stateVals.opening.toString() || "0");
                       const closeVal = parseFloat(stateVals.closing.toString() || "0");
                       const interimVal = stateVals.interim6am !== "" ? parseFloat(stateVals.interim6am.toString()) : null;
@@ -405,13 +431,28 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               placeholder="0.000"
                               value={stateVals.opening}
                               onChange={(e) => {
-                                setFormItems((prev) => ({
-                                  ...prev,
-                                  [item.nozzle_uuid]: {
-                                    ...prev[item.nozzle_uuid],
-                                    opening: e.target.value,
-                                  },
-                                }));
+                                const raw = e.target.value;
+                                setFormItems((prev) => {
+                                  const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
+                                  const openVal = parseFloat(raw || "0");
+                                  const closeVal = parseFloat(prevItem.closing?.toString() || "0");
+                                  const testingVal = parseFloat(prevItem.testing?.toString() || "0");
+                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal - testingVal).toFixed(3);
+                                  return {
+                                    ...prev,
+                                    [item.nozzle_uuid]: {
+                                      ...prevItem,
+                                      opening: raw,
+                                      sales: salesVal,
+                                    },
+                                  };
+                                });
+                              }}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                }
                               }}
                               disabled={isDisabled}
                               className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -437,6 +478,12 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                           interim6am: e.target.value,
                                         },
                                       }));
+                                    }}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                        e.preventDefault();
+                                      }
                                     }}
                                     disabled={isDisabled}
                                     className="w-36 pl-6 bg-fuel-amber/5 border-fuel-amber/30 outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -488,15 +535,28 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               placeholder="Enter final reading"
                               value={stateVals.closing}
                               onChange={(e) => {
-                                setFormItems((prev) => ({
-                                  ...prev,
-                                  [item.nozzle_uuid]: {
-                                    ...prev[item.nozzle_uuid],
-                                    closing: e.target.value,
-                                  },
-                                }));
+                                const raw = e.target.value;
+                                setFormItems((prev) => {
+                                  const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
+                                  const openVal = parseFloat(prevItem.opening?.toString() || "0");
+                                  const closeVal = parseFloat(raw || "0");
+                                  const testingVal = parseFloat(prevItem.testing?.toString() || "0");
+                                  const salesVal = raw === "" ? "" : Math.max(0, closeVal - openVal - testingVal).toFixed(3);
+                                  return {
+                                    ...prev,
+                                    [item.nozzle_uuid]: {
+                                      ...prevItem,
+                                      closing: raw,
+                                      sales: salesVal,
+                                    },
+                                  };
+                                });
                               }}
+                              onWheel={(e) => e.currentTarget.blur()}
                               onKeyDown={(e) => {
+                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                }
                                 if (e.key === "Enter") {
                                   e.preventDefault();
                                   const nextInput = document.getElementById(`closing-input-${idx + 1}`) as HTMLInputElement | null;
@@ -517,13 +577,28 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               placeholder="0.000"
                               value={stateVals.testing}
                               onChange={(e) => {
-                                setFormItems((prev) => ({
-                                  ...prev,
-                                  [item.nozzle_uuid]: {
-                                    ...prev[item.nozzle_uuid],
-                                    testing: e.target.value,
-                                  },
-                                }));
+                                const raw = e.target.value;
+                                setFormItems((prev) => {
+                                  const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
+                                  const openVal = parseFloat(prevItem.opening?.toString() || "0");
+                                  const closeVal = parseFloat(prevItem.closing?.toString() || "0");
+                                  const testingVal = parseFloat(raw || "0");
+                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal - testingVal).toFixed(3);
+                                  return {
+                                    ...prev,
+                                    [item.nozzle_uuid]: {
+                                      ...prevItem,
+                                      testing: raw,
+                                      sales: salesVal,
+                                    },
+                                  };
+                                });
+                              }}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                }
                               }}
                               disabled={isDisabled}
                               className="w-24 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -537,18 +612,44 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               type="number"
                               step="0.001"
                               placeholder="0.000"
-                              value={closingEntered ? Math.max(0, closeVal - openVal - parseFloat(stateVals.testing?.toString() || "0")).toFixed(3) : ""}
+                              value={stateVals.sales || ""}
                               onChange={(e) => {
                                 const raw = e.target.value;
-                                const testingL = parseFloat(stateVals.testing?.toString() || "0");
-                                setFormItems((prev) => ({
-                                  ...prev,
-                                  [item.nozzle_uuid]: {
-                                    ...prev[item.nozzle_uuid],
-                                    // blank sales clears closing; otherwise closing = opening + sales + testing
-                                    closing: raw === "" ? "" : openVal + parseFloat(raw || "0") + testingL,
-                                  },
-                                }));
+                                setFormItems((prev) => {
+                                  const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
+                                  const openVal = parseFloat(prevItem.opening?.toString() || "0");
+                                  const testingVal = parseFloat(prevItem.testing?.toString() || "0");
+                                  const salesVal = parseFloat(raw || "0");
+                                  const closingVal = raw === "" ? "" : (openVal + salesVal + testingVal).toFixed(3);
+                                  return {
+                                    ...prev,
+                                    [item.nozzle_uuid]: {
+                                      ...prevItem,
+                                      sales: raw,
+                                      closing: closingVal,
+                                    },
+                                  };
+                                });
+                              }}
+                              onBlur={() => {
+                                setFormItems((prev) => {
+                                  const prevItem = prev[item.nozzle_uuid];
+                                  if (!prevItem || prevItem.sales === "") return prev;
+                                  const formatted = parseFloat(prevItem.sales).toFixed(3);
+                                  return {
+                                    ...prev,
+                                    [item.nozzle_uuid]: {
+                                      ...prevItem,
+                                      sales: formatted,
+                                    },
+                                  };
+                                });
+                              }}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                }
                               }}
                               disabled={isDisabled}
                               title={isNegative ? "Sales cannot be negative — closing is below opening." : undefined}

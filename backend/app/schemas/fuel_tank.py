@@ -62,7 +62,7 @@ class DipReadingResponse(BaseModel):
 class TankerDeliveryCreate(BaseModel):
     tank_uuid: str
     delivery_date: date
-    invoice_number: str
+    invoice_number: str = ""  # optional — a tanker drop doesn't always have one to hand
     quantity_liters: float
     density: float | None = None
     supplier_name: str | None = None

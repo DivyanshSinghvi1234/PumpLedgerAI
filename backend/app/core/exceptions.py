@@ -128,4 +128,10 @@ class DailySheetNotFoundError(AppException):
 class DuplicateDailySheetError(AppException):
     def __init__(self, date_str: str):
         self.date_str = date_str
-        super().__init__(f"Daily sheet for date '{date_str}' already exists.")
+        super().__init__(f"Daily sheet for date '{date_str}' already exists.")
+
+
+class IncomeNotFoundError(AppException):
+    def __init__(self, income_uuid: str):
+        self.income_uuid = income_uuid
+        super().__init__(f"Income '{income_uuid}' not found.")

@@ -35,7 +35,11 @@
       "Bash(python -m pytest --version)",
       "Bash(python -m pip install pytest -q)",
       "Bash(uv pip *)",
-      "Bash(python -c \"import app.main; print\\('OK'\\)\")"
+      "Bash(python -c \"import app.main; print\\('OK'\\)\")",
+      "Bash(curl -s -o /dev/null http://127.0.0.1:8000/)",
+      "Bash(curl -s -o /dev/null http://localhost:5173/)",
+      "Bash(uv run python -c ' *)",
+      "Bash(uv run *)"
     ]
   }
 }

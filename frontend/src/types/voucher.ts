@@ -1,5 +1,6 @@
 export type FuelType =
   | "PETROL"
+  | "SPEED"
   | "DIESEL"
   | "LUBRICANT";
 

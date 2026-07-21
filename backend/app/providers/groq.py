@@ -85,7 +85,23 @@ class GroqProvider:
                         ],
                     }
                 ],
-                "response_format": {"type": "json_object"},
+                # Server-side schema enforcement (mirrors Gemini's response_schema)
+                # so enum/shape violations are rejected by Groq instead of only
+                # being caught by our own model_validate_json below — this is what
+                # keeps the fallback as reliable as the primary.
+                # ponytail: json_schema support is model-dependent on Groq. If the
+                # configured GROQ_MODEL doesn't support it, Groq errors → we raise
+                # OCRProviderException → vision_service falls through (same as any
+                # Groq failure today). Upgrade path if that bites: drop back to
+                # {"type": "json_object"} here and make OCRParser tolerant of
+                # title-case enums / partial items instead.
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "OCRExtraction",
+                        "schema": OCRExtraction.model_json_schema(),
+                    },
+                },
                 "temperature": 0,
             }
 

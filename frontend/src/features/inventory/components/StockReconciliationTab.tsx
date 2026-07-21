@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Fuel, Plus, Calculator, History, AlertTriangle, Edit, Trash2 } from "lucide-react";
+import { Fuel, Plus, PlusCircle, Calculator, History, AlertTriangle, Edit, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,15 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [dipDate, setDipDate] = useState(new Date().toISOString().split("T")[0]);
   const [openingDip, setOpeningDip] = useState("");
   const [closingDip, setClosingDip] = useState("");
+
+  // Add Stock (tanker delivery) states
+  const [addStockOpen, setAddStockOpen] = useState(false);
+  const [stockTank, setStockTank] = useState<any>(null);
+  const [stockDate, setStockDate] = useState(new Date().toISOString().split("T")[0]);
+  const [stockQty, setStockQty] = useState("");
+  const [stockInvoice, setStockInvoice] = useState("");
+  const [stockSupplier, setStockSupplier] = useState("");
+  const [stockIgnoreCapacity, setStockIgnoreCapacity] = useState(false);
 
   // Queries
   const {
@@ -74,6 +83,35 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.detail || "Failed to create fuel tank.");
+    },
+  });
+
+  const createDeliveryMutation = useMutation({
+    mutationFn: (data: {
+      tank_uuid: string;
+      delivery_date: string;
+      quantity_liters: number;
+      invoice_number?: string;
+      supplier_name?: string;
+      ignore_capacity?: boolean;
+    }) => inventoryService.createDelivery(data),
+    onSuccess: () => {
+      toast.success("Stock added to tank successfully!");
+      setAddStockOpen(false);
+      setStockQty("");
+      setStockInvoice("");
+      setStockSupplier("");
+      setStockIgnoreCapacity(false);
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+    },
+    onError: (err: any) => {
+      const detail = err.response?.data?.detail || "Failed to add stock.";
+      // Backend flags an over-capacity delivery with a distinct CAPACITY_WARNING prefix.
+      if (typeof detail === "string" && detail.includes("CAPACITY_WARNING")) {
+        toast.error("This delivery would exceed the tank capacity. Tick 'Fill beyond capacity' to override.");
+      } else {
+        toast.error(detail);
+      }
     },
   });
 
@@ -131,6 +169,34 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       fuel_type: tankFuelType,
       capacity_liters: parseFloat(tankCapacity),
       current_stock_liters: parseFloat(tankInitialStock),
+    });
+  };
+
+  const handleOpenAddStock = (tank: any) => {
+    setStockTank(tank);
+    setStockDate(new Date().toISOString().split("T")[0]);
+    setStockQty("");
+    setStockInvoice("");
+    setStockSupplier("");
+    setStockIgnoreCapacity(false);
+    setAddStockOpen(true);
+  };
+
+  const handleAddStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockTank) return;
+    const qty = parseFloat(stockQty);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Enter a delivery quantity greater than zero.");
+      return;
+    }
+    createDeliveryMutation.mutate({
+      tank_uuid: stockTank.uuid,
+      delivery_date: stockDate,
+      quantity_liters: qty,
+      invoice_number: stockInvoice.trim() || undefined,
+      supplier_name: stockSupplier.trim() || undefined,
+      ignore_capacity: stockIgnoreCapacity,
     });
   };
 
@@ -270,6 +336,14 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                       </CardTitle>
                       {isAdminOrManager && (
                         <div className="flex items-center gap-1.5 no-print">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddStock(tank)}
+                            className="p-1 text-ink-subtle hover:text-fuel-amber hover:bg-surface-3 rounded transition-colors cursor-pointer"
+                            title="Add Stock (Tanker Delivery)"
+                          >
+                            <Plus size={13} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(tank)}
@@ -518,7 +592,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                         }
 
                         return (
-                          <TableRow key={dip.uuid} className="border-b border-hairline hover:bg-surface-3/15 font-mono">
+                          <TableRow key={dip.uuid} className="border-b border-hairline pl-row font-mono">
                             <TableCell className="px-5 text-xs text-ink-muted">
                               {new Date(dip.reading_date).toLocaleDateString("en-IN", { dateStyle: "medium" })}
                             </TableCell>
@@ -529,17 +603,17 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-xs text-ink-muted">
+                            <TableCell className="text-xs text-ink-muted pl-numeric">
                               {dip.opening_dip_liters.toFixed(1)} L → {dip.closing_dip_liters.toFixed(1)} L
                             </TableCell>
-                            <TableCell className="text-xs text-ink font-semibold text-right">
+                            <TableCell className="text-xs text-ink font-semibold text-right pl-numeric">
                               {actualSales.toFixed(1)} L
                             </TableCell>
-                            <TableCell className="text-xs text-ink-muted text-right">
+                            <TableCell className="text-xs text-ink-muted text-right pl-numeric">
                               {dip.actual_sales_from_vouchers.toFixed(1)} L
                             </TableCell>
-                            <TableCell className={`text-xs text-right font-bold ${variance < 0 ? "text-red-500" : "text-blue-500"}`}>
-                              {variance > 0 ? "+" : ""}{variance.toFixed(2)} L
+                            <TableCell className={`text-xs text-right font-bold pl-numeric ${variance < 0 ? "text-red-500" : "text-blue-500"}`}>
+                              {variance > 0 ? "+" : variance < 0 ? "" : " "}{variance.toFixed(2)} L
                             </TableCell>
                             <TableCell className="px-5 text-right">
                               {statusBadge}
@@ -640,6 +714,99 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold text-xs h-9 cursor-pointer"
               >
                 {createTankMutation.isPending ? "Creating..." : "Create Fuel Tank"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Stock (Tanker Delivery) Dialog */}
+      <Dialog open={addStockOpen} onOpenChange={setAddStockOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <PlusCircle size={18} className="text-fuel-amber" /> Add Stock
+              {stockTank && <span className="text-ink-muted font-normal">— {stockTank.name}</span>}
+            </DialogTitle>
+            <DialogDescription className="text-[11px] text-ink-subtle">
+              Record a tanker delivery. This adds to the tank's current stock.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddStock} className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="stockDateInput" className="text-xs font-bold text-ink-muted">Delivery Date</Label>
+                <Input
+                  id="stockDateInput"
+                  type="date"
+                  value={stockDate}
+                  onChange={(e) => setStockDate(e.target.value)}
+                  className="bg-surface-2 border-hairline text-xs text-ink h-9"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stockQtyInput" className="text-xs font-bold text-ink-muted">Quantity (Liters)</Label>
+                <Input
+                  id="stockQtyInput"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 20000"
+                  value={stockQty}
+                  onChange={(e) => setStockQty(e.target.value)}
+                  className="bg-surface-2 border-hairline text-xs text-ink h-9"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="stockInvoiceInput" className="text-xs font-bold text-ink-muted">Invoice / DC No. <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                id="stockInvoiceInput"
+                placeholder="e.g. INV-2024-001"
+                value={stockInvoice}
+                onChange={(e) => setStockInvoice(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="stockSupplierInput" className="text-xs font-bold text-ink-muted">Supplier <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                id="stockSupplierInput"
+                placeholder="e.g. IOCL Depot"
+                value={stockSupplier}
+                onChange={(e) => setStockSupplier(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink h-9"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-[11px] text-ink-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={stockIgnoreCapacity}
+                onChange={(e) => setStockIgnoreCapacity(e.target.checked)}
+                className="cursor-pointer"
+              />
+              Fill beyond capacity (override capacity check)
+            </label>
+
+            <DialogFooter className="pt-3 border-t border-hairline">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setAddStockOpen(false)}
+                className="text-xs h-9 cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createDeliveryMutation.isPending}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold text-xs h-9 cursor-pointer"
+              >
+                {createDeliveryMutation.isPending ? "Adding..." : "Add Stock"}
               </Button>
             </DialogFooter>
           </form>

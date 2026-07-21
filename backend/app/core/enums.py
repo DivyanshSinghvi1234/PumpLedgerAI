@@ -16,6 +16,11 @@ class PaymentMode(str, Enum):
     CREDIT = "CREDIT"
 
 
+class IncomeKind(str, Enum):
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
+
+
 class VerificationStatus(str, Enum):
     PENDING = "PENDING"
     VERIFIED = "VERIFIED"

@@ -393,12 +393,26 @@ class NozzleService:
         readings = []
         r_date = data.reading_date
 
+        def parse_time(t: str | None) -> time_type | None:
+            if not t:
+                return time_type(19, 30)
+            try:
+                h, m = t.split(":")
+                return time_type(int(h), int(m))
+            except Exception:
+                return time_type(19, 30)
+
+        # ── Pass 1: resolve + validate the WHOLE batch before writing anything.
+        # A reading that empties a tank, or a selling nozzle with no tank linked,
+        # must fail the whole save with a warning — never a partial commit.
+        plan: list[dict] = []
+        net_deduction: dict[int, float] = {}  # tank_id -> net liters removed by this batch
+
         for item in data.readings:
             nozzle = self.nozzle_repo.get_by_uuid(db, item.nozzle_uuid)
             if not nozzle:
                 raise ValueError(f"Nozzle not found for UUID: {item.nozzle_uuid}")
 
-            # Get or calculate opening reading
             opening = item.opening_reading if item.opening_reading is not None else self.get_opening_readings(db, nozzle.uuid, r_date)
 
             gross_sales = item.closing_reading - opening
@@ -411,22 +425,51 @@ class NozzleService:
             sales = gross_sales - testing_liters
 
             existing = self.reading_repo.get_by_date(db, nozzle.id, r_date)
+            old_tank_id = existing.nozzle.tank_id if existing else None
+            old_sales = existing.sales if existing else 0.0
 
-            # Parse optional time strings
-            def parse_time(t: str | None) -> time_type | None:
-                if not t:
-                    return time_type(19, 30)
-                try:
-                    h, m = t.split(":")
-                    return time_type(int(h), int(m))
-                except Exception:
-                    return time_type(19, 30)
+            # A nozzle that dispensed fuel must be tied to a storage tank so the
+            # stock can be drawn down. Zero-sales readings are allowed unlinked.
+            if not nozzle.tank_id and sales > 0:
+                raise ValueError(
+                    f"Nozzle '{nozzle.name}' is not linked to a storage tank. "
+                    f"Configure its tank in the dispenser settings before recording sales."
+                )
 
+            # Accumulate the net draw-down per tank so we can reject the batch if
+            # any tank would go negative (physically impossible = data error).
+            if nozzle.tank_id:
+                if existing and old_tank_id and old_tank_id != nozzle.tank_id:
+                    net_deduction[old_tank_id] = net_deduction.get(old_tank_id, 0.0) - old_sales
+                    net_deduction[nozzle.tank_id] = net_deduction.get(nozzle.tank_id, 0.0) + sales
+                else:
+                    diff = sales - old_sales if existing else sales
+                    net_deduction[nozzle.tank_id] = net_deduction.get(nozzle.tank_id, 0.0) + diff
+
+            plan.append({
+                "item": item, "nozzle": nozzle, "existing": existing,
+                "opening": opening, "sales": sales, "testing_liters": testing_liters,
+                "old_tank_id": old_tank_id, "old_sales": old_sales,
+            })
+
+        for tank_id, removed in net_deduction.items():
+            tank = db.get(FuelTank, tank_id)
+            if tank and tank.current_stock_liters - removed < 0:
+                raise ValueError(
+                    f"Tank '{tank.name}' would run dry: only "
+                    f"{tank.current_stock_liters:.1f} L in stock but this entry draws "
+                    f"{removed:.1f} L. Record a stock delivery first, then save the readings."
+                )
+
+        # ── Pass 2: everything validated — commit the writes.
+        for p in plan:
+            item, nozzle, existing = p["item"], p["nozzle"], p["existing"]
+            opening, sales, testing_liters = p["opening"], p["sales"], p["testing_liters"]
             opening_time = parse_time(item.opening_time)
             closing_time = parse_time(item.closing_time)
 
             if existing:
-                old_sales = existing.sales
+                old_sales = p["old_sales"]
                 existing.opening_reading = opening
                 existing.closing_reading = item.closing_reading
                 existing.testing_liters = testing_liters
@@ -440,8 +483,8 @@ class NozzleService:
                 # Deduct stock based on differences
                 if nozzle.tank_id:
                     # If tank changed, restore to old tank and deduct from new tank
-                    if existing.nozzle.tank_id and existing.nozzle.tank_id != nozzle.tank_id:
-                        tank_service.restore_tank_stock(db, existing.nozzle.tank_id, old_sales)
+                    if p["old_tank_id"] and p["old_tank_id"] != nozzle.tank_id:
+                        tank_service.restore_tank_stock(db, p["old_tank_id"], old_sales)
                         tank_service.deduct_tank_stock(db, nozzle.tank_id, sales)
                     else:
                         diff = sales - old_sales

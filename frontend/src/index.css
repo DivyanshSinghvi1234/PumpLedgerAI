@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
 @import "tailwindcss";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -29,14 +30,14 @@
     --color-fuel-gold: #fbbf24;
     
     /* ── Semantic status colors ── */
-    --color-success: #14b8a6;
-    --color-success-muted: rgba(20, 184, 166, 0.15);
-    --color-error: #ef4444;
-    --color-error-muted: rgba(239, 68, 68, 0.15);
-    --color-warning: #f59e0b;
-    --color-warning-muted: rgba(245, 158, 11, 0.15);
-    --color-info: #3b82f6;
-    --color-info-muted: rgba(59, 130, 246, 0.15);
+    --color-success: var(--pl-success);
+    --color-success-muted: var(--pl-success-muted);
+    --color-error: var(--pl-error);
+    --color-error-muted: var(--pl-error-muted);
+    --color-warning: var(--pl-warning);
+    --color-warning-muted: var(--pl-warning-muted);
+    --color-info: var(--pl-info);
+    --color-info-muted: var(--pl-info-muted);
     
     /* ── Fuel-themed chart colors ── */
     --color-petrol-blue: #3b82f6;
@@ -145,56 +146,99 @@
     --pl-ink-muted:         #57534e;
     --pl-ink-subtle:        #878076;
     --pl-ink-tertiary:      #a8a29e;
+    
+    --pl-bg:                #fdfbf7;
+    --pl-accent:            #ea580c;
+    --pl-focus-ring:        0 0 0 2px var(--pl-bg), 0 0 0 4px var(--pl-accent);
+
+    /* Semantic status colors in light mode */
+    --pl-success: #14b8a6;
+    --pl-success-muted: rgba(20, 184, 166, 0.15);
+    --pl-success-border: rgba(20, 184, 166, 0.2);
+    --pl-error: #ef4444;
+    --pl-error-muted: rgba(239, 68, 68, 0.15);
+    --pl-error-border: rgba(239, 68, 68, 0.2);
+    --pl-warning: #f59e0b;
+    --pl-warning-muted: rgba(245, 158, 11, 0.15);
+    --pl-warning-border: rgba(245, 158, 11, 0.2);
+    --pl-info: #3b82f6;
+    --pl-info-muted: rgba(59, 130, 246, 0.15);
+    --pl-info-border: rgba(59, 130, 246, 0.2);
 }
 
-/* 🌑🌑 Dark theme (.dark class) — cool blue-tinted ── 🌑🌑 */
+/* 🌑🌑 Dark theme (.dark class) — warm asphalt & ledger ink ── 🌑🌑 */
 .dark {
     /* ── Shadcn / Radix base tokens ── */
-    --background: #090b14;
-    --foreground: #f0f4fa;
-    --card: #0c0f18;
-    --card-foreground: #f0f4fa;
-    --popover: #0c0f18;
-    --popover-foreground: #f0f4fa;
-    --primary: #f59e0b;
-    --primary-foreground: #090b14;
-    --secondary: #141828;
-    --secondary-foreground: #f0f4fa;
-    --muted: #141828;
-    --muted-foreground: #8e99b0;
-    --accent: #141828;
-    --accent-foreground: #f0f4fa;
-    --destructive: #ef4444;
-    --border: #1e2540;
-    --input: #1e2540;
-    --ring: #f59e0b;
-    --chart-1: #10b981;
-    --chart-2: #3b82f6;
-    --chart-3: #f59e0b;
+    --background: #0A0908;
+    --foreground: #F5F2ED;
+    --card: #131110;
+    --card-foreground: #F5F2ED;
+    --popover: #262220;
+    --popover-foreground: #F5F2ED;
+    --primary: #3A7A82;
+    --primary-foreground: #06181A;
+    --secondary: #1C1917;
+    --secondary-foreground: #F5F2ED;
+    --muted: #1C1917;
+    --muted-foreground: #A8A29B;
+    --accent: #1C1917;
+    --accent-foreground: #F5F2ED;
+    --destructive: #C0463C;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.08);
+    --ring: #3A7A82;
+    --chart-1: #4E9B6F;
+    --chart-2: #3A7A82;
+    --chart-3: #D9A441;
     --chart-4: #8b5cf6;
     --chart-5: #ec4899;
-    --sidebar: #090b14;
-    --sidebar-foreground: #f0f4fa;
-    --sidebar-primary: #f59e0b;
-    --sidebar-primary-foreground: #090b14;
-    --sidebar-accent: #141828;
-    --sidebar-accent-foreground: #f0f4fa;
-    --sidebar-border: #1e2540;
-    --sidebar-ring: #f59e0b;
+    --sidebar: #0A0908;
+    --sidebar-foreground: #F5F2ED;
+    --sidebar-primary: #3A7A82;
+    --sidebar-primary-foreground: #06181A;
+    --sidebar-accent: #1C1917;
+    --sidebar-accent-foreground: #F5F2ED;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: #3A7A82;
 
-    /* ── PumpLedger surface & ink — DARK values (blue-tinted) ── */
-    --pl-canvas:            #090b14;
-    --pl-surface-1:         #0c0f18;
-    --pl-surface-2:         #101420;
-    --pl-surface-3:         #141828;
-    --pl-surface-4:         #1a1f32;
-    --pl-hairline:          #1e2540;
-    --pl-hairline-strong:   #2e3654;
-    --pl-hairline-tertiary: #3d4768;
-    --pl-ink:               #f0f4fa;
-    --pl-ink-muted:         #c8d0e0;
-    --pl-ink-subtle:        #8e99b0;
-    --pl-ink-tertiary:      #5e6b88;
+    /* ── PumpLedger surface & ink — DARK values (asphalt-at-night & ledger ink) ── */
+    --pl-canvas:            #0A0908;
+    --pl-surface-1:         #131110;
+    --pl-surface-2:         #1C1917;
+    --pl-surface-3:         #262220;
+    --pl-surface-4:         #302B28;
+    --pl-hairline:          rgba(255, 255, 255, 0.08);
+    --pl-hairline-strong:   rgba(255, 255, 255, 0.14);
+    --pl-hairline-tertiary: rgba(255, 255, 255, 0.22);
+    --pl-ink:               #F5F2ED;
+    --pl-ink-muted:         #A8A29B;
+    --pl-ink-subtle:        #6B655D;
+    --pl-ink-tertiary:      #4E4942;
+
+    /* Extra semantic/accent maps */
+    --pl-accent:            #3A7A82;
+    --pl-accent-hover:      #4A8F97;
+    --pl-on-accent:         #06181A;
+    --pl-text-primary:      #F5F2ED;
+    --pl-text-secondary:    #A8A29B;
+    --pl-text-muted:        #6B655D;
+    --pl-border-strong:     rgba(255, 255, 255, 0.14);
+    --pl-bg:                #0A0908;
+    --pl-focus-ring:        0 0 0 2px var(--pl-bg), 0 0 0 4px var(--pl-accent);
+
+    /* Semantic status colors in dark mode */
+    --pl-success:           #4E9B6F;
+    --pl-success-muted:     rgba(78, 155, 111, 0.15);
+    --pl-success-border:    rgba(78, 155, 111, 0.2);
+    --pl-error:             #C0463C;
+    --pl-error-muted:       rgba(192, 70, 60, 0.15);
+    --pl-error-border:      rgba(192, 70, 60, 0.2);
+    --pl-warning:           #D9A441;
+    --pl-warning-muted:     rgba(217, 164, 65, 0.15);
+    --pl-warning-border:    rgba(217, 164, 65, 0.2);
+    --pl-info:              #3A7A82;
+    --pl-info-muted:        rgba(58, 122, 130, 0.15);
+    --pl-info-border:       rgba(58, 122, 130, 0.2);
 }
 
 @layer base {
@@ -226,8 +270,13 @@
 
 /* Subtle dot-grid background pattern */
 .dot-grid {
-  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
   background-size: 24px 24px;
+}
+.dark .dot-grid {
+  background-image: radial-gradient(var(--pl-ink-subtle) 0.5px, transparent 0.5px);
+  background-size: 20px 20px;
+  opacity: 0.15;
 }
 
 /* Glassmorphic panel — theme-aware */
@@ -238,8 +287,9 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 .dark .glass {
-  background: rgba(12, 15, 24, 0.7);
-  border: 1px solid rgba(160, 180, 255, 0.06);
+  background: rgba(28, 25, 23, 0.72);   /* --pl-surface-2 at reduced opacity */
+  border: 0.5px solid var(--pl-border-strong);
+  backdrop-filter: blur(16px);
 }
 
 /* Card hover glow effect */
@@ -412,6 +462,10 @@
   background: rgba(245, 158, 11, 0.3);
   color: #fafafa;
 }
+.dark ::selection {
+  background: rgba(58, 122, 130, 0.4);
+  color: #F5F2ED;
+}
 
 /* Smooth transitions on interactive elements */
 a, button, input, select, textarea {
@@ -420,9 +474,160 @@ a, button, input, select, textarea {
   transition-timing-function: ease;
 }
 
-/* Table row hover */
+/* Keyboard focus visibility override adhering to accessibility guidelines */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--pl-accent) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+/* Disabled states styling for inputs, buttons, and textareas */
+:disabled {
+  cursor: not-allowed !important;
+}
+.dark :disabled {
+  opacity: 0.55 !important;
+}
+.dark button:disabled {
+  background: var(--pl-surface-2) !important;
+  border-color: var(--pl-hairline) !important;
+  color: var(--pl-ink-subtle) !important;
+}
+.dark input:disabled, .dark select:disabled, .dark textarea:disabled {
+  background: var(--pl-surface-1) !important;
+  border-color: var(--pl-hairline) !important;
+  color: var(--pl-ink-subtle) !important;
+}
+
+/* Tabular numbers for financial and ledger data alignment */
+.pl-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Table row hover styles */
 tr.table-row-hover:hover {
   background: rgba(245, 158, 11, 0.03);
+}
+.pl-row {
+  transition: background-color 150ms ease;
+}
+.pl-row:hover {
+  background: var(--pl-surface-2);
+}
+.dark .pl-row:hover {
+  background: var(--pl-surface-1);
+}
+
+/* Respect user's system preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ── Ruled Paper Book Register Styles ── */
+.book-container {
+  perspective: 2000px;
+}
+
+.book-sheet {
+  background-color: #faf6ee; /* Aged paper texture color */
+  background-image: 
+    linear-gradient(rgba(30, 80, 245, 0.07) 1px, transparent 1px), /* Ruled lines */
+    linear-gradient(90deg, transparent 54px, rgba(220, 50, 50, 0.25) 54px, rgba(220, 50, 50, 0.25) 56px, transparent 56px); /* Left red margin line */
+  background-size: 100% 28px, 100% 100%;
+  line-height: 28px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15), 0 1px 8px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.book-sheet-right {
+  background-color: #faf6ee; /* Aged paper texture color */
+  background-image: 
+    linear-gradient(rgba(30, 80, 245, 0.07) 1px, transparent 1px), /* Ruled lines */
+    linear-gradient(90deg, transparent 54px, rgba(220, 50, 50, 0.25) 54px, rgba(220, 50, 50, 0.25) 56px, transparent 56px); /* Left red margin line */
+  background-size: 100% 28px, 100% 100%;
+  line-height: 28px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15), 0 1px 8px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.book-spine-shadow {
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.12) 0%,
+    rgba(0, 0, 0, 0.3) 40%,
+    rgba(0, 0, 0, 0.3) 60%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
+  width: 24px;
+  height: 100%;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+
+.handwritten-ink {
+  font-family: 'Caveat', 'Indie Flower', cursive;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1c274c; /* Dark navy blue ink */
+  letter-spacing: 0.01em;
+}
+
+.handwritten-ink-red {
+  font-family: 'Caveat', 'Indie Flower', cursive;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #c23b3b; /* Red correction/totaling ink */
+}
+
+/* Page fold turn animations */
+@keyframes flip-r2l {
+  0% {
+    transform: rotateY(0deg);
+    z-index: 30;
+  }
+  50% {
+    transform: rotateY(-90deg);
+    z-index: 30;
+  }
+  100% {
+    transform: rotateY(-180deg);
+    z-index: 10;
+  }
+}
+
+@keyframes flip-l2r {
+  0% {
+    transform: rotateY(-180deg);
+    z-index: 30;
+  }
+  50% {
+    transform: rotateY(-90deg);
+    z-index: 30;
+  }
+  100% {
+    transform: rotateY(0deg);
+    z-index: 10;
+  }
+}
+
+.page-turn-r2l {
+  animation: flip-r2l 0.6s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+}
+
+.page-turn-l2r {
+  animation: flip-l2r 0.6s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+  transform-origin: right center;
+  transform-style: preserve-3d;
 }
 
 /* Input focus glow */
@@ -433,24 +638,24 @@ tr.table-row-hover:hover {
 
 /* Badge glow variants */
 .badge-success {
-  background: rgba(20, 184, 166, 0.12);
-  color: #14b8a6;
-  border: 1px solid rgba(20, 184, 166, 0.2);
+  background: var(--pl-success-muted);
+  color: var(--pl-success);
+  border: 1px solid var(--pl-success-border);
 }
 .badge-warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: var(--pl-warning-muted);
+  color: var(--pl-warning);
+  border: 1px solid var(--pl-warning-border);
 }
 .badge-error {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: var(--pl-error-muted);
+  color: var(--pl-error);
+  border: 1px solid var(--pl-error-border);
 }
 .badge-info {
-  background: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: var(--pl-info-muted);
+  color: var(--pl-info);
+  border: 1px solid var(--pl-info-border);
 }
 
 /* Drag-drop zone animation */
@@ -463,6 +668,153 @@ tr.table-row-hover:hover {
   background: rgba(245, 158, 11, 0.05);
   border-color: #f59e0b;
   box-shadow: 0 0 20px rgba(245, 158, 11, 0.1) inset;
+}
+
+/* Single-hue quiet background glow for the login screen */
+.login-glow {
+  position: absolute;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.06;
+  filter: blur(120px);
+  pointer-events: none;
+}
+
+/* ── Real Bound Ledger Paper Register Styles ── */
+.pl-register-container {
+  background: #0A0908; /* Forecourt at night background */
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+}
+
+.pl-register-page-left {
+  background: #F7F1E3; /* Aged book ledger paper */
+  color: #000000;
+  position: relative;
+  min-height: 820px;
+  padding: 80px 2rem 2.25rem 4.5rem; /* Large top padding matching exactly the header height */
+  /* Top solid header margin (white space for 80px) then repeating black ruled lines every 20px */
+  background-image: 
+    linear-gradient(to bottom, #F7F1E3 0px, #F7F1E3 80px, transparent 80px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 19px,
+      rgba(0, 0, 0, 0.28) 20px
+    );
+  background-size: 100% 100%, 100% 20px;
+  line-height: 20px;
+  box-shadow: inset -10px 0 25px rgba(0,0,0,0.06), 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.pl-register-page-right {
+  background: #F7F1E3; /* Aged book ledger paper */
+  color: #000000;
+  position: relative;
+  min-height: 820px;
+  /* Matches left page: double red line at 54px, content starts at 4.5rem (72px).
+     Right padding 0 so nozzle columns stretch to the page edge. */
+  padding: 80px 0 2.25rem 4.5rem;
+  /* Top solid header margin (white space for 80px) then repeating black ruled lines every 20px */
+  background-image: 
+    linear-gradient(to bottom, #F7F1E3 0px, #F7F1E3 80px, transparent 80px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 19px,
+      rgba(0, 0, 0, 0.28) 20px
+    );
+  background-size: 100% 100%, 100% 20px;
+  line-height: 20px;
+  box-shadow: inset 10px 0 25px rgba(0,0,0,0.06), 0 10px 30px rgba(0,0,0,0.2);
+}
+
+/* absolute top header wrapper container sitting on top white space */
+.pl-register-page-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  padding: 0.5rem 2rem 0.5rem 4.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #A33A32; /* Red divider below the top margin */
+}
+
+/* Double vertical red margin lines mimicking physical ledgers */
+.pl-register-page-left::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 54px;
+  width: 3px;
+  border-left: 1px solid #A33A32;
+  border-right: 1px solid #A33A32;
+  opacity: 0.72;
+  z-index: 10;
+}
+
+.pl-register-page-right::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 54px; /* matches left page double red line position */
+  width: 3px;
+  border-left: 1px solid #A33A32;
+  border-right: 1px solid #A33A32;
+  opacity: 0.72;
+  z-index: 10;
+}
+
+/* Red section horizontal headers matching reference photo */
+.pl-section-divider {
+  border: none;
+  border-top: 1.5px solid #A33A32;
+  opacity: 0.75;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.pl-handwritten {
+  font-family: 'Patrick Hand', cursive;
+  color: #103F91; /* blue gel pen ink */
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.pl-handwritten-strong {
+  font-family: 'Patrick Hand', cursive;
+  color: #103F91; /* blue gel pen ink */
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.pl-handwritten-header {
+  font-family: 'Patrick Hand', cursive;
+  color: #103F91; /* blue gel pen ink */
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+
+.pl-handwritten-red {
+  font-family: 'Patrick Hand', cursive;
+  color: #A33A32; /* red-ink structural highlight */
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+/* Monospaced ledger totals divider */
+.pl-double-underline {
+  border-bottom: 3px double rgba(43, 38, 33, 0.4);
 }
 
 /* Print Media Styles — Professional Standard Format */
@@ -482,9 +834,7 @@ tr.table-row-hover:hover {
   [class*="h-screen"],
   [class*="overflow-hidden"],
   [class*="overflow-auto"],
-  main,
-  #daily-sheet-print-container,
-  #daily-sheet-print-container * {
+  main {
     overflow: visible !important;
     height: auto !important;
     max-height: none !important;
@@ -518,23 +868,6 @@ tr.table-row-hover:hover {
   /* Remove padding from main container to maximize print area */
   main {
     padding: 0 !important;
-  }
-
-  /* Main print container */
-  #daily-sheet-print-container {
-    position: static !important;
-    width: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
-    color: #000 !important;
-    visibility: visible !important;
-  }
-
-  #daily-sheet-print-container * {
-    visibility: visible !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
   }
 
   /* ── Print Header ── */

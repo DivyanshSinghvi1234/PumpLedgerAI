@@ -11,8 +11,9 @@ import {
   FileCode,
   History,
   X,
-  ClipboardList,
   UserCog,
+  Coins,
+  BookOpen,
 } from "lucide-react";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import type { UserRole } from "@/features/auth/services/authService";
@@ -64,9 +65,15 @@ const menuItems: MenuGroup[] = [
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
-        title: "Daily Sheet",
-        path: "/dashboard/daily-sheet",
-        icon: ClipboardList,
+        title: "Income / Expenses",
+        path: "/dashboard/income",
+        icon: Coins,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Daily Register",
+        path: "/dashboard/register",
+        icon: BookOpen,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
     ],

@@ -22,8 +22,8 @@ export default function AppLayout() {
         <main className="relative flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           {/* Subtle dot-grid background */}
           <div className="absolute inset-0 dot-grid pointer-events-none" />
-          {/* Warm glow at top */}
-          <div className="absolute top-0 left-0 right-0 h-48 fuel-glow pointer-events-none" />
+          {/* Warm glow at top (light mode only) */}
+          <div className="absolute top-0 left-0 right-0 h-48 fuel-glow pointer-events-none dark:hidden" />
 
           <div className="relative z-10 animate-fade-in-up">
             <Outlet />

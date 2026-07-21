@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import inventoryService from "../services/inventoryService";
 import type { FuelType, FuelDispenserCreate, NozzleCreate } from "../types";
+import { extractApiError } from "@/api/client";
 
 export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: boolean }) {
   const queryClient = useQueryClient();
@@ -33,15 +34,23 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
   const [nozzleName, setNozzleName] = useState("");
   const [nozzleFuelType, setNozzleFuelType] = useState<FuelType>("PETROL");
   const [nozzleInitialReading, setNozzleInitialReading] = useState("");
+  const [nozzleTankUuid, setNozzleTankUuid] = useState("");
 
   const [editNozzleName, setEditNozzleName] = useState("");
   const [editNozzleFuelType, setEditNozzleFuelType] = useState<FuelType>("PETROL");
   const [editNozzleInitialReading, setEditNozzleInitialReading] = useState("");
+  const [editNozzleTankUuid, setEditNozzleTankUuid] = useState("");
 
   // Queries
   const { data: dispensers, isLoading: dispensersLoading, isError: dispensersError } = useQuery({
     queryKey: ["dispensers"],
     queryFn: () => inventoryService.getDispensers(),
+  });
+
+  // Tanks — needed to link each nozzle to the storage tank it draws from.
+  const { data: tanks } = useQuery({
+    queryKey: ["tanks"],
+    queryFn: () => inventoryService.getTanks(),
   });
 
   // Mutations
@@ -54,8 +63,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
       toast.success("Fuel dispenser configured successfully!");
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to configure fuel dispenser.";
-      toast.error(msg);
+      toast.error(extractApiError(err, "Failed to configure fuel dispenser."));
     },
   });
 
@@ -68,8 +76,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
       toast.success("Fuel dispenser updated successfully!");
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to update fuel dispenser.";
-      toast.error(msg);
+      toast.error(extractApiError(err, "Failed to update fuel dispenser."));
     },
   });
 
@@ -83,8 +90,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
       toast.success("Fuel dispenser deleted successfully!");
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to delete fuel dispenser.";
-      toast.error(msg);
+      toast.error(extractApiError(err, "Failed to delete fuel dispenser."));
     },
   });
 
@@ -96,11 +102,11 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
       setNozzleDialogOpen(false);
       setNozzleName("");
       setNozzleInitialReading("");
+      setNozzleTankUuid("");
       toast.success("Nozzle configured successfully!");
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to configure nozzle.";
-      toast.error(msg);
+      toast.error(extractApiError(err, "Failed to configure nozzle."));
     },
   });
 
@@ -113,8 +119,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
       toast.success("Nozzle updated successfully!");
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to update nozzle.";
-      toast.error(msg);
+      toast.error(extractApiError(err, "Failed to update nozzle."));
     },
   });
 
@@ -128,8 +133,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
       toast.success("Nozzle deleted successfully!");
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || "Failed to delete nozzle.";
-      toast.error(msg);
+      toast.error(extractApiError(err, "Failed to delete nozzle."));
     },
   });
 
@@ -175,6 +179,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
         name: nozzleName,
         fuel_type: nozzleFuelType,
         last_reading: parseFloat(nozzleInitialReading),
+        tank_uuid: nozzleTankUuid || null,
       },
     });
   };
@@ -191,6 +196,7 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
         name: editNozzleName,
         fuel_type: editNozzleFuelType,
         last_reading: parseFloat(editNozzleInitialReading),
+        tank_uuid: editNozzleTankUuid || null,
       },
     });
   };
@@ -296,6 +302,15 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                             <p className="text-[10px] text-ink-subtle mt-0.5">
                               Last Meter: {nozzle.last_reading.toLocaleString()} L
                             </p>
+                            {nozzle.tank_id ? (
+                              <p className="text-[10px] text-ink-subtle mt-0.5">
+                                Tank: {tanks?.find((t) => t.id === nozzle.tank_id)?.name ?? `#${nozzle.tank_id}`}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-red-400 mt-0.5 flex items-center gap-1">
+                                <AlertTriangle size={9} /> No tank linked
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber border-transparent hover:bg-fuel-amber/15 mr-1">
@@ -309,6 +324,9 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                                     setEditNozzleName(nozzle.name);
                                     setEditNozzleFuelType(nozzle.fuel_type);
                                     setEditNozzleInitialReading(nozzle.last_reading.toString());
+                                    setEditNozzleTankUuid(
+                                      tanks?.find((t) => t.id === nozzle.tank_id)?.uuid ?? ""
+                                    );
                                     setEditNozzleDialogOpen(true);
                                   }}
                                   className="text-ink-subtle hover:text-fuel-amber transition-colors p-0.5 rounded hover:bg-surface-3 cursor-pointer"
@@ -547,6 +565,30 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="nozzleTank" className="text-xs font-bold text-ink-muted">
+                Storage Tank
+              </Label>
+              <select
+                id="nozzleTank"
+                value={nozzleTankUuid}
+                onChange={(e) => setNozzleTankUuid(e.target.value)}
+                className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
+              >
+                <option value="">-- Not linked (readings will be blocked) --</option>
+                {tanks
+                  ?.filter((t) => t.fuel_type === nozzleFuelType)
+                  .map((t) => (
+                    <option key={t.uuid} value={t.uuid}>
+                      {t.name} ({t.current_stock_liters.toLocaleString()} L)
+                    </option>
+                  ))}
+              </select>
+              <p className="text-[10px] text-ink-subtle">
+                The nozzle draws from this tank; sales deduct its stock. Only tanks matching the selected fuel type are shown.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="nozzleInitial" className="text-xs font-bold text-ink-muted">
                 Initial Meter Reading (Liters)
               </Label>
@@ -621,6 +663,30 @@ export default function DispenserTab({ isAdminOrManager }: { isAdminOrManager: b
                 <option value="DIESEL">DIESEL</option>
                 <option value="LUBRICANT">LUBRICANT</option>
               </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editNozzleTank" className="text-xs font-bold text-ink-muted">
+                Storage Tank
+              </Label>
+              <select
+                id="editNozzleTank"
+                value={editNozzleTankUuid}
+                onChange={(e) => setEditNozzleTankUuid(e.target.value)}
+                className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink outline-none h-10 transition-colors focus:border-fuel-amber"
+              >
+                <option value="">-- Not linked (readings will be blocked) --</option>
+                {tanks
+                  ?.filter((t) => t.fuel_type === editNozzleFuelType)
+                  .map((t) => (
+                    <option key={t.uuid} value={t.uuid}>
+                      {t.name} ({t.current_stock_liters.toLocaleString()} L)
+                    </option>
+                  ))}
+              </select>
+              <p className="text-[10px] text-ink-subtle">
+                The nozzle draws from this tank; sales deduct its stock. Only tanks matching the selected fuel type are shown.
+              </p>
             </div>
 
             <div className="space-y-2">

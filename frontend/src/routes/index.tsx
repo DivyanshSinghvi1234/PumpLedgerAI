@@ -14,7 +14,8 @@ import CustomerLedgerPage from "../features/ledger/CustomerLedgerPage";
 import ReportsPage from "../features/reports/ReportsPage";
 import TallyExportPage from "../features/tally/TallyExportPage";
 import InventoryPage from "../features/inventory/InventoryPage";
-import DailySheetPage from "../features/daily-sheet/DailySheetPage";
+import IncomePage from "../features/income/IncomePage";
+import RegisterPage from "../features/income/RegisterPage";
 import AuditLogPage from "../features/audit/AuditLogPage";
 import UserManagementPage from "../features/users/UserManagementPage";
 import AppErrorPage from "../components/common/AppErrorPage";
@@ -96,8 +97,12 @@ const router = createBrowserRouter([
             element: <InventoryPage />,
           },
           {
-            path: "daily-sheet",
-            element: <DailySheetPage />,
+            path: "income",
+            element: <IncomePage />,
+          },
+          {
+            path: "register",
+            element: <RegisterPage />,
           },
           {
             path: "audit",

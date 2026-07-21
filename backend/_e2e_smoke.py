@@ -270,33 +270,6 @@ check("list price schedules", r.status_code == 200 and len(r.json()) > 0, r.text
 r = client.delete(f"{P}/price-schedules/{ps_uuid}", headers=H)
 check("delete price schedule 204", r.status_code == 204, r.status_code)
 
-# ---- Daily Sheets ----
-r = client.get(f"{P}/daily-sheets/2026-07-15", headers=H)
-check("get nonexistent daily sheet 200 (null)", r.status_code == 200 and r.json() is None, r.text)
-
-r = client.post(f"{P}/daily-sheets", headers=H, json={
-    "date": "2026-07-15",
-    "remarks": "Test daily sheet remarks"
-})
-check("create daily sheet 201", r.status_code == 201, r.text)
-ds_uuid = r.json()["uuid"]
-
-r = client.get(f"{P}/daily-sheets/2026-07-15", headers=H)
-check("get created daily sheet 200", r.status_code == 200 and r.json()["uuid"] == ds_uuid, r.text)
-
-r = client.put(f"{P}/daily-sheets/{ds_uuid}", headers=H, json={
-    "remarks": "Updated remarks from test",
-    "manual_sheet_image": None
-})
-check("update daily sheet remarks 200", r.status_code == 200 and r.json()["remarks"] == "Updated remarks from test", r.text)
-
-r = client.post(
-    f"{P}/daily-sheets/{ds_uuid}/upload",
-    headers=H,
-    files={"file": ("test.png", b"fakeimagebytes", "image/png")}
-)
-check("upload manual sheet image 200", r.status_code == 200 and "daily-sheets" in r.json()["manual_sheet_image"], r.text)
-
 # ---- Summary ----
 passed = sum(1 for _, c, _ in results if c)
 total = len(results)

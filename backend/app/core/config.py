@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     # -------------------------------
     # Database
     # -------------------------------
-    DATABASE_URL: str = "sqlite:///./pumpledger.db"
+    # Postgres by default. The real connection string comes from `.env`
+    # (prod = Neon). This local default is only a fallback so the app fails
+    # loudly against a missing/unreachable Postgres rather than silently
+    # writing to a throwaway SQLite file. Override via DATABASE_URL in .env.
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/pumpledger"
 
     # -------------------------------
     # AI Keys

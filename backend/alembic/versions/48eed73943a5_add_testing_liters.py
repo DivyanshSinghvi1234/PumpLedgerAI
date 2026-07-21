@@ -10,7 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from alembic_helpers.idempotent import add_column_if_missing, drop_column_if_exists
+from alembic_helpers.idempotent import add_column_if_missing, drop_column_if_exists, has_index
 
 
 # revision identifiers, used by Alembic.
@@ -27,15 +27,22 @@ def upgrade() -> None:
     # backfill on prod DBs built by create_all. See alembic_helpers/idempotent.py.
     add_column_if_missing('nozzle_readings', sa.Column('testing_liters', sa.Float(), nullable=False, server_default='0.0'))
     # Skip index/foreign key recreate if they already exist or cause errors in SQLite.
-    try:
+    
+    if not has_index('nozzles', 'ix_nozzles_tank_id'):
         op.create_index(op.f('ix_nozzles_tank_id'), 'nozzles', ['tank_id'], unique=False)
-        op.create_foreign_key(None, 'nozzles', 'fuel_tanks', ['tank_id'], ['id'], ondelete='SET NULL')
-    except Exception:
-        pass
-    try:
+        
+    if op.get_bind().dialect.name != 'sqlite':
+        from alembic_helpers.idempotent import _inspector
+        inspector = _inspector()
+        fks = inspector.get_foreign_keys('nozzles')
+        has_tank_fk = any('tank_id' in fk['constrained_columns'] for fk in fks)
+        if not has_tank_fk:
+            op.create_foreign_key(None, 'nozzles', 'fuel_tanks', ['tank_id'], ['id'], ondelete='SET NULL')
+            
+    # Add missing normalized_number column and then index
+    add_column_if_missing('vehicles', sa.Column('normalized_number', sa.String(length=20), nullable=True))
+    if not has_index('vehicles', 'ix_vehicles_normalized_number'):
         op.create_index(op.f('ix_vehicles_normalized_number'), 'vehicles', ['normalized_number'], unique=False)
-    except Exception:
-        pass
     # ### end Alembic commands ###
 
 
@@ -46,6 +53,7 @@ def downgrade() -> None:
         op.drop_index(op.f('ix_vehicles_normalized_number'), table_name='vehicles')
     except Exception:
         pass
+    drop_column_if_exists('vehicles', 'normalized_number')
     try:
         op.drop_constraint(None, 'nozzles', type_='foreignkey')
         op.drop_index(op.f('ix_nozzles_tank_id'), table_name='nozzles')

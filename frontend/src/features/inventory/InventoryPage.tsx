@@ -74,7 +74,7 @@ export default function InventoryPage() {
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
-          Stock Reconciliation
+          Fuel Storage
         </button>
       </div>
 

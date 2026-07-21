@@ -181,10 +181,6 @@ def check_and_update_schema() -> None:
             ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "physical_leak_variance", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "variance_tolerance_liters", "FLOAT NOT NULL DEFAULT 0"),
-            ("daily_sheets", "actual_cash_collected", "FLOAT"),
-            ("daily_sheets", "cash_shortage_excess", "FLOAT"),
-            ("daily_sheets", "expenses_data", "TEXT"),
-            ("daily_sheets", "manual_payment_mode_amounts_data", "TEXT"),
         ):
             try:
                 db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
@@ -192,6 +188,19 @@ def check_and_update_schema() -> None:
                 db.rollback()
                 db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
                 db.commit()
+
+        # tanker_deliveries timestamp defaults. The table was created (by
+        # create_all) without a server DEFAULT on created_at/updated_at on some
+        # DBs, so inserts send NULL and hit a NOT NULL violation (500 on every
+        # "Add Stock" delivery). Re-assert the default idempotently. Postgres
+        # only — SQLite's create_all already applies CURRENT_TIMESTAMP.
+        if engine.dialect.name == "postgresql":
+            try:
+                db.execute(text("ALTER TABLE tanker_deliveries ALTER COLUMN created_at SET DEFAULT now()"))
+                db.execute(text("ALTER TABLE tanker_deliveries ALTER COLUMN updated_at SET DEFAULT now()"))
+                db.commit()
+            except Exception:
+                db.rollback()
     finally:
         db.close()
 

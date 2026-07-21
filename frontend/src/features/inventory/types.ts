@@ -37,6 +37,30 @@ export interface DipReadingCreate {
   reading_date?: string;
 }
 
+export interface TankerDelivery {
+  id: number;
+  uuid: string;
+  tank_id: number;
+  delivery_date: string;
+  invoice_number: string;
+  quantity_liters: number;
+  density: number | null;
+  supplier_name: string | null;
+  remarks: string | null;
+  created_at: string;
+}
+
+export interface TankerDeliveryCreate {
+  tank_uuid: string;
+  delivery_date: string;
+  quantity_liters: number;
+  invoice_number?: string;
+  density?: number | null;
+  supplier_name?: string | null;
+  remarks?: string | null;
+  ignore_capacity?: boolean;
+}
+
 export interface PriceSchedule {
   id: number;
   uuid: string;
@@ -76,6 +100,7 @@ export interface Nozzle {
   name: string;
   fuel_type: FuelType;
   last_reading: number;
+  tank_id: number | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -85,6 +110,7 @@ export interface NozzleCreate {
   name: string;
   fuel_type: FuelType;
   last_reading: number;
+  tank_uuid?: string | null;
 }
 
 export interface NozzleReading {

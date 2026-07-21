@@ -26,12 +26,40 @@ def upgrade() -> None:
     bind.execute(sa.text("DELETE FROM payments"))
     bind.execute(sa.text("DELETE FROM ledger_entries"))
     bind.execute(sa.text("DELETE FROM vouchers"))
-    bind.execute(sa.text("UPDATE users SET last_active_at = NULL"))
+
+    # Ensure last_active_at exists on users table
+    has_column = False
+    try:
+        bind.execute(sa.text("SELECT last_active_at FROM users LIMIT 1"))
+        has_column = True
+    except Exception:
+        try:
+            bind.execute(sa.text("ROLLBACK"))
+        except Exception:
+            pass
+
+    # Determine dialect-specific Enum type
+    if bind.dialect.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
+        fuel_type_type = PG_ENUM('PETROL', 'SPEED', 'DIESEL', 'LUBRICANT', name='fueltype', create_type=False)
+        try:
+            res = bind.execute(sa.text("SELECT typname FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public'"))
+            print("DIAGNOSTIC - Types in database right before create_table:")
+            for row in res:
+                print("  Type:", row[0])
+            res = bind.execute(sa.text("SELECT table_name FROM information_schema.tables WHERE table_schema='public'"))
+            print("DIAGNOSTIC - Tables in database right before create_table:")
+            for row in res:
+                print("  Table:", row[0])
+        except Exception as err:
+            print("DIAGNOSTIC - Failed to query schema:", err)
+    else:
+        fuel_type_type = sa.Enum('PETROL', 'SPEED', 'DIESEL', 'LUBRICANT', name='fueltype')
 
     # Create the table
     op.create_table('voucher_items',
     sa.Column('voucher_id', sa.Integer(), nullable=False),
-    sa.Column('fuel_type', sa.Enum('PETROL', 'SPEED', 'DIESEL', 'LUBRICANT', name='fueltype'), nullable=False),
+    sa.Column('fuel_type', fuel_type_type, nullable=False),
     sa.Column('quantity_liters', sa.Numeric(precision=10, scale=3), nullable=False),
     sa.Column('rate_per_liter', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('total_amount', sa.Numeric(precision=12, scale=2), nullable=False),
@@ -46,12 +74,15 @@ def upgrade() -> None:
     op.create_index(op.f('ix_voucher_items_uuid'), 'voucher_items', ['uuid'], unique=True)
     op.create_index(op.f('ix_voucher_items_voucher_id'), 'voucher_items', ['voucher_id'], unique=False)
 
-    # SQLite compatible alter table using batch
-    with op.batch_alter_table('users') as batch_op:
-        batch_op.alter_column('last_active_at',
-                   existing_type=sa.NUMERIC(),
-                   type_=sa.DateTime(timezone=True),
-                   existing_nullable=True)
+    if has_column:
+        bind.execute(sa.text("UPDATE users SET last_active_at = NULL"))
+        with op.batch_alter_table('users') as batch_op:
+            batch_op.alter_column('last_active_at',
+                       existing_type=sa.NUMERIC(),
+                       type_=sa.DateTime(timezone=True),
+                       existing_nullable=True)
+    else:
+        op.add_column('users', sa.Column('last_active_at', sa.DateTime(timezone=True), nullable=True))
 
     with op.batch_alter_table('vouchers') as batch_op:
         batch_op.alter_column('fuel_type',

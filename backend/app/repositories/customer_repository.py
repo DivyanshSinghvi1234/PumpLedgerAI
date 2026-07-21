@@ -3,6 +3,8 @@ from __future__ import annotations
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from typing import Any
+
 from app.repositories.base_repository import BaseRepository
 from app.models.customer import Customer
 
@@ -212,3 +214,39 @@ class CustomerRepository(
             .limit(limit)
         )
         return list(db.scalars(query).all())
+
+    # -----------------------------------
+    # Resolve or Auto-Create Customer
+    # -----------------------------------
+
+    def resolve_or_create_customer(
+        self,
+        db: Session,
+        customer_uuid: Any | None,
+        customer_name: str | None,
+    ) -> Customer | None:
+        """Resolve the customer: explicit UUID takes priority; fallback to matching name,
+        or auto-creating a customer if it doesn't exist."""
+        if customer_uuid is not None:
+            customer = self.get_by_uuid(db, str(customer_uuid))
+            if customer is None:
+                from app.core.exceptions import CustomerNotFoundError
+                raise CustomerNotFoundError(str(customer_uuid))
+            return customer
+
+        name = (customer_name or "").strip()
+        if not name:
+            return None
+
+        existing = self.get_by_name(db, name)
+        if existing is not None:
+            return existing
+
+        # Auto-create a minimal customer.
+        customer = self.create(db, Customer(name=name))
+
+        if customer.customer_code is None:
+            customer.customer_code = f"CUST{customer.id:06d}"
+            customer = self.update(db, customer)
+
+        return customer
