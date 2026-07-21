@@ -248,6 +248,10 @@ app.mount(
 async def startup():
     logger.info("Starting PumpLedger API...")
 
+    from app.core.config import settings
+    with open("backend_db_url.log", "w") as f:
+        f.write(f"DATABASE_URL={settings.DATABASE_URL}\n")
+
     init_db()
 
     logger.info("Database initialized")

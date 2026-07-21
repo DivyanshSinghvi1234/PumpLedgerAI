@@ -1,10 +1,11 @@
 import { useMemo, useState, useEffect } from "react";
-
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { getTodayDateString } from "@/lib/utils";
 import { Plus, Minus, Fuel, Landmark, Pencil, Trash2, Coins } from "lucide-react";
+import inventoryService from "@/features/inventory/services/inventoryService";
 
 import AddEntryDialog from "./components/AddEntryDialog";
 import NoBillSaleDialog from "./components/NoBillSaleDialog";
@@ -21,12 +22,7 @@ function formatMoney(value: number): string {
   });
 }
 
-const FUEL_LABELS: Record<string, string> = {
-  PETROL: "Petrol",
-  SPEED: "Speed",
-  DIESEL: "Diesel",
-  LUBRICANT: "Lubricant",
-};
+
 
 const DENOMINATIONS = [
   { value: 500, key: "n500" },
@@ -42,6 +38,77 @@ export default function IncomePage() {
   const canManage = hasRole("ADMIN", "MANAGER");
 
   const [date, setDate] = useState(getTodayDateString());
+  const queryClient = useQueryClient();
+  const { data: nozzleData } = useQuery({
+    queryKey: ["nozzleReadingsBulkForm", date],
+    queryFn: () => inventoryService.getBulkReadingsForm(date),
+  });
+
+  // Helper to normalize fuel type strings
+  const normalizeFuelType = (ft: string): "DIESEL" | "PETROL" | "SPEED" => {
+    if (!ft) return "PETROL";
+    const upper = ft.toUpperCase();
+    if (upper.includes("DIESEL") || upper.includes("HSD")) return "DIESEL";
+    if (upper.includes("SPEED")) return "SPEED";
+    return "PETROL";
+  };
+
+  const nozzleItems = nozzleData?.items || [];
+  const rawSalesByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
+  const nozzleTestingByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
+
+  nozzleItems.forEach((item: any) => {
+    const key = normalizeFuelType(item.fuel_type);
+    const openVal = Number(item.opening_reading ?? 0);
+    const closeVal = item.closing_reading !== null ? Number(item.closing_reading) : openVal;
+    const rawSales = Math.max(0, closeVal - openVal);
+    const testing = Number(item.testing ?? 0);
+    rawSalesByFuel[key] = (rawSalesByFuel[key] || 0) + rawSales;
+    nozzleTestingByFuel[key] = (nozzleTestingByFuel[key] || 0) + testing;
+  });
+
+  const getTankStorageTestingFor = (targetKey: "DIESEL" | "PETROL" | "SPEED"): number => {
+    try {
+      const perTankSaved = localStorage.getItem("per_tank_testing_map");
+      if (perTankSaved) {
+        const perTankMap: Record<string, number> = JSON.parse(perTankSaved);
+        const cachedTanks: any[] = queryClient.getQueryData(["tanks"]) || [];
+        if (cachedTanks && cachedTanks.length > 0) {
+          let tankSum = 0;
+          let foundMatchingTank = false;
+          cachedTanks.forEach((tank: any) => {
+            if (normalizeFuelType(tank.fuel_type) === targetKey) {
+              if (perTankMap[tank.uuid] !== undefined) {
+                tankSum += Number(perTankMap[tank.uuid]) || 0;
+                foundMatchingTank = true;
+              }
+            }
+          });
+          if (foundMatchingTank) return tankSum;
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const defaultSaved = localStorage.getItem("default_fuel_testing");
+      if (defaultSaved) {
+        const defaultMap: Record<string, number> = JSON.parse(defaultSaved);
+        for (const [k, v] of Object.entries(defaultMap)) {
+          if (normalizeFuelType(k) === targetKey) {
+            return Number(v) || 0;
+          }
+        }
+      }
+    } catch (e) {}
+
+    return targetKey === "DIESEL" ? 20 : 10;
+  };
+
+  const getTestingFor = (targetKey: "DIESEL" | "PETROL" | "SPEED"): number => {
+    const nozzleTest = nozzleTestingByFuel[targetKey] || 0;
+    const tankTest = getTankStorageTestingFor(targetKey);
+    return nozzleTest + tankTest;
+  };
   // Which kind the entry dialog is adding (null = closed).
   const [entryKind, setEntryKind] = useState<IncomeKind | null>(null);
   const [saleOpen, setSaleOpen] = useState(false);
@@ -114,6 +181,33 @@ export default function IncomePage() {
     }
     await deleteMutation.mutateAsync(income.uuid);
   }
+
+  const hsdTesting = getTestingFor("DIESEL");
+  const msTesting = getTestingFor("PETROL");
+  const speedTesting = getTestingFor("SPEED");
+
+  const hsdRaw = rawSalesByFuel["DIESEL"] || 0;
+  const msRaw = rawSalesByFuel["PETROL"] || 0;
+  const speedRaw = rawSalesByFuel["SPEED"] || 0;
+
+  const hsdNet = Math.max(0, hsdRaw - hsdTesting);
+  const msNet = Math.max(0, msRaw - msTesting);
+  const speedNet = Math.max(0, speedRaw - speedTesting);
+
+  const getRateFor = (fuelType: "DIESEL" | "PETROL" | "SPEED"): number => {
+    const match = summary?.fuel_sales.find(
+      (s: any) => normalizeFuelType(s.fuel_type) === fuelType
+    );
+    return match ? Number(match.rate) : (fuelType === "DIESEL" ? 98.39 : fuelType === "PETROL" ? 113.35 : 123.00);
+  };
+
+  const hsdRate = getRateFor("DIESEL");
+  const msRate = getRateFor("PETROL");
+  const speedRate = getRateFor("SPEED");
+
+  const hsdAmt = hsdNet * hsdRate;
+  const msAmt = msNet * msRate;
+  const speedAmt = speedNet * speedRate;
 
   return (
     <div className="space-y-6">
@@ -230,56 +324,36 @@ export default function IncomePage() {
       <CashDenominationsCard notes={notes} onChange={handleNotesChange} />
 
       {/* Fuel sales by type */}
-      {summary && summary.fuel_sales.length > 0 && (
+      {summary && (
         <div className="rounded-2xl border border-hairline bg-card overflow-hidden">
-          <div className="border-b border-hairline px-5 py-3">
+          <div className="border-b border-hairline px-5 py-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-ink">Fuel Sales by Type</h3>
+            <span className="text-xs font-mono font-bold text-fuel-amber bg-fuel-amber/10 px-3 py-1.5 rounded-xl">
+              Total Sales: ₹{formatMoney(hsdAmt + msAmt + speedAmt)}
+            </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[500px]">
-              <thead>
-                <tr className="text-left text-ink-muted">
-                  <th className="px-5 py-2.5 font-medium">Fuel</th>
-                  <th className="px-5 py-2.5 font-medium text-right">Qty (L)</th>
-                  <th className="px-5 py-2.5 font-medium text-right">Rate</th>
-                  <th className="px-5 py-2.5 font-medium text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.fuel_sales.map((row) => (
-                  <tr
-                    key={row.fuel_type}
-                    className="border-t border-hairline text-ink"
-                  >
-                    <td className="px-5 py-2.5">
-                      {FUEL_LABELS[row.fuel_type] ?? row.fuel_type}
-                    </td>
-                    <td className="px-5 py-2.5 text-right">
-                      {Number(row.liters).toLocaleString("en-IN", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 3,
-                      })}
-                    </td>
-                    <td className="px-5 py-2.5 text-right">
-                      ₹{formatMoney(row.rate)}
-                    </td>
-                    <td className="px-5 py-2.5 text-right font-semibold">
-                      ₹{formatMoney(row.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-hairline bg-surface-2/50 font-bold text-ink">
-                  <td className="px-5 py-2.5" colSpan={3}>
-                    Total Sales
-                  </td>
-                  <td className="px-5 py-2.5 text-right">
-                    ₹{formatMoney(summary.total_sales)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+          <div className="p-5 space-y-4 bg-surface-2/40 font-mono">
+            {[
+              { label: "H.S.D", raw: hsdRaw, testing: hsdTesting, net: hsdNet, rate: hsdRate, amt: hsdAmt },
+              { label: "M.S", raw: msRaw, testing: msTesting, net: msNet, rate: msRate, amt: msAmt },
+              { label: "Speed", raw: speedRaw, testing: speedTesting, net: speedNet, rate: speedRate, amt: speedAmt },
+            ].map(({ label, raw, testing, net, rate, amt }) => (
+              <div
+                key={label}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hairline/45 pb-3 last:border-none last:pb-0 text-xs sm:text-sm text-ink-muted"
+              >
+                <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+                  <span className="font-bold text-ink w-16 text-left">{label}</span>
+                  <span>= {raw.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 3 })}</span>
+                  <span className="text-error font-medium">- {testing.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                  <span className="font-bold text-ink">= {net.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 3 })} L</span>
+                  <span className="text-fuel-amber font-bold">× {rate.toFixed(2)}</span>
+                </div>
+                <span className="font-bold text-neutral-800 text-right min-w-[100px]">
+                  ₹{formatMoney(amt)}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
