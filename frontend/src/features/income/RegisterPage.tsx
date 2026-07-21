@@ -84,6 +84,77 @@ export default function RegisterPage() {
     queryFn: () => inventoryService.getBulkReadingsForm(date),
   });
 
+  // Fast Monthly Bulk Prefetch — Loads entire month's data in 1 bulk query
+  useEffect(() => {
+    let isMounted = true;
+    const loadMonthData = async () => {
+      try {
+        const activeMonth = date.substring(0, 7);
+        const monthStart = `${activeMonth}-01`;
+        const [y, m] = activeMonth.split("-").map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        const monthEnd = `${activeMonth}-${String(lastDay).padStart(2, "0")}`;
+
+        // 1. Single bulk fetch for all vouchers in active month
+        const res = await voucherService.getVouchers({
+          from_date: monthStart,
+          to_date: monthEnd,
+          page_size: 1000,
+        });
+
+        if (!isMounted || !res?.items) return;
+
+        // 2. Group vouchers by date
+        const vouchersByDate: Record<string, typeof res.items> = {};
+        res.items.forEach((v: any) => {
+          const vDate = v.date || v.voucher_date || (v.created_at ? v.created_at.split("T")[0] : "");
+          if (vDate) {
+            if (!vouchersByDate[vDate]) vouchersByDate[vDate] = [];
+            vouchersByDate[vDate].push(v);
+          }
+        });
+
+        // 3. Populate React Query cache for every day of the month instantly
+        for (let d = 1; d <= lastDay; d++) {
+          const dayStr = `${activeMonth}-${String(d).padStart(2, "0")}`;
+          const dayItems = vouchersByDate[dayStr] || [];
+          const dayResponse = {
+            items: dayItems,
+            total: dayItems.length,
+            page: 1,
+            page_size: 50,
+            pages: 1,
+          };
+          queryClient.setQueryData(
+            ["vouchers", { from_date: dayStr, to_date: dayStr }],
+            dayResponse
+          );
+        }
+
+        // 4. Concurrently prefetch nozzle reading forms for days in active month
+        const dayPromises = [];
+        for (let d = 1; d <= lastDay; d++) {
+          const dayStr = `${activeMonth}-${String(d).padStart(2, "0")}`;
+          dayPromises.push(
+            queryClient.prefetchQuery({
+              queryKey: ["nozzleReadingsBulkForm", dayStr],
+              queryFn: () => inventoryService.getBulkReadingsForm(dayStr),
+              staleTime: 1000 * 60 * 30, // 30 mins
+            })
+          );
+        }
+        await Promise.all(dayPromises);
+      } catch (err) {
+        console.error("Month prefetch error:", err);
+      }
+    };
+
+    loadMonthData();
+    return () => {
+      isMounted = false;
+    };
+  }, [date.substring(0, 7), queryClient]);
+
   const dateObject = new Date(date);
   const formattedDateHeader = dateObject.toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -160,15 +231,17 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [date, queryClient]);
 
-  // Swipe left → next day, swipe right → previous day (touch + mouse drag).
+  // Swipe left → next day, swipe right → previous day (touch devices only).
   function onSwipeStart(e: React.PointerEvent) {
-    swipeStartX.current = e.clientX;
+    if (e.pointerType === "touch") {
+      swipeStartX.current = e.clientX;
+    }
   }
   function onSwipeEnd(e: React.PointerEvent) {
-    if (swipeStartX.current === null) return;
+    if (swipeStartX.current === null || e.pointerType !== "touch") return;
     const dx = e.clientX - swipeStartX.current;
     swipeStartX.current = null;
-    if (Math.abs(dx) < 50) return; // ignore taps / tiny drags
+    if (Math.abs(dx) < 80) return; // ignore taps / small touch movements
     triggerPageTurn(dx < 0 ? "next" : "prev");
   }
 
@@ -211,11 +284,13 @@ export default function RegisterPage() {
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const startYRef = useRef(0);
-  const scrollLeftRef = useRef(0);
-  const scrollTopRef = useRef(0);
+  const startScrollLeftRef = useRef(0);
+  const startScrollTopRef = useRef(0);
   const [isGrabbing, setIsGrabbing] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only trigger on left click
+
     const target = e.target as HTMLElement;
     if (
       target.tagName === "INPUT" ||
@@ -228,35 +303,54 @@ export default function RegisterPage() {
     ) {
       return;
     }
-    const container = containerRef.current;
-    if (!container) return;
 
     isDraggingRef.current = true;
-    startXRef.current = e.pageX - container.offsetLeft;
-    startYRef.current = e.pageY - container.offsetTop;
-    scrollLeftRef.current = container.scrollLeft;
-    scrollTopRef.current = container.scrollTop;
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+
+    if (containerRef.current) {
+      startScrollLeftRef.current = containerRef.current.scrollLeft;
+    }
+
+    const mainEl = containerRef.current?.closest("main") || document.documentElement;
+    if (mainEl) {
+      startScrollTopRef.current = mainEl.scrollTop;
+    }
+
     setIsGrabbing(true);
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current) return;
-    const container = containerRef.current;
-    if (!container) return;
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
 
-    e.preventDefault();
-    const x = e.pageX - container.offsetLeft;
-    const y = e.pageY - container.offsetTop;
-    const walkX = (x - startXRef.current) * 1.5;
-    const walkY = (y - startYRef.current) * 1.5;
-    container.scrollLeft = scrollLeftRef.current - walkX;
-    container.scrollTop = scrollTopRef.current - walkY;
-  };
+      const deltaX = e.clientX - startXRef.current;
+      const deltaY = e.clientY - startYRef.current;
 
-  const handleMouseUpOrLeave = () => {
-    isDraggingRef.current = false;
-    setIsGrabbing(false);
-  };
+      if (containerRef.current) {
+        containerRef.current.scrollLeft = startScrollLeftRef.current - deltaX;
+      }
+
+      const mainEl = containerRef.current?.closest("main") || document.documentElement;
+      if (mainEl) {
+        mainEl.scrollTop = startScrollTopRef.current - deltaY;
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        setIsGrabbing(false);
+      }
+    };
+
+    window.addEventListener("mousemove", handleGlobalMouseMove);
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, []);
 
   // Cash Calculation Cascade — one row per denomination, summed for the total
   const totalCashCounted = DENOMINATIONS.reduce((sum, d) => sum + notes[d.key] * d.value, 0);
@@ -264,39 +358,19 @@ export default function RegisterPage() {
   // Grand Total Cascade (Left page bottom right)
   const grandTotalLeft = totalCashCounted + totalVouchersAmount + cashHome + prevDeposit;
 
-  // Load Daily Fuel Testing defaults from localStorage (synced with Meter Readings tab)
-  const DEFAULT_FUEL_TESTING: Record<string, number> = { DIESEL: 70, PETROL: 5, SPEED: 0 };
-  const [fuelTestingMap, setFuelTestingMap] = useState<Record<string, number>>(() => {
-    try {
-      const saved = localStorage.getItem("default_fuel_testing");
-      return saved ? JSON.parse(saved) : DEFAULT_FUEL_TESTING;
-    } catch {
-      return DEFAULT_FUEL_TESTING;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("default_fuel_testing");
-      if (saved) setFuelTestingMap(JSON.parse(saved));
-    } catch {}
-  }, [date]);
-
   // Nozzle Grid fallbacks matching image
   const MOCK_NOZZLES: any[] = [];
 
   // Map Nozzles — Number() coerces Decimal fields that the API serializes as
   // strings, so the reading arithmetic below stays numeric.
   const activeNozzles = nozzleData?.items?.length ? nozzleData.items.map(item => {
-    const defaultTest = fuelTestingMap[item.fuel_type] ?? 0;
-    const testingVal = item.testing != null && Number(item.testing) > 0 ? Number(item.testing) : defaultTest;
     return {
       nozzle_name: item.nozzle_name,
       dispenser_name: item.dispenser_name,
       fuel_type: item.fuel_type,
       opening_reading: Number(item.opening_reading) || 0,
       closing_reading: item.closing_reading != null ? Number(item.closing_reading) : null,
-      testing: testingVal,
+      testing: Number(item.testing) || 0,
     };
   }) : MOCK_NOZZLES;
 
@@ -304,6 +378,7 @@ export default function RegisterPage() {
   const gridItems = activeNozzles.map((noz, index) => {
     const hasClosing = noz.closing_reading != null;
     const rawSales = hasClosing ? Math.max(0, noz.closing_reading! - noz.opening_reading) : 0;
+    // If nozzle has testing entered in the meter readings table, deduct it from that nozzle's sales
     const netVol = hasClosing ? Math.max(0, rawSales - noz.testing) : 0;
     // Cumulative meter logic simulation
     const cumulative = 3316910 + (index * 2840518) + (netVol * 12);
@@ -331,20 +406,97 @@ export default function RegisterPage() {
     groupedDispensers[disp].push(item);
   });
 
-  // Aggregate per fuel type: total raw qty, testing, net volume
-  const fuelTypeSummary = gridItems.reduce((acc, item) => {
-    const fuel = item.fuel_type;
-    if (!acc[fuel]) acc[fuel] = { rawQty: 0, testing: 0, netVol: 0 };
-    acc[fuel].rawQty += item.rawSales;
-    acc[fuel].testing += item.testing;
-    acc[fuel].netVol += item.netVol;
-    return acc;
-  }, {} as Record<string, { rawQty: number; testing: number; netVol: number }>);
+  // Helper to normalize fuel type strings
+  const normalizeFuelType = (ft: string): "DIESEL" | "PETROL" | "SPEED" => {
+    if (!ft) return "PETROL";
+    const upper = ft.toUpperCase();
+    if (upper.includes("DIESEL") || upper.includes("HSD")) return "DIESEL";
+    if (upper.includes("SPEED")) return "SPEED";
+    return "PETROL";
+  };
 
-  const hsdSummary = fuelTypeSummary["DIESEL"] || { rawQty: 0, testing: fuelTestingMap["DIESEL"] ?? 70, netVol: 0 };
-  const msSummary = fuelTypeSummary["PETROL"] || { rawQty: 0, testing: fuelTestingMap["PETROL"] ?? 5, netVol: 0 };
-  // Speed fuel type — if present in the data, otherwise zero
-  const speedSummary = fuelTypeSummary["SPEED"] || { rawQty: 0, testing: fuelTestingMap["SPEED"] ?? 0, netVol: 0 };
+  // Aggregate per fuel type: total raw qty AND nozzle-level testing sums
+  const rawSalesByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
+  const nozzleTestingByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
+  gridItems.forEach((item) => {
+    const key = normalizeFuelType(item.fuel_type);
+    rawSalesByFuel[key] = (rawSalesByFuel[key] || 0) + item.rawSales;
+    nozzleTestingByFuel[key] = (nozzleTestingByFuel[key] || 0) + item.testing;
+  });
+
+  // Resolve TANK STORAGE testing per fuel type from Inventory → Meter Readings → Fuel Storage & Testing.
+  // If two tanks of the same fuel type exist, their testing quantities are aggregated.
+  const getTankStorageTestingFor = (targetKey: "DIESEL" | "PETROL" | "SPEED"): number => {
+    // 1. Read per_tank_testing_map from localStorage (set by Fuel Storage & Testing card)
+    try {
+      const perTankSaved = localStorage.getItem("per_tank_testing_map");
+      if (perTankSaved) {
+        const perTankMap: Record<string, number> = JSON.parse(perTankSaved);
+        const cachedTanks: any[] = queryClient.getQueryData(["tanks"]) || [];
+        if (cachedTanks && cachedTanks.length > 0) {
+          let tankSum = 0;
+          let foundMatchingTank = false;
+          cachedTanks.forEach((tank: any) => {
+            if (normalizeFuelType(tank.fuel_type) === targetKey) {
+              if (perTankMap[tank.uuid] !== undefined) {
+                tankSum += Number(perTankMap[tank.uuid]) || 0;
+                foundMatchingTank = true;
+              }
+            }
+          });
+          if (foundMatchingTank) return tankSum;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Read default_fuel_testing from localStorage (aggregated fuel-type totals)
+    try {
+      const defaultSaved = localStorage.getItem("default_fuel_testing");
+      if (defaultSaved) {
+        const defaultMap: Record<string, number> = JSON.parse(defaultSaved);
+        for (const [k, v] of Object.entries(defaultMap)) {
+          if (normalizeFuelType(k) === targetKey) {
+            return Number(v) || 0;
+          }
+        }
+      }
+    } catch (e) {}
+
+    return 0;
+  };
+
+  // Total testing = nozzle testing (from meter readings table) + tank storage testing (from Fuel Storage & Testing card)
+  const getTestingFor = (targetKey: "DIESEL" | "PETROL" | "SPEED"): number => {
+    const nozzleTest = nozzleTestingByFuel[targetKey] || 0;
+    const tankTest = getTankStorageTestingFor(targetKey);
+    return nozzleTest + tankTest;
+  };
+
+  const hsdTesting = getTestingFor("DIESEL");
+  const msTesting = getTestingFor("PETROL");
+  const speedTesting = getTestingFor("SPEED");
+
+  const hsdRaw = rawSalesByFuel["DIESEL"] || 0;
+  const msRaw = rawSalesByFuel["PETROL"] || 0;
+  const speedRaw = rawSalesByFuel["SPEED"] || 0;
+
+  const hsdSummary = {
+    rawQty: hsdRaw,
+    testing: hsdTesting,
+    netVol: Math.max(0, hsdRaw - hsdTesting),
+  };
+
+  const msSummary = {
+    rawQty: msRaw,
+    testing: msTesting,
+    netVol: Math.max(0, msRaw - msTesting),
+  };
+
+  const speedSummary = {
+    rawQty: speedRaw,
+    testing: speedTesting,
+    netVol: Math.max(0, speedRaw - speedTesting),
+  };
 
   // Fuel rate constants (₹ per liter)
   const hsdRate = 98.39;
@@ -422,9 +574,6 @@ export default function RegisterPage() {
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={handleMouseUpOrLeave}
         className={`pl-register-container overflow-x-auto min-w-[768px] ${
           isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
         }`}

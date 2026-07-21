@@ -135,6 +135,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return hasRole(...roles);
   }
 
+  const handleNavClick = () => {
+    // Only close drawer automatically on small mobile screens (< 768px)
+    if (window.innerWidth < 768) {
+      onClose();
+    }
+  };
+
   return (
     <>
       {/* Mobile overlay backdrop */}
@@ -209,7 +216,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                           key={item.path}
                           to={item.path}
                           end={item.path === "/dashboard"}
-                          onClick={onClose}
+                          onClick={handleNavClick}
                           className={({ isActive }) =>
                             `group flex items-center gap-3 py-2 px-3 text-[13px] font-medium rounded-lg transition-all duration-150 ${
                               isActive

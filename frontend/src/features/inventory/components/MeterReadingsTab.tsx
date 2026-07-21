@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, Calendar, AlertTriangle, Sunrise, ChevronDown, ChevronRight, Clock } from "lucide-react";
+import { Activity, Calendar, AlertTriangle, Sunrise, ChevronDown, ChevronRight, Clock, Fuel } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -72,11 +72,17 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     setExpanded6am(newExpanded);
   };
 
+  // Query: fuel tanks list
+  const { data: tanks } = useQuery({
+    queryKey: ["tanks"],
+    queryFn: () => inventoryService.getTanks(),
+  });
+
   // Daily Fuel Storage Testing carry-over state
   const DEFAULT_FUEL_TESTING: Record<string, number> = {
-    DIESEL: 70,
-    PETROL: 5,
-    SPEED: 0,
+    DIESEL: 20,
+    PETROL: 10,
+    SPEED: 10,
   };
 
   const [fuelTestingMap, setFuelTestingMap] = useState<Record<string, number>>(() => {
@@ -88,10 +94,51 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     }
   });
 
+  const [perTankTestingMap, setPerTankTestingMap] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("per_tank_testing_map");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const handleUpdateFuelTesting = (fuelType: string, val: number) => {
     const updated = { ...fuelTestingMap, [fuelType]: val };
     setFuelTestingMap(updated);
     localStorage.setItem("default_fuel_testing", JSON.stringify(updated));
+  };
+
+  const handleUpdatePerTankTesting = (tankUuid: string, fuelType: string, val: number) => {
+    const nextTankMap = { ...perTankTestingMap, [tankUuid]: val };
+    setPerTankTestingMap(nextTankMap);
+    localStorage.setItem("per_tank_testing_map", JSON.stringify(nextTankMap));
+
+    // Aggregate total testing liters per fuel type across tanks
+    const aggregatedByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
+    if (tanks && tanks.length > 0) {
+      tanks.forEach((tank) => {
+        const ft = tank.fuel_type.toUpperCase();
+        const tVal = tank.uuid === tankUuid ? val : (nextTankMap[tank.uuid] ?? 0);
+        let normalizedKey = "PETROL";
+        if (ft.includes("DIESEL") || ft.includes("HSD")) normalizedKey = "DIESEL";
+        else if (ft.includes("SPEED")) normalizedKey = "SPEED";
+        else if (ft.includes("PETROL") || ft.includes("MS")) normalizedKey = "PETROL";
+        else normalizedKey = ft;
+
+        aggregatedByFuel[normalizedKey] = (aggregatedByFuel[normalizedKey] || 0) + tVal;
+      });
+    } else {
+      let normalizedKey = "PETROL";
+      const ft = fuelType.toUpperCase();
+      if (ft.includes("DIESEL") || ft.includes("HSD")) normalizedKey = "DIESEL";
+      else if (ft.includes("SPEED")) normalizedKey = "SPEED";
+      aggregatedByFuel[normalizedKey] = val;
+    }
+
+    const nextFuelMap = { ...fuelTestingMap, ...aggregatedByFuel };
+    setFuelTestingMap(nextFuelMap);
+    localStorage.setItem("default_fuel_testing", JSON.stringify(nextFuelMap));
   };
 
   // Sync bulk reading form items into local state when data is loaded
@@ -702,12 +749,127 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
               </p>
             )}
 
-            <div className="flex justify-end">
+            {/* Fuel Storage & Testing Configuration */}
+            <Card className="glass border-hairline mt-6">
+              <CardHeader className="pb-3 border-b border-hairline">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Fuel size={16} className="text-fuel-amber" />
+                    <div>
+                      <CardTitle className="text-sm font-bold text-ink">Fuel Storage &amp; Testing (Liters)</CardTitle>
+                      <CardDescription className="text-[11px] text-ink-subtle">
+                        Configure testing liters for fuel storage tanks. Carries over to everyday by default until changed.
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge className="bg-fuel-amber/15 text-fuel-amber border-transparent font-mono text-[10px]">
+                    Active Date: {readingsDate}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4">
+                {tanks && tanks.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {tanks.map((tank) => {
+                      const fuelTypeKey = tank.fuel_type.toUpperCase();
+                      const currentVal =
+                        perTankTestingMap[tank.uuid] !== undefined
+                          ? perTankTestingMap[tank.uuid]
+                          : (fuelTestingMap[fuelTypeKey] ?? (fuelTypeKey === "DIESEL" ? 20 : 10));
+                      const isLocked = hasSavedReadings && !isEditingSaved;
+                      return (
+                        <div key={tank.uuid} className="rounded-xl border border-hairline bg-surface-2 p-3.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-ink">{tank.name}</span>
+                            <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber border-transparent">
+                              {tank.fuel_type}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-ink-subtle">
+                            <span>Capacity: {tank.capacity_liters.toLocaleString()} L</span>
+                            <span className="font-mono font-semibold text-ink">Stock: {tank.current_stock_liters.toLocaleString()} L</span>
+                          </div>
+                          <div className="flex items-center gap-2 pt-1 border-t border-hairline/40">
+                            <span className="text-xs text-ink-muted shrink-0 font-medium">Testing Qty:</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              disabled={isLocked}
+                              value={currentVal}
+                              onChange={(e) => {
+                                const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                handleUpdatePerTankTesting(tank.uuid, fuelTypeKey, val);
+                              }}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                }
+                              }}
+                              className="w-full rounded-lg border border-hairline bg-card px-2.5 py-1 text-right font-mono font-bold text-xs text-fuel-amber outline-none focus:border-fuel-amber disabled:opacity-70 disabled:cursor-not-allowed"
+                              placeholder="0.0"
+                            />
+                            <span className="text-xs font-bold text-ink-muted">L</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                      { type: "DIESEL", label: "H.S.D Storage Tank (Diesel)" },
+                      { type: "PETROL", label: "M.S Storage Tank (Petrol)" },
+                      { type: "SPEED", label: "Speed Storage Tank" },
+                    ].map(({ type, label }) => {
+                      const currentVal = fuelTestingMap[type] ?? (type === "DIESEL" ? 20 : 10);
+                      const isLocked = hasSavedReadings && !isEditingSaved;
+                      return (
+                        <div key={type} className="rounded-xl border border-hairline bg-surface-2 p-3.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-ink">{label}</span>
+                            <Badge className="text-[9px] font-mono bg-surface-3 text-ink-muted border-transparent">
+                              {type}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-xs text-ink-muted shrink-0 font-medium">Testing Qty:</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              disabled={isLocked}
+                              value={currentVal}
+                              onChange={(e) => {
+                                const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                handleUpdateFuelTesting(type, val);
+                              }}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                }
+                              }}
+                              className="w-full rounded-lg border border-hairline bg-card px-2.5 py-1 text-right font-mono font-bold text-xs text-fuel-amber outline-none focus:border-fuel-amber disabled:opacity-70 disabled:cursor-not-allowed"
+                              placeholder="0.0"
+                            />
+                            <span className="text-xs font-bold text-ink-muted">L</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-end pt-4 pb-2">
               {hasSavedReadings && !isEditingSaved ? (
                 <Button
                   type="button"
                   onClick={() => setUnlockConfirmOpen(true)}
-                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-6 py-2 shadow-md cursor-pointer text-xs"
+                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-8 py-2.5 shadow-md cursor-pointer text-xs"
                 >
                   Edit Saved Readings
                 </Button>
@@ -715,7 +877,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                 <Button
                   type="submit"
                   disabled={postBulkReadingsMutation.isPending}
-                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-6 py-2 shadow-md cursor-pointer text-xs"
+                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-8 py-2.5 shadow-md cursor-pointer text-xs"
                 >
                   {postBulkReadingsMutation.isPending ? "Saving changes..." : hasSavedReadings ? "Save Changes" : "Save All Readings"}
                 </Button>
@@ -724,59 +886,6 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           </div>
         )}
       </form>
-
-      {/* Daily Fuel Storage Testing Configuration (Bottom of Meter Readings) */}
-      <Card className="glass border-hairline mt-6">
-        <CardHeader className="pb-3 border-b border-hairline">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle className="text-sm font-bold text-ink">Daily Fuel Testing (Liters)</CardTitle>
-              <CardDescription className="text-[11px] text-ink-subtle">
-                Set testing liters for fuel storage tanks &amp; nozzles for {readingsDate}. Carries over to everyday by default until changed.
-              </CardDescription>
-            </div>
-            <Badge className="bg-fuel-amber/15 text-fuel-amber border-transparent font-mono text-[10px]">
-              Active Date: {readingsDate}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[
-              { type: "DIESEL", label: "H.S.D (Diesel)" },
-              { type: "PETROL", label: "M.S (Petrol)" },
-              { type: "SPEED", label: "Speed Petrol" },
-            ].map(({ type, label }) => {
-              const currentVal = fuelTestingMap[type] ?? 0;
-              return (
-                <div key={type} className="rounded-xl border border-hairline bg-surface-2 p-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-ink">{label}</span>
-                    <Badge className="text-[9px] font-mono bg-surface-3 text-ink-muted border-transparent">
-                      {type}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={currentVal}
-                      onChange={(e) => {
-                        const val = Math.max(0, parseFloat(e.target.value) || 0);
-                        handleUpdateFuelTesting(type, val);
-                      }}
-                      className="w-full rounded-lg border border-hairline bg-card px-3 py-1.5 font-mono font-bold text-sm text-ink outline-none focus:border-fuel-amber"
-                      placeholder="0.0"
-                    />
-                    <span className="text-xs font-bold text-ink-muted">Liters</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Unlock Confirmation Dialog */}
       <Dialog open={unlockConfirmOpen} onOpenChange={setUnlockConfirmOpen}>
