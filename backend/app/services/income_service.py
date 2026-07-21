@@ -285,13 +285,11 @@ class IncomeService:
         headline totals for the day."""
 
         # Aggregate net liters sold per fuel type from the day's nozzle
-        # readings. total_sales includes testing, so we subtract testing_liters
-        # to get actual customer-facing sales volume.
+        # readings. NozzleReading.sales already has testing deducted.
         rows = db.execute(
             select(
                 Nozzle.fuel_type,
-                func.coalesce(func.sum(NozzleReading.total_sales), 0.0),
-                func.coalesce(func.sum(NozzleReading.testing_liters), 0.0),
+                func.coalesce(func.sum(NozzleReading.sales), 0.0),
             )
             .join(Nozzle, NozzleReading.nozzle_id == Nozzle.id)
             .where(NozzleReading.reading_date == on_date)
@@ -305,11 +303,8 @@ class IncomeService:
         fuel_sales: list[FuelSaleRow] = []
         total_sales = Decimal("0.00")
 
-        for fuel_type, liters_raw, testing_raw in rows:
-            gross_liters = Decimal(str(liters_raw or 0))
-            testing_liters = Decimal(str(testing_raw or 0))
-            # Net liters = total meter qty minus nozzle testing
-            liters = (gross_liters - testing_liters).quantize(Decimal("0.001"))
+        for fuel_type, liters_raw in rows:
+            liters = Decimal(str(liters_raw or 0)).quantize(Decimal("0.001"))
             if liters <= 0:
                 continue
 

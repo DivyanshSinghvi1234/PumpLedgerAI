@@ -232,9 +232,14 @@ app.include_router(
     prefix="/api/v1",
     dependencies=manager_protected,
 )
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+storage_dir = os.path.join(BASE_DIR, "storage")
+os.makedirs(storage_dir, exist_ok=True)
+
 app.mount(
     "/storage",
-    StaticFiles(directory="storage"),
+    StaticFiles(directory=storage_dir),
     name="storage",
 )
 
