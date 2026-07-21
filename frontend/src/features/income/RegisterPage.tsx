@@ -139,11 +139,12 @@ export default function RegisterPage() {
 
   // Map vouchers
   const activeVouchers = vouchersData?.items?.length ? vouchersData.items.map(v => ({
-    quantity_liters: v.quantity_liters ?? 0,
-    customer_name: (v.customer_name || "Cash Customer") + 
-                   (v.vehicle_number ? ` (${v.vehicle_number})` : "") + 
+    // API serializes Decimal as strings — coerce so .toFixed/arithmetic work.
+    quantity_liters: Number(v.quantity_liters ?? 0),
+    customer_name: (v.customer_name || "Cash Customer") +
+                   (v.vehicle_number ? ` (${v.vehicle_number})` : "") +
                    (v.payment_mode ? ` [${v.payment_mode}]` : ""),
-    amount: v.total_amount ?? 0
+    amount: Number(v.total_amount ?? 0)
   })) : MOCK_VOUCHERS;
 
   const totalVouchersAmount = activeVouchers.reduce((sum, item) => sum + item.amount, 0);
@@ -170,14 +171,15 @@ export default function RegisterPage() {
     { nozzle_name: "Noz 141", dispenser_name: "MS I", fuel_type: "PETROL", opening_reading: 439303, closing_reading: 439426, testing: 0 },
   ];
 
-  // Map Nozzles
+  // Map Nozzles — Number() coerces Decimal fields that the API serializes as
+  // strings, so the reading arithmetic below stays numeric.
   const activeNozzles = nozzleData?.items?.length ? nozzleData.items.map(item => ({
     nozzle_name: item.nozzle_name,
     dispenser_name: item.dispenser_name,
     fuel_type: item.fuel_type,
-    opening_reading: item.opening_reading,
-    closing_reading: item.closing_reading ?? item.opening_reading,
-    testing: item.testing ?? 0,
+    opening_reading: Number(item.opening_reading) || 0,
+    closing_reading: Number(item.closing_reading ?? item.opening_reading) || 0,
+    testing: Number(item.testing) || 0,
   })) : MOCK_NOZZLES;
 
   // Calculate grid sales
