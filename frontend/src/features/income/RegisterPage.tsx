@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/common/PageHeader";
-import { ChevronLeft, ChevronRight, Printer, RefreshCw, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, RefreshCw } from "lucide-react";
 import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
 import voucherService from "@/features/vouchers/services/voucherService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -206,6 +206,58 @@ export default function RegisterPage() {
     (currentPageIndex + 1) * ROWS_PER_PAGE
   );
 
+  // Container ref and drag-pan state for left click-and-drag scrolling
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const scrollTopRef = useRef(0);
+  const [isGrabbing, setIsGrabbing] = useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === "INPUT" ||
+      target.tagName === "BUTTON" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
+      target.closest("button") ||
+      target.closest("input") ||
+      target.closest("a")
+    ) {
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) return;
+
+    isDraggingRef.current = true;
+    startXRef.current = e.pageX - container.offsetLeft;
+    startYRef.current = e.pageY - container.offsetTop;
+    scrollLeftRef.current = container.scrollLeft;
+    scrollTopRef.current = container.scrollTop;
+    setIsGrabbing(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    e.preventDefault();
+    const x = e.pageX - container.offsetLeft;
+    const y = e.pageY - container.offsetTop;
+    const walkX = (x - startXRef.current) * 1.5;
+    const walkY = (y - startYRef.current) * 1.5;
+    container.scrollLeft = scrollLeftRef.current - walkX;
+    container.scrollTop = scrollTopRef.current - walkY;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDraggingRef.current = false;
+    setIsGrabbing(false);
+  };
+
   // Cash Calculation Cascade — one row per denomination, summed for the total
   const totalCashCounted = DENOMINATIONS.reduce((sum, d) => sum + notes[d.key] * d.value, 0);
 
@@ -367,7 +419,16 @@ export default function RegisterPage() {
 
 
       {/* Real bound book container */}
-      <div className="pl-register-container overflow-x-auto min-w-[768px]">
+      <div
+        ref={containerRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={`pl-register-container overflow-x-auto min-w-[768px] ${
+          isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
+        }`}
+      >
         
         {/* Book Outer Spine layout */}
         <div

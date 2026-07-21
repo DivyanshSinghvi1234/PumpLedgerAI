@@ -7,9 +7,10 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface NavbarProps {
   onMenuClick(): void;
+  isSidebarOpen?: boolean;
 }
 
-export default function Navbar({ onMenuClick }: NavbarProps) {
+export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
   const navigate = useNavigate();
   const { user, activePump } = useCurrentUser();
 
@@ -28,11 +29,12 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   return (
     <header className="flex h-14 items-center justify-between border-b border-hairline bg-canvas/80 backdrop-blur-md px-4 md:px-6 font-sans">
       <div className="flex items-center gap-3">
-        {/* Hamburger Menu on Mobile */}
+        {/* Toggle Sidebar Menu Button */}
         <button
           onClick={onMenuClick}
-          className="rounded-md p-1.5 hover:bg-surface-3 md:hidden text-ink cursor-pointer"
-          aria-label="Open menu"
+          className="rounded-md p-1.5 hover:bg-surface-3 text-ink cursor-pointer transition-colors"
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+          title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
         >
           <Menu size={18} />
         </button>

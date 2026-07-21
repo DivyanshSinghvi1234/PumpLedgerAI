@@ -147,9 +147,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar container — glassmorphic */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-hairline glass font-sans transition-transform duration-300 md:static md:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-hairline glass font-sans transition-all duration-300 ${
+          isOpen ? "translate-x-0 md:ml-0" : "-translate-x-full md:-ml-[260px]"
+        } md:static md:z-30`}
       >
         {/* Brand Header */}
         <div className="flex h-16 items-center justify-between border-b border-hairline px-5">
@@ -167,11 +167,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
           </div>
           
-          {/* Close menu button on Mobile */}
+          {/* Close menu button (enabled on all screens including laptop) */}
           <button
             onClick={onClose}
-            className="rounded-md p-1.5 hover:bg-surface-3 md:hidden text-ink-subtle hover:text-ink cursor-pointer transition"
+            className="rounded-md p-1.5 hover:bg-surface-3 text-ink-subtle hover:text-ink cursor-pointer transition"
             aria-label="Close menu"
+            title="Close sidebar"
           >
             <X size={16} />
           </button>

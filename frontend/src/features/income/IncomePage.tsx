@@ -453,8 +453,8 @@ function CashDenominationsCard({
   notes,
   onChange,
 }: {
-  notes: Record<string, number>;
-  onChange: (updated: Record<string, number>) => void;
+  notes: { n500: number; n200: number; n100: number; n50: number; n20: number; n10: number };
+  onChange: (updatedNotes: { n500: number; n200: number; n100: number; n50: number; n20: number; n10: number }) => void;
 }) {
   const totalCashCounted = DENOMINATIONS.reduce(
     (sum, d) => sum + (notes[d.key] || 0) * d.value,

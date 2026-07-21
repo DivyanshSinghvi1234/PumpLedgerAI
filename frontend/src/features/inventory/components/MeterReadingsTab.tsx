@@ -121,15 +121,6 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
         };
       });
       setFormItems(initialMap);
-        initialMap[item.nozzle_uuid] = {
-          opening: openVal,
-          closing: closeVal !== null ? closeVal : "",
-          interim6am: item.interim_6am_reading !== null ? item.interim_6am_reading : "",
-          testing: testingL,
-          sales: salesVal,
-        };
-      });
-      setFormItems(initialMap);
 
       // Restore saved times if present
       if (bulkForm.items.length > 0 && bulkForm.items[0].opening_time) {
@@ -610,7 +601,6 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                 setFormItems((prev) => {
                                   const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
-                                  const closeVal = parseFloat(prevItem.closing?.toString() || "0");
                                   const testingVal = parseFloat(raw || "0");
                                   const salesVal = parseFloat(prevItem.sales?.toString() || "0");
                                   const closingVal = prevItem.sales === "" ? "" : Math.max(0, openVal + salesVal - testingVal).toFixed(3);
