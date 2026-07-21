@@ -50,20 +50,19 @@ export default function IncomePage() {
 
   // Local state for cash denominations per date
   const cacheKey = `ledger_denominations_${date}`;
-  const DEFAULT_NOTES = { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 };
-  const [notes, setNotes] = useState(DEFAULT_NOTES);
+  const [notes, setNotes] = useState(() => ({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 }));
 
   useEffect(() => {
     const saved = localStorage.getItem(cacheKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setNotes(parsed.notes || DEFAULT_NOTES);
+        setNotes(parsed.notes || { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
       } catch (e) {
         console.error("Failed to parse denominations", e);
       }
     } else {
-      setNotes(DEFAULT_NOTES);
+      setNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
     }
   }, [date, cacheKey]);
 

@@ -37,9 +37,8 @@ export default function RegisterPage() {
 
   // Local state for cash denominations, cached to localStorage per date
   const cacheKey = `ledger_denominations_${date}`;
-  const DEFAULT_NOTES = { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 };
 
-  const [notes, setNotes] = useState(DEFAULT_NOTES);
+  const [notes, setNotes] = useState(() => ({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 }));
   const [cashHome, setCashHome] = useState(0);
   const [prevDeposit, setPrevDeposit] = useState(0);
   const [ledgerInterest, setLedgerInterest] = useState(0);
@@ -50,7 +49,7 @@ export default function RegisterPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setNotes(parsed.notes || DEFAULT_NOTES);
+        setNotes(parsed.notes || { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
         setCashHome(parsed.cashHome ?? 0);
         setPrevDeposit(parsed.prevDeposit ?? 0);
         setLedgerInterest(parsed.ledgerInterest ?? 0);
@@ -58,7 +57,7 @@ export default function RegisterPage() {
         console.error("Failed to parse denominations", e);
       }
     } else {
-      setNotes(DEFAULT_NOTES);
+      setNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
       setCashHome(0);
       setPrevDeposit(0);
       setLedgerInterest(0);
@@ -174,18 +173,24 @@ export default function RegisterPage() {
         if (currentPageIndex < totalPages - 1) {
           setPageIndex(currentPageIndex + 1);
         } else {
-          const d = new Date(date);
-          d.setDate(d.getDate() + 1);
-          setDate(d.toISOString().split("T")[0]);
+          const [y, m, dayVal] = date.split("-").map(Number);
+          const d = new Date(y, m - 1, dayVal + 1);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          setDate(`${yyyy}-${mm}-${dd}`);
           setPageIndex(0);
         }
       } else {
         if (currentPageIndex > 0) {
           setPageIndex(currentPageIndex - 1);
         } else {
-          const d = new Date(date);
-          d.setDate(d.getDate() - 1);
-          setDate(d.toISOString().split("T")[0]);
+          const [y, m, dayVal] = date.split("-").map(Number);
+          const d = new Date(y, m - 1, dayVal - 1);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          setDate(`${yyyy}-${mm}-${dd}`);
           setPageIndex(999); // 999 clamps to the last page of the previous date
         }
       }
