@@ -212,25 +212,47 @@ export default function RegisterPage() {
   // Grand Total Cascade (Left page bottom right)
   const grandTotalLeft = totalCashCounted + totalVouchersAmount + cashHome + prevDeposit;
 
+  // Load Daily Fuel Testing defaults from localStorage (synced with Meter Readings tab)
+  const DEFAULT_FUEL_TESTING: Record<string, number> = { DIESEL: 70, PETROL: 5, SPEED: 0 };
+  const [fuelTestingMap, setFuelTestingMap] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("default_fuel_testing");
+      return saved ? JSON.parse(saved) : DEFAULT_FUEL_TESTING;
+    } catch {
+      return DEFAULT_FUEL_TESTING;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("default_fuel_testing");
+      if (saved) setFuelTestingMap(JSON.parse(saved));
+    } catch {}
+  }, [date]);
+
   // Nozzle Grid fallbacks matching image
   const MOCK_NOZZLES: any[] = [];
 
   // Map Nozzles — Number() coerces Decimal fields that the API serializes as
   // strings, so the reading arithmetic below stays numeric.
-  const activeNozzles = nozzleData?.items?.length ? nozzleData.items.map(item => ({
-    nozzle_name: item.nozzle_name,
-    dispenser_name: item.dispenser_name,
-    fuel_type: item.fuel_type,
-    opening_reading: Number(item.opening_reading) || 0,
-    closing_reading: item.closing_reading != null ? Number(item.closing_reading) : null,
-    testing: Number(item.testing) || 0,
-  })) : MOCK_NOZZLES;
+  const activeNozzles = nozzleData?.items?.length ? nozzleData.items.map(item => {
+    const defaultTest = fuelTestingMap[item.fuel_type] ?? 0;
+    const testingVal = item.testing != null && Number(item.testing) > 0 ? Number(item.testing) : defaultTest;
+    return {
+      nozzle_name: item.nozzle_name,
+      dispenser_name: item.dispenser_name,
+      fuel_type: item.fuel_type,
+      opening_reading: Number(item.opening_reading) || 0,
+      closing_reading: item.closing_reading != null ? Number(item.closing_reading) : null,
+      testing: testingVal,
+    };
+  }) : MOCK_NOZZLES;
 
   // Calculate grid sales
   const gridItems = activeNozzles.map((noz, index) => {
     const hasClosing = noz.closing_reading != null;
     const rawSales = hasClosing ? Math.max(0, noz.closing_reading! - noz.opening_reading) : 0;
-    const netVol = hasClosing ? Math.max(0, rawSales + noz.testing) : 0;
+    const netVol = hasClosing ? Math.max(0, rawSales - noz.testing) : 0;
     // Cumulative meter logic simulation
     const cumulative = 3316910 + (index * 2840518) + (netVol * 12);
     const previous = cumulative - netVol;
@@ -267,10 +289,10 @@ export default function RegisterPage() {
     return acc;
   }, {} as Record<string, { rawQty: number; testing: number; netVol: number }>);
 
-  const hsdSummary = fuelTypeSummary["DIESEL"] || { rawQty: 0, testing: 0, netVol: 0 };
-  const msSummary = fuelTypeSummary["PETROL"] || { rawQty: 0, testing: 0, netVol: 0 };
+  const hsdSummary = fuelTypeSummary["DIESEL"] || { rawQty: 0, testing: fuelTestingMap["DIESEL"] ?? 70, netVol: 0 };
+  const msSummary = fuelTypeSummary["PETROL"] || { rawQty: 0, testing: fuelTestingMap["PETROL"] ?? 5, netVol: 0 };
   // Speed fuel type — if present in the data, otherwise zero
-  const speedSummary = fuelTypeSummary["SPEED"] || { rawQty: 0, testing: 0, netVol: 0 };
+  const speedSummary = fuelTypeSummary["SPEED"] || { rawQty: 0, testing: fuelTestingMap["SPEED"] ?? 0, netVol: 0 };
 
   // Fuel rate constants (₹ per liter)
   const hsdRate = 98.39;
@@ -703,7 +725,7 @@ export default function RegisterPage() {
                   <div key={label} className="flex items-center h-[20px] pl-handwritten text-[#103F91] text-[13px]">
                     <span className="font-bold text-[#A33A32] w-[50px] shrink-0">{label}</span>
                     <span className="pl-1">= {summary.rawQty.toLocaleString()}</span>
-                    <span className="pl-1">+ {summary.testing.toLocaleString()}</span>
+                    <span className="pl-1">- {summary.testing.toLocaleString()}</span>
                     <span className="pl-1">= {summary.netVol.toLocaleString()} L</span>
                     <span className="text-[#A33A32] pl-1">× {rate}</span>
                     <span className="ml-auto font-bold pl-handwritten-strong text-[13px] pr-1">

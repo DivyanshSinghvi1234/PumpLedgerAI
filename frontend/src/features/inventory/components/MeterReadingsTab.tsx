@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Activity, Calendar, AlertTriangle, Sunrise, ChevronDown, ChevronRight, Clock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,28 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     setExpanded6am(newExpanded);
   };
 
+  // Daily Fuel Storage Testing carry-over state
+  const DEFAULT_FUEL_TESTING: Record<string, number> = {
+    DIESEL: 70,
+    PETROL: 5,
+    SPEED: 0,
+  };
+
+  const [fuelTestingMap, setFuelTestingMap] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("default_fuel_testing");
+      return saved ? JSON.parse(saved) : DEFAULT_FUEL_TESTING;
+    } catch {
+      return DEFAULT_FUEL_TESTING;
+    }
+  });
+
+  const handleUpdateFuelTesting = (fuelType: string, val: number) => {
+    const updated = { ...fuelTestingMap, [fuelType]: val };
+    setFuelTestingMap(updated);
+    localStorage.setItem("default_fuel_testing", JSON.stringify(updated));
+  };
+
   // Sync bulk reading form items into local state when data is loaded
   useEffect(() => {
     if (bulkForm?.items) {
@@ -89,7 +111,16 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
         const openVal = item.opening_reading;
         const closeVal = item.closing_reading;
         const testingL = item.testing !== null ? item.testing : 0.0;
-        const salesVal = closeVal !== null ? Math.max(0, closeVal - openVal + testingL).toFixed(3) : "";
+        const salesVal = closeVal !== null ? Math.max(0, closeVal - openVal).toFixed(3) : "";
+        initialMap[item.nozzle_uuid] = {
+          opening: openVal,
+          closing: closeVal !== null ? closeVal : "",
+          interim6am: item.interim_6am_reading !== null ? item.interim_6am_reading : "",
+          testing: testingL,
+          sales: salesVal,
+        };
+      });
+      setFormItems(initialMap);
         initialMap[item.nozzle_uuid] = {
           opening: openVal,
           closing: closeVal !== null ? closeVal : "",
@@ -436,8 +467,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                                   const openVal = parseFloat(raw || "0");
                                   const closeVal = parseFloat(prevItem.closing?.toString() || "0");
-                                  const testingVal = parseFloat(prevItem.testing?.toString() || "0");
-                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal + testingVal).toFixed(3);
+                                  const salesVal = prevItem.closing === "" ? "" : Math.max(0, closeVal - openVal).toFixed(3);
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {
@@ -540,8 +570,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
                                   const closeVal = parseFloat(raw || "0");
-                                  const testingVal = parseFloat(prevItem.testing?.toString() || "0");
-                                  const salesVal = raw === "" ? "" : Math.max(0, closeVal - openVal + testingVal).toFixed(3);
+                                  const salesVal = raw === "" ? "" : Math.max(0, closeVal - openVal).toFixed(3);
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {
@@ -705,6 +734,59 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           </div>
         )}
       </form>
+
+      {/* Daily Fuel Storage Testing Configuration (Bottom of Meter Readings) */}
+      <Card className="glass border-hairline mt-6">
+        <CardHeader className="pb-3 border-b border-hairline">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-sm font-bold text-ink">Daily Fuel Testing (Liters)</CardTitle>
+              <CardDescription className="text-[11px] text-ink-subtle">
+                Set testing liters for fuel storage tanks &amp; nozzles for {readingsDate}. Carries over to everyday by default until changed.
+              </CardDescription>
+            </div>
+            <Badge className="bg-fuel-amber/15 text-fuel-amber border-transparent font-mono text-[10px]">
+              Active Date: {readingsDate}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { type: "DIESEL", label: "H.S.D (Diesel)" },
+              { type: "PETROL", label: "M.S (Petrol)" },
+              { type: "SPEED", label: "Speed Petrol" },
+            ].map(({ type, label }) => {
+              const currentVal = fuelTestingMap[type] ?? 0;
+              return (
+                <div key={type} className="rounded-xl border border-hairline bg-surface-2 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-ink">{label}</span>
+                    <Badge className="text-[9px] font-mono bg-surface-3 text-ink-muted border-transparent">
+                      {type}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={currentVal}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseFloat(e.target.value) || 0);
+                        handleUpdateFuelTesting(type, val);
+                      }}
+                      className="w-full rounded-lg border border-hairline bg-card px-3 py-1.5 font-mono font-bold text-sm text-ink outline-none focus:border-fuel-amber"
+                      placeholder="0.0"
+                    />
+                    <span className="text-xs font-bold text-ink-muted">Liters</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Unlock Confirmation Dialog */}
       <Dialog open={unlockConfirmOpen} onOpenChange={setUnlockConfirmOpen}>
