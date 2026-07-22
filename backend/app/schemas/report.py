@@ -126,3 +126,38 @@ class LedgerReportResponse(BaseModel):
 
     rows: list[LedgerReportRow]
     count: int
+
+
+# =====================================================
+# Debtor Aging Report
+# =====================================================
+
+class DebtorAgingRow(BaseModel):
+
+    customer_uuid: str
+    customer_name: str
+    mobile: str | None = None
+
+    total_outstanding: Decimal
+
+    # Open invoice balance_due bucketed by age (days since invoice_date).
+    bucket_0_15: Decimal
+    bucket_16_30: Decimal
+    bucket_31_60: Decimal
+    bucket_60_plus: Decimal
+
+
+class DebtorAgingResponse(BaseModel):
+
+    as_of_date: date
+
+    rows: list[DebtorAgingRow]
+
+    # Grand totals per bucket across all debtors.
+    total_outstanding: Decimal
+    total_0_15: Decimal
+    total_16_30: Decimal
+    total_31_60: Decimal
+    total_60_plus: Decimal
+
+    count: int

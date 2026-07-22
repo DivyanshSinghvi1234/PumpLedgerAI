@@ -81,3 +81,27 @@ export interface DailyReportResponse {
   credit_sales: number;
   average_invoice: number;
 }
+
+// ---------- Debtor Aging ----------
+
+export interface DebtorAgingRow {
+  customer_uuid: string;
+  customer_name: string;
+  mobile: string | null;
+  total_outstanding: number;
+  bucket_0_15: number;
+  bucket_16_30: number;
+  bucket_31_60: number;
+  bucket_60_plus: number;
+}
+
+export interface DebtorAgingResponse {
+  as_of_date: string;
+  rows: DebtorAgingRow[];
+  total_outstanding: number;
+  total_0_15: number;
+  total_16_30: number;
+  total_31_60: number;
+  total_60_plus: number;
+  count: number;
+}

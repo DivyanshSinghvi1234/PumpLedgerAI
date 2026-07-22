@@ -58,6 +58,7 @@ def create_tank(
         fuel_type=data.fuel_type,
         capacity_liters=data.capacity_liters,
         current_stock_liters=data.current_stock_liters,
+        tally_godown_name=data.tally_godown_name,
     )
 
 
@@ -134,6 +135,7 @@ def update_tank(
             fuel_type=data.fuel_type,
             capacity_liters=data.capacity_liters,
             current_stock_liters=data.current_stock_liters,
+            tally_godown_name=data.tally_godown_name,
             ignore_capacity=data.ignore_capacity,
         )
     except ValueError as e:

@@ -57,18 +57,30 @@ export default function TallySettingsDialog({
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Voucher Type Names
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <FormInput
-                label="Sales Voucher Type"
+                label="Sales"
                 required
                 value={vchTypes.sales}
                 onChange={(e) => setVchTypes({ ...vchTypes, sales: e.target.value })}
               />
               <FormInput
-                label="Receipt Voucher Type"
+                label="Receipt"
                 required
                 value={vchTypes.receipt}
                 onChange={(e) => setVchTypes({ ...vchTypes, receipt: e.target.value })}
+              />
+              <FormInput
+                label="Contra (Deposit)"
+                required
+                value={vchTypes.contra || "Contra"}
+                onChange={(e) => setVchTypes({ ...vchTypes, contra: e.target.value })}
+              />
+              <FormInput
+                label="Purchase (Delivery)"
+                required
+                value={vchTypes.purchase || "Purchase"}
+                onChange={(e) => setVchTypes({ ...vchTypes, purchase: e.target.value })}
               />
             </div>
           </div>
@@ -121,6 +133,58 @@ export default function TallySettingsDialog({
                 required
                 value={mappings.lubricant_sales_ledger}
                 onChange={(e) => setMappings({ ...mappings, lubricant_sales_ledger: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Tally Stock Items
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormInput
+                label="Petrol Stock Item"
+                required
+                value={mappings.petrol_stock_item || ""}
+                onChange={(e) => setMappings({ ...mappings, petrol_stock_item: e.target.value })}
+              />
+              <FormInput
+                label="Diesel Stock Item"
+                required
+                value={mappings.diesel_stock_item || ""}
+                onChange={(e) => setMappings({ ...mappings, diesel_stock_item: e.target.value })}
+              />
+              <FormInput
+                label="Lubricant Stock Item"
+                required
+                value={mappings.lubricant_stock_item || ""}
+                onChange={(e) => setMappings({ ...mappings, lubricant_stock_item: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Supplier Accounts / Ledgers
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <FormInput
+                label="Petrol Supplier"
+                required
+                value={mappings.petrol_supplier_ledger || ""}
+                onChange={(e) => setMappings({ ...mappings, petrol_supplier_ledger: e.target.value })}
+              />
+              <FormInput
+                label="Diesel Supplier"
+                required
+                value={mappings.diesel_supplier_ledger || ""}
+                onChange={(e) => setMappings({ ...mappings, diesel_supplier_ledger: e.target.value })}
+              />
+              <FormInput
+                label="Lubricant Supplier"
+                required
+                value={mappings.lubricant_supplier_ledger || ""}
+                onChange={(e) => setMappings({ ...mappings, lubricant_supplier_ledger: e.target.value })}
               />
             </div>
           </div>

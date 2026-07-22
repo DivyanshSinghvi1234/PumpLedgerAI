@@ -176,6 +176,7 @@ def check_and_update_schema() -> None:
             # runs — its absence 500s every SELECT on nozzle_readings (all mapped
             # columns are loaded), including the meter-readings bulk-form query.
             ("nozzle_readings", "testing_liters", "FLOAT NOT NULL DEFAULT 0"),
+            ("nozzle_readings", "return_testing_to_storage", "BOOLEAN NOT NULL DEFAULT TRUE"),
             ("dip_readings", "deliveries_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "nozzle_sales_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),
@@ -188,6 +189,25 @@ def check_and_update_schema() -> None:
                 db.rollback()
                 db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
                 db.commit()
+
+        # audit_logs.pump_id — audit trail became pump-scoped. create_all can't
+        # add it to an existing table; backfill legacy rows to the first pump so
+        # the scoped viewer keeps showing them (they predate multi-tenant, so the
+        # exact pump is unrecoverable — first pump is the pragmatic default).
+        try:
+            db.execute(text("SELECT pump_id FROM audit_logs LIMIT 1"))
+        except Exception:
+            db.rollback()
+            db.execute(text("ALTER TABLE audit_logs ADD COLUMN pump_id INTEGER REFERENCES pumps(id)"))
+            first_pump_id = db.execute(
+                text("SELECT id FROM pumps ORDER BY id LIMIT 1")
+            ).scalar()
+            if first_pump_id is not None:
+                db.execute(
+                    text("UPDATE audit_logs SET pump_id = :pid WHERE pump_id IS NULL"),
+                    {"pid": first_pump_id},
+                )
+            db.commit()
 
         # tanker_deliveries timestamp defaults. The table was created (by
         # create_all) without a server DEFAULT on created_at/updated_at on some

@@ -6,14 +6,16 @@ import VoucherReportSection from "./components/VoucherReportSection";
 import CustomerReportSection from "./components/CustomerReportSection";
 import LedgerReportSection from "./components/LedgerReportSection";
 import DailySalesSection from "./components/DailySalesSection";
+import DebtorAgingSection from "./components/DebtorAgingSection";
 
-type Tab = "vouchers" | "customers" | "ledger" | "daily";
+type Tab = "vouchers" | "customers" | "ledger" | "daily" | "aging";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "vouchers", label: "Vouchers" },
   { key: "customers", label: "Customers" },
   { key: "ledger", label: "Ledger" },
   { key: "daily", label: "Daily Sales" },
+  { key: "aging", label: "Debtor Aging" },
 ];
 
 export default function ReportsPage() {
@@ -46,6 +48,7 @@ export default function ReportsPage() {
       {tab === "customers" && <CustomerReportSection />}
       {tab === "ledger" && <LedgerReportSection />}
       {tab === "daily" && <DailySalesSection />}
+      {tab === "aging" && <DebtorAgingSection />}
     </div>
   );
 }

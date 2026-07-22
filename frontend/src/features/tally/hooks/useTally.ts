@@ -10,11 +10,19 @@ export const DEFAULT_TALLY_MAPPINGS: TallyLedgerMappings = {
   petrol_sales_ledger: "Petrol Sales",
   diesel_sales_ledger: "Diesel Sales",
   lubricant_sales_ledger: "Lubricant Sales",
+  petrol_stock_item: "M.S. (Petrol)",
+  diesel_stock_item: "H.S.D. (Diesel)",
+  lubricant_stock_item: "Lubricants",
+  petrol_supplier_ledger: "Oil Company A/c",
+  diesel_supplier_ledger: "Oil Company A/c",
+  lubricant_supplier_ledger: "Lube Supplier A/c",
 };
 
 export const DEFAULT_TALLY_VOUCHER_TYPES: TallyVoucherTypes = {
   sales: "Sales",
   receipt: "Receipt",
+  contra: "Contra",
+  purchase: "Purchase",
 };
 
 export function getStoredTallyMappings(): TallyLedgerMappings {

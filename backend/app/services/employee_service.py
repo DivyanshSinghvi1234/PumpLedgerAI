@@ -59,11 +59,10 @@ class EmployeeService:
             target_id=str(employee.id),
             actor_id=actor_id,
             new_values={
-                "employee_code": employee.employee_code,
                 "full_name": employee.full_name,
                 "email": employee.email,
                 "phone": employee.phone,
-                "role": employee.role.value,
+                "role": employee.role,
                 "is_active": employee.is_active,
             }
         )
@@ -159,11 +158,10 @@ class EmployeeService:
             )
 
         old_values = {
-            "employee_code": employee.employee_code,
             "full_name": employee.full_name,
             "email": employee.email,
             "phone": employee.phone,
-            "role": employee.role.value,
+            "role": employee.role,
             "is_active": employee.is_active,
         }
 
@@ -202,11 +200,10 @@ class EmployeeService:
 
         # Log audit log
         new_values = {
-            "employee_code": employee.employee_code,
             "full_name": employee.full_name,
             "email": employee.email,
             "phone": employee.phone,
-            "role": employee.role.value,
+            "role": employee.role,
             "is_active": employee.is_active,
         }
         self.audit_service.log_action(
@@ -243,11 +240,10 @@ class EmployeeService:
             )
 
         old_values = {
-            "employee_code": employee.employee_code,
             "full_name": employee.full_name,
             "email": employee.email,
             "phone": employee.phone,
-            "role": employee.role.value,
+            "role": employee.role,
             "is_active": employee.is_active,
         }
 

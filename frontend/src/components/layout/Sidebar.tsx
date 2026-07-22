@@ -65,7 +65,7 @@ const menuItems: MenuGroup[] = [
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
-        title: "Income / Expenses",
+        title: "Revenue / Expenses",
         path: "/dashboard/income",
         icon: Coins,
         allowedRoles: ["ADMIN", "MANAGER"],

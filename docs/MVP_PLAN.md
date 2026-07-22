@@ -2,13 +2,22 @@
 
 > **Single source of truth for MVP scope + progress.**
 > Read this first on every restart. Update the checkboxes when a task is done.
-> Last verified against code: **2026-07-12**
+> Last verified against code: **2026-07-21**
 >
-> ## 🎉 STATUS: MVP COMPLETE (all Phases 1–8 done & frozen, 2026-07-12)
-> All modules built + verified: Auth, Dashboard, Customers, Vehicles, Vouchers
-> (manual + OCR), Payments, Customer Ledger (source of truth for balances), Reports
-> (+CSV). E2E smoke test 34/34; frontend build green.
-> **Next up: Tally export (v1.1)** — the only remaining scoped item.
+> ## STATUS: MVP frozen (Phases 1–8) + 9 post-freeze modules shipped
+> **MVP core (Phases 1–8, frozen 2026-07-12):** Auth, Dashboard, Customers,
+> Vehicles, Vouchers (manual + OCR), Payments, Customer Ledger (source of truth
+> for balances), Reports (+CSV). E2E smoke 34/34; build green.
+>
+> **Since the freeze the app grew well past MVP** — see §Post-freeze modules
+> (as-built) below for the ground truth. Tally export (the old "next up") is
+> **done**. Also shipped: Income/Expense, Inventory/Fuel (tanks, nozzles, meter
+> readings), Price schedules, Audit log, and Multi-pump scoping — all wired
+> end-to-end. **Two backends have no frontend yet: Shifts and Employees.**
+>
+> ⚠️ This doc's Phase 1–8 history below is still accurate for the MVP core, but
+> was written before the post-freeze work. Trust the §Post-freeze section for
+> anything about income, inventory, tally, audit, pumps, shifts, or employees.
 
 ---
 
@@ -249,24 +258,115 @@ Decisions: backend-generated CSV; all four reports; ledger = per-customer date-f
 **Known non-blocking warnings** (framework deprecations, not bugs): FastAPI warns
 `ORJSONResponse is deprecated` and Starlette warns about httpx TestClient — cosmetic only.
 
-## Post-MVP (deferred, per original scope)
-- **Tally export (v1.1)** — the one remaining scoped item; intentionally last.
-- Bundle code-splitting (frontend chunk >500kB advisory), audit log, RAG chat — later.
+## Post-freeze modules (as-built, verified 2026-07-21)
+
+Everything below shipped AFTER the Phase 8 freeze. Same frozen architecture
+(`Router → Service → Repository → DB`; `Page → Hook → Service → API`). All
+mutations write audit logs; all listed models are pump-scoped unless noted.
+Legend: **BE**=backend, **FE**=frontend.
+
+- **Income / Expense / Deposit** — `models/income.py`, `routes/income.py`
+  (`/v1/income`), `income_service`, `features/income/`.
+  BE ✅ complete, FE ✅ wired. Full CRUD + daily `/summary` (per-fuel sales from
+  nozzle readings × active rate, cash-in-hand). An EXPENSE linked to a customer
+  = loan → posts `DEBIT_ADJUSTMENT` to that customer's ledger (create/update/
+  delete all reverse+repost atomically). Model docstring says INCOME/EXPENSE but
+  DEPOSIT is also handled.
+- **Daily Register page** — `features/income/RegisterPage.tsx` (`/register`).
+  FE-only skeuomorphic ledger book (page-flip, print). Does **NOT** use the
+  income backend — composes voucher API + nozzle-readings API client-side.
+  ⚠️ Fuel rates are **hardcoded** (98.39 / 113.35 / 123.00); cash denominations,
+  "cash sent home", "deposited balance", "ledger interest" are **localStorage
+  only**; has leftover empty `MOCK_VOUCHERS`/`MOCK_EXPENSES` fallbacks.
+- **Inventory / Fuel** — `models/{fuel_tank,fuel_dispenser,nozzle,nozzle_reading}.py`,
+  `routes/{fuel_tank,nozzle}.py` (`/v1/tanks`, `/v1/nozzles`), `features/inventory/`.
+  BE ✅ complete, FE ✅ wired (5 tabs: Dispenser, MeterReadings, MeterLogs,
+  PriceSchedules, StockReconciliation). `post_bulk_readings` has real two-pass
+  validation (tank-underflow, unlinked selling nozzle, implausible meter jump) +
+  live tank stock draw-down. Tanks carry dip readings + tanker deliveries +
+  variance fields. ⚠️ sales-split / testing carry-over logic lives in localStorage.
+- **Price schedules** — `models/price_schedule.py`, `routes/price_schedule.py`
+  (`/v1/price-schedules`), `PriceSchedulesTab`. BE ✅, FE ✅ (active-rate lookup,
+  create, list, delete). `apply_pending_schedules` flips `is_applied` after
+  `effective_from`. ⚠️ `sync_rajasthan_prices` live-scrapes GoodReturns via
+  httpx/regex with hardcoded fallback rates — fragile external dependency; no
+  confirmed UI trigger for the sync.
+- **Tally export** — `routes/tally.py` (`/v1/tally`), `tally_service`,
+  `features/tally/`. BE ✅ **fully implemented (not a stub)**, FE ✅. Real Tally
+  ERP9/Prime XML (double-entry `ALLLEDGERENTRIES.LIST`, GUIDs, narrations) for
+  VERIFIED + not-SYNCED vouchers & payments. `POST /preview` (totals + warnings),
+  `POST /export` (XML download), `POST /mark-synced`. ⚠️ ledger mappings /
+  voucher-type config live in **localStorage** (`TallySettingsDialog`), not backend.
+- **Audit log** — `models/audit_log.py`, `routes/audit_log.py`
+  (`GET /v1/audit-logs`, read-only), `features/audit/`. BE ✅, FE ✅ (viewer +
+  before/after diff modal). `log_action` is called from **13 services / ~55 sites**.
+  **Now pump-scoped** (2026-07-21): `AuditLog` inherits `PumpScopedMixin`, so each
+  station sees only its own trail (auto-stamp on write, auto-filter on read, guard
+  protects the viewer). `pump_id` is **nullable by design** — audit logging is a
+  side-effect and must never roll back the business op it records; an out-of-request
+  write (script/test/background job) degrades to a NULL orphan row that no tenant
+  filter matches (invisible, not leaked). Backfill: `check_and_update_schema` +
+  Alembic `e1f2a3b4c5d6` add the column and assign legacy rows to the first pump.
+  Covered by `tests/test_pump_scoping.py::test_audit_log_isolation`. ⚠️ per-service
+  call-site logging (not an automatic ORM hook) — coverage depends on each service
+  remembering to call it.
+- **Multi-pump scoping** — `models/{pump,user_pump_access}.py`, `routes/pump.py`
+  (`/v1/pumps`), `database/{scoping,mixins}.py`, `PumpSwitcher`. BE ✅, FE ✅
+  (switcher in sidebar, `X-Pump-UUID` attached from localStorage by `api/client.ts`).
+  **14 pump-scoped models:** customer, vehicle, employee, shift, voucher,
+  voucher_settlement, payment, ledger_entry, income, nozzle, nozzle_reading,
+  fuel_dispenser, fuel_tank, price_schedule. `do_orm_execute` auto-filters all
+  SELECTs; `before_flush` auto-stamps `pump_id`. ⚠️ **security gap:** if the
+  `X-Pump-UUID` header is absent, NO filter is applied → queries return
+  cross-pump data. Enforcement depends entirely on the header.
+- **Shifts** — `models/{shift,shift_timetable}.py`, `routes/shift.py`
+  (`/v1/shifts`, manager-gated). BE ✅ complete (`end_shift` computes sales +
+  cash-sales from vouchers in window, derives expected cash + variance, audits).
+  **FE ❌ NOT consumed — orphaned. No shift feature dir, no callers.** ⚠️
+  `GET /attendants` falls back to hardcoded names when no employees exist.
+- **Employees** — `models/employee.py`, `routes/employee.py` (`/v1/employees`,
+  manager-gated). BE ✅ complete (CRUD, soft delete, typed dup/not-found errors).
+  **FE ❌ NOT consumed — orphaned. No employee feature dir, no callers.** Only
+  referenced server-side as FK target for shifts/timetables + attendants list.
+
+**Cross-cutting notes for future work:**
+- No `TODO/FIXME/NotImplemented/stub` markers exist anywhere in `backend/app`.
+  The two real gaps are **integration gaps** (Shifts, Employees have complete
+  APIs with zero FE callers), not half-built backends.
+- Several financial values are **localStorage-only** (register denominations,
+  tally ledger mappings, inventory sales-split) — not persisted server-side, so
+  they don't survive a browser/device change and aren't pump-scoped or audited.
+
+## Deferred (still not built)
+- RAG AI-chat — still deferred, big surface area for unclear payoff.
+- Bundle code-splitting (frontend chunk >500kB advisory) — cosmetic.
 
 ---
 
-## Build order (recommended)
-1. ~~**Phase 2 gap** (vehicle search/pagination)~~ ✅ DONE & FROZEN 2026-07-12
-2. ~~**Phase 3 gap** (voucher edit/delete + manual entry)~~ ✅ DONE & FROZEN 2026-07-12
-3. ~~**Phase 4 Payments**~~ ✅ DONE & FROZEN 2026-07-12
-4. ~~**Phase 5 Customer Ledger**~~ ✅ DONE & FROZEN 2026-07-12 (ledger = source of truth)
-5. ~~**Phase 6 Dashboard**~~ ✅ DONE & FROZEN 2026-07-12
-6. ~~**Phase 7 Reports**~~ ✅ DONE & FROZEN 2026-07-12
-7. ~~**Phase 8 — testing + MVP freeze**~~ ✅ DONE 2026-07-12 🎉 **MVP COMPLETE**
-8. **Tally** (post-MVP, v1.1) — the next thing to build.
-4. **Phase 5 Ledger** — build alongside/after payments. 
-5. **Phase 6 Dashboard** → **Phase 7 Reports** → **Phase 8 freeze**. 
-6. **Tally** (post-MVP, v1.1) — only after Phase 8 freeze.
+## Build order (history + what's open)
+Phases 1–8 (MVP core) ✅ DONE & FROZEN 2026-07-12. Post-freeze modules
+(income, inventory, price schedules, tally, audit, pumps, shifts, employees)
+✅ shipped by 2026-07-21 — see §Post-freeze modules for per-module status.
+
+**Open work (candidates, not yet scoped):**
+1. **Wire Shifts frontend** — complete BE API, zero FE callers (orphaned).
+2. **Wire Employees frontend** — complete BE API, zero FE callers (orphaned);
+   also unblocks real attendant data for shifts (drops hardcoded fallback names).
+3. ~~**Close pump-scoping security gap**~~ ✅ DONE 2026-07-21 — now fails closed:
+   a pump-scoped read inside a request with no resolvable `X-Pump-UUID` raises
+   `MissingPumpScopeError` → 400 (was: unfiltered cross-pump rows). Guard lives in
+   `database/scoping.py` (armed only in request scope via `in_request_scope`
+   contextvar set by `PumpScopingMiddleware`); seeding/migrations/scripts unaffected.
+   Covered by `tests/test_pump_scoping.py`.
+4. **Persist localStorage-only financials** (register denominations, tally ledger
+   mappings, inventory sales-split) if they need to survive device changes / be audited.
+5. ~~**Regression tests** for post-freeze modules~~ ✅ DONE 2026-07-21 —
+   `tests/test_post_freeze_modules.py` covers employees, shifts (start/end/variance),
+   audit-log; `tests/test_pump_scoping.py` covers isolation + fail-closed.
+   **Bug found + fixed:** `employee_service` referenced non-existent
+   `employee.employee_code` and `employee.role.value` (role is a plain str) in all
+   3 audit dicts — would 500 on every create/update/delete; never hit because the
+   employee module has no frontend caller. Suite now 29 passed; smoke 60/60.
 
 ## Key paths (so I don't re-scan every restart)
 - Backend layers: `backend/app/{models,schemas,repositories,services}/`

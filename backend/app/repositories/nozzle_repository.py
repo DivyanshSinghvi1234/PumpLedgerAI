@@ -23,6 +23,23 @@ class FuelDispenserRepository(BaseRepository[FuelDispenser]):
             )
         )
 
+    def get_all(self, db: Session) -> list[FuelDispenser]:
+        """
+        Retrieve all fuel dispensers and eagerly load their related nozzles in a single query.
+        
+        Warning: If pagination (LIMIT/OFFSET) is ever added to this query, joinedload on
+        a collection relationship (one-to-many) will cause incorrect pagination counts in SQL
+        (as the LIMIT is applied to the joined cartesian result set). In that case, refactor
+        to use selectinload() or split the retrieval into separate queries.
+        """
+        from sqlalchemy.orm import joinedload
+        return list(
+            db.scalars(
+                select(FuelDispenser)
+                .options(joinedload(FuelDispenser.nozzles))
+            ).unique().all()
+        )
+
 
 class NozzleRepository(BaseRepository[Nozzle]):
 

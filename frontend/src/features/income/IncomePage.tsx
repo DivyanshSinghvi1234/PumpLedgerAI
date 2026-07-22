@@ -168,7 +168,7 @@ export default function IncomePage() {
   }, [incomeData]);
 
   async function handleDelete(income: Income) {
-    const noun = income.kind === "DEPOSIT" ? "deposit" : income.kind === "EXPENSE" ? "expense" : "income";
+    const noun = income.kind === "DEPOSIT" ? "deposit" : income.kind === "EXPENSE" ? "expense" : "revenue";
     const loanNote = income.customer_name
       ? ` This will remove ₹${formatMoney(income.amount)} from ${income.customer_name}'s outstanding balance.`
       : "";
@@ -212,8 +212,8 @@ export default function IncomePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Income / Expenses"
-        description="Daily sales by fuel type, plus incomes, expenses, and cash in hand."
+        title="Revenue / Expenses"
+        description="Daily sales by fuel type, plus revenues, expenses, and cash in hand."
       />
 
       {/* Date picker + actions */}
@@ -254,7 +254,7 @@ export default function IncomePage() {
               onClick={() => setEntryKind("INCOME")}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuel-amber to-fuel-orange text-canvas px-4 py-2.5 text-sm font-bold shadow-lg shadow-fuel-amber/25 hover:from-fuel-gold hover:to-fuel-amber transition-all cursor-pointer"
             >
-              <Plus size={16} /> Add Income
+              <Plus size={16} /> Add Revenue
             </button>
           </div>
         )}
@@ -279,7 +279,7 @@ export default function IncomePage() {
           </div>
           <div className="rounded-2xl border border-hairline bg-card p-5">
             <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
-              Total Incomes
+              Total Revenues
             </p>
             <p className="mt-2 text-2xl font-bold text-ink">
               ₹{formatMoney(summary.total_incomes)}
@@ -361,9 +361,9 @@ export default function IncomePage() {
       {/* Income + Expense sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EntryList
-          title="Incomes / Variables"
+          title="Revenues"
           rows={incomeRows}
-          emptyText="No incomes recorded for this date."
+          emptyText="No revenues recorded for this date."
           isError={listError}
           isLoading={listLoading}
           canManage={canManage}

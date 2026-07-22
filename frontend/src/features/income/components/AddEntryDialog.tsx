@@ -156,7 +156,7 @@ export default function AddEntryDialog({
     }
   }
 
-  const title = preset?.title ?? (incomeToEdit ? `Edit ${activeKind === "DEPOSIT" ? "Deposit" : isExpense ? "Expense" : "Income"}` : kind === "DEPOSIT" ? "Add Deposit" : isExpense ? "Add Expense / Variable" : "Add Income / Variable");
+  const title = preset?.title ?? (incomeToEdit ? `Edit ${activeKind === "DEPOSIT" ? "Deposit" : isExpense ? "Expense" : "Revenue"}` : kind === "DEPOSIT" ? "Add Deposit" : isExpense ? "Add Expense / Variable" : "Add Revenue");
   const descriptionPlaceholder = activeKind === "DEPOSIT"
     ? "e.g. Cash deposited in SBI"
     : isExpense
@@ -254,7 +254,7 @@ export default function AddEntryDialog({
           <FormActions
             loading={createMutation.isPending || updateMutation.isPending}
             onCancel={() => onOpenChange(false)}
-            submitLabel={incomeToEdit ? "Save Changes" : activeKind === "DEPOSIT" ? "Save Deposit" : isExpense ? "Save Expense" : "Save Income"}
+            submitLabel={incomeToEdit ? "Save Changes" : activeKind === "DEPOSIT" ? "Save Deposit" : isExpense ? "Save Expense" : "Save Revenue"}
           />
         </form>
       </DialogContent>

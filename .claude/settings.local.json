@@ -45,7 +45,8 @@
       "Bash(curl -s -o /dev/null -w \"front5173:%{http_code}\\\\n\" http://localhost:5173/)",
       "Bash(command -v chromium-cli chromium chrome google-chrome)",
       "Bash(pkill -f \"vite\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(xargs -n1 basename)"
     ]
   }
 }

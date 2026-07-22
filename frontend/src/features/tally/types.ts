@@ -8,17 +8,26 @@ export interface TallyLedgerMappings {
   petrol_sales_ledger: string;
   diesel_sales_ledger: string;
   lubricant_sales_ledger: string;
+  petrol_stock_item: string;
+  diesel_stock_item: string;
+  lubricant_stock_item: string;
+  petrol_supplier_ledger: string;
+  diesel_supplier_ledger: string;
+  lubricant_supplier_ledger: string;
 }
 
 export interface TallyVoucherTypes {
   sales: string;
   receipt: string;
+  contra: string;
+  purchase: string;
 }
 
 export interface TallyExportRequest {
   from_date?: string;
   to_date?: string;
   mark_as_synced: boolean;
+  export_inventory: boolean;
   ledger_mappings: TallyLedgerMappings;
   voucher_types: TallyVoucherTypes;
 }

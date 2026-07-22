@@ -5,6 +5,7 @@ import type {
   CustomerReportResponse,
   LedgerReportResponse,
   DailyReportResponse,
+  DebtorAgingResponse,
 } from "../types/report";
 
 export interface VoucherReportParams {
@@ -64,6 +65,18 @@ class ReportService {
       await api.get<DailyReportResponse>(
         "/v1/reports/daily-sales",
         { params }
+      );
+
+    return response.data;
+  }
+
+  async debtorAging(
+    asOf?: string
+  ): Promise<DebtorAgingResponse> {
+    const response =
+      await api.get<DebtorAgingResponse>(
+        "/v1/reports/debtor-aging",
+        { params: { as_of: asOf } }
       );
 
     return response.data;

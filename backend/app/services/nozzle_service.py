@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, time as time_type
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from sqlalchemy.orm import Session
 
 from app.models.nozzle import Nozzle
@@ -331,16 +331,57 @@ class NozzleService:
                         pass
             return "19:30"
 
+        # Pre-collect all nozzle IDs to perform bulk query loading
+        all_nozzle_ids = []
+        for dispenser in dispensers:
+            for nozzle in dispenser.nozzles:
+                all_nozzle_ids.append(nozzle.id)
+
+        # Load all readings for these nozzles on the target date in one query
+        readings_on_date = {}
+        if all_nozzle_ids:
+            readings = db.scalars(
+                select(NozzleReading).where(
+                    NozzleReading.nozzle_id.in_(all_nozzle_ids),
+                    NozzleReading.reading_date == reading_date
+                )
+            ).all()
+            readings_on_date = {r.nozzle_id: r for r in readings}
+
+        # Identify nozzles that don't have a reading on the target date (need their previous latest reading)
+        needed_prev_ids = [nid for nid in all_nozzle_ids if nid not in readings_on_date]
+        prev_readings_map = {}
+
+        if needed_prev_ids:
+            # Greatest-n-per-group subquery join to retrieve the latest previous reading per nozzle
+            subq = select(
+                NozzleReading.nozzle_id,
+                func.max(NozzleReading.reading_date).label("max_date")
+            ).where(
+                NozzleReading.nozzle_id.in_(needed_prev_ids),
+                NozzleReading.reading_date < reading_date
+            ).group_by(
+                NozzleReading.nozzle_id
+            ).subquery()
+
+            prev_readings = db.scalars(
+                select(NozzleReading)
+                .join(
+                    subq,
+                    (NozzleReading.nozzle_id == subq.c.nozzle_id) & 
+                    (NozzleReading.reading_date == subq.c.max_date)
+                )
+            ).all()
+            prev_readings_map = {r.nozzle_id: r for r in prev_readings}
+
         for dispenser in dispensers:
             # ponytail: match the config tab, which lists every dispenser/nozzle
             # regardless of the legacy is_active flag (the UI manages `status`,
             # not is_active). Ceiling: OUT_OF_ORDER nozzles still appear here —
             # upgrade to filtering on `status == ACTIVE` if that's ever wanted.
             for nozzle in dispenser.nozzles:
+                reading = readings_on_date.get(nozzle.id)
 
-                # Fetch saved reading for this nozzle on this date
-                reading = self.reading_repo.get_by_date(db, nozzle.id, reading_date)
-                
                 if reading:
                     opening_reading = reading.opening_reading if reading.opening_reading is not None else 0.0
                     closing_reading = reading.closing_reading
@@ -349,17 +390,22 @@ class NozzleService:
                     closing_time = safe_format_time(reading.closing_time)
                     interim_6am_reading = reading.interim_6am_reading
                     testing = reading.testing_liters if reading.testing_liters is not None else 0.0
+                    return_testing_to_storage = reading.return_testing_to_storage
                 else:
                     # Auto-rollover: load previous final reading as opening
-                    opening_reading = self.get_opening_readings(db, nozzle.uuid, reading_date)
-                    if opening_reading is None:
-                        opening_reading = 0.0
+                    prev = prev_readings_map.get(nozzle.id)
+                    if prev and prev.closing_reading is not None:
+                        opening_reading = prev.closing_reading
+                    else:
+                        opening_reading = nozzle.last_reading if nozzle.last_reading is not None else 0.0
+
                     closing_reading = None
                     sales = None
                     opening_time = "19:30"
                     closing_time = "19:30"
                     interim_6am_reading = None
                     testing = 0.0
+                    return_testing_to_storage = True
 
                 # Ensure fuel type has fallback
                 fuel_type_val = nozzle.fuel_type if nozzle.fuel_type else FuelType.PETROL
@@ -377,6 +423,7 @@ class NozzleService:
                         closing_time=closing_time,
                         interim_6am_reading=interim_6am_reading,
                         testing=testing,
+                        return_testing_to_storage=return_testing_to_storage,
                     )
                 )
 
@@ -424,13 +471,21 @@ class NozzleService:
             testing_liters = item.testing_liters or 0.0
             sales = max(0.0, gross_sales - testing_liters)
 
+            return_to_storage = item.return_testing_to_storage if item.return_testing_to_storage is not None else True
+            tank_drawdown = gross_sales if not return_to_storage else sales
+
             existing = self.reading_repo.get_by_date(db, nozzle.id, r_date)
             old_tank_id = existing.nozzle.tank_id if existing else None
-            old_sales = existing.sales if existing else 0.0
+            
+            if existing:
+                old_return = getattr(existing, "return_testing_to_storage", True)
+                old_drawdown = existing.sales if old_return else (existing.sales + existing.testing_liters)
+            else:
+                old_drawdown = 0.0
 
             # A nozzle that dispensed fuel must be tied to a storage tank so the
             # stock can be drawn down. Zero-sales readings are allowed unlinked.
-            if not nozzle.tank_id and sales > 0:
+            if not nozzle.tank_id and tank_drawdown > 0:
                 raise ValueError(
                     f"Nozzle '{nozzle.name}' is not linked to a storage tank. "
                     f"Configure its tank in the dispenser settings before recording sales."
@@ -440,16 +495,17 @@ class NozzleService:
             # any tank would go negative (physically impossible = data error).
             if nozzle.tank_id:
                 if existing and old_tank_id and old_tank_id != nozzle.tank_id:
-                    net_deduction[old_tank_id] = net_deduction.get(old_tank_id, 0.0) - old_sales
-                    net_deduction[nozzle.tank_id] = net_deduction.get(nozzle.tank_id, 0.0) + sales
+                    net_deduction[old_tank_id] = net_deduction.get(old_tank_id, 0.0) - old_drawdown
+                    net_deduction[nozzle.tank_id] = net_deduction.get(nozzle.tank_id, 0.0) + tank_drawdown
                 else:
-                    diff = sales - old_sales if existing else sales
+                    diff = tank_drawdown - old_drawdown
                     net_deduction[nozzle.tank_id] = net_deduction.get(nozzle.tank_id, 0.0) + diff
 
             plan.append({
                 "item": item, "nozzle": nozzle, "existing": existing,
                 "opening": opening, "sales": sales, "testing_liters": testing_liters,
-                "old_tank_id": old_tank_id, "old_sales": old_sales,
+                "return_testing_to_storage": return_to_storage, "tank_drawdown": tank_drawdown,
+                "old_tank_id": old_tank_id, "old_drawdown": old_drawdown,
             })
 
         for tank_id, removed in net_deduction.items():
@@ -465,14 +521,16 @@ class NozzleService:
         for p in plan:
             item, nozzle, existing = p["item"], p["nozzle"], p["existing"]
             opening, sales, testing_liters = p["opening"], p["sales"], p["testing_liters"]
+            return_to_storage, tank_drawdown = p["return_testing_to_storage"], p["tank_drawdown"]
             opening_time = parse_time(item.opening_time)
             closing_time = parse_time(item.closing_time)
 
             if existing:
-                old_sales = p["old_sales"]
+                old_drawdown = p["old_drawdown"]
                 existing.opening_reading = opening
                 existing.closing_reading = item.closing_reading
                 existing.testing_liters = testing_liters
+                existing.return_testing_to_storage = return_to_storage
                 existing.sales = sales
                 existing.total_sales = sales
                 existing.opening_time = opening_time
@@ -484,10 +542,10 @@ class NozzleService:
                 if nozzle.tank_id:
                     # If tank changed, restore to old tank and deduct from new tank
                     if p["old_tank_id"] and p["old_tank_id"] != nozzle.tank_id:
-                        tank_service.restore_tank_stock(db, p["old_tank_id"], old_sales)
-                        tank_service.deduct_tank_stock(db, nozzle.tank_id, sales)
+                        tank_service.restore_tank_stock(db, p["old_tank_id"], old_drawdown)
+                        tank_service.deduct_tank_stock(db, nozzle.tank_id, tank_drawdown)
                     else:
-                        diff = sales - old_sales
+                        diff = tank_drawdown - old_drawdown
                         tank_service.deduct_tank_stock(db, nozzle.tank_id, diff)
             else:
                 new_reading = NozzleReading(
@@ -496,17 +554,19 @@ class NozzleService:
                     opening_reading=opening,
                     closing_reading=item.closing_reading,
                     testing_liters=testing_liters,
+                    return_testing_to_storage=return_to_storage,
                     sales=sales,
                     total_sales=sales,
                     opening_time=opening_time,
                     closing_time=closing_time,
                     interim_6am_reading=item.interim_6am_reading,
+                    pump_id=nozzle.pump_id,
                 )
                 reading = self.reading_repo.create(db, new_reading)
 
                 # Deduct stock for new reading
                 if nozzle.tank_id:
-                    tank_service.deduct_tank_stock(db, nozzle.tank_id, sales)
+                    tank_service.deduct_tank_stock(db, nozzle.tank_id, tank_drawdown)
 
             # Update the nozzle's last_reading (latest state)
             nozzle.last_reading = item.closing_reading

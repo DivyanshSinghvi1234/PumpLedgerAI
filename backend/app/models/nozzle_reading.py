@@ -1,6 +1,6 @@
 from datetime import date, time as time_type
 from decimal import Decimal
-from sqlalchemy import Float, ForeignKey, Numeric, Date, Time
+from sqlalchemy import Float, ForeignKey, Numeric, Date, Time, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -75,6 +75,12 @@ class NozzleReading(
     testing_liters: Mapped[float] = mapped_column(
         Float,
         default=0.0,
+        nullable=False,
+    )
+
+    return_testing_to_storage: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
         nullable=False,
     )
 

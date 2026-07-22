@@ -46,6 +46,11 @@ class FuelTank(
         nullable=False,
     )
 
+    tally_godown_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
     dip_readings = relationship(
         "DipReading",
         back_populates="fuel_tank",
@@ -125,5 +130,6 @@ class TankerDelivery(Base, IDMixin, UUIDMixin, TimestampMixin, ActiveMixin, Pump
     density: Mapped[float | None] = mapped_column(Float, nullable=True)
     supplier_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    procurement_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     fuel_tank = relationship("FuelTank", back_populates="deliveries")

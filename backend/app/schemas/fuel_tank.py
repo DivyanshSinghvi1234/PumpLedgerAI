@@ -10,6 +10,7 @@ class FuelTankCreate(BaseModel):
     fuel_type: FuelType
     capacity_liters: float
     current_stock_liters: float = 0.0
+    tally_godown_name: str | None = None
 
 
 class FuelTankUpdate(BaseModel):
@@ -17,6 +18,7 @@ class FuelTankUpdate(BaseModel):
     fuel_type: FuelType | None = None
     capacity_liters: float | None = None
     current_stock_liters: float | None = None
+    tally_godown_name: str | None = None
     ignore_capacity: bool = False
 
 
@@ -27,6 +29,7 @@ class FuelTankResponse(BaseModel):
     fuel_type: FuelType
     capacity_liters: float
     current_stock_liters: float
+    tally_godown_name: str | None
     created_at: datetime
     updated_at: datetime
 

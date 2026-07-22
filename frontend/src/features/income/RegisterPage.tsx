@@ -33,7 +33,6 @@ export default function RegisterPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const swipeStartX = useRef<number | null>(null);
 
   // Local state for cash denominations, cached to localStorage per date
   const cacheKey = `ledger_denominations_${date}`;
@@ -236,19 +235,7 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [date, queryClient]);
 
-  // Swipe left → next day, swipe right → previous day (touch devices only).
-  function onSwipeStart(e: React.PointerEvent) {
-    if (e.pointerType === "touch") {
-      swipeStartX.current = e.clientX;
-    }
-  }
-  function onSwipeEnd(e: React.PointerEvent) {
-    if (swipeStartX.current === null || e.pointerType !== "touch") return;
-    const dx = e.clientX - swipeStartX.current;
-    swipeStartX.current = null;
-    if (Math.abs(dx) < 80) return; // ignore taps / small touch movements
-    triggerPageTurn(dx < 0 ? "next" : "prev");
-  }
+
 
   // Fallback Mock data for Vouchers (English ONLY) matching reference photo
   const MOCK_VOUCHERS: any[] = [];
@@ -587,8 +574,6 @@ export default function RegisterPage() {
         {/* Book Outer Spine layout */}
         <div
           className="pl-book-shell relative min-w-[1000px] w-full max-w-[1250px] mx-auto min-h-[820px] rounded-2xl overflow-hidden border border-amber-950/30 touch-pan-y"
-          onPointerDown={onSwipeStart}
-          onPointerUp={onSwipeEnd}
         >
           {/* Interactive page margins / stacked page edges for book navigation */}
           {/* Left Stacked Page Edges (Clickable area to go back) */}

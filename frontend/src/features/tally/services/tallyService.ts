@@ -17,6 +17,13 @@ class TallyService {
   async markAsSynced(data: TallyMarkSyncedRequest): Promise<void> {
     await api.post("/v1/tally/mark-synced", data);
   }
+
+  async importTallyXml(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post("/v1/tally/import", formData);
+    return response.data;
+  }
 }
 
 const tallyService = new TallyService();

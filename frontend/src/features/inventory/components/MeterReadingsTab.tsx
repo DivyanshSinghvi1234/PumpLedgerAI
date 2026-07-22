@@ -29,6 +29,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
       }
     >
   >({});
+  const [globalReturnTestingToStorage, setGlobalReturnTestingToStorage] = useState(true);
   const [isEditingSaved, setIsEditingSaved] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
 
@@ -107,12 +108,18 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     const updated = { ...fuelTestingMap, [fuelType]: val };
     setFuelTestingMap(updated);
     localStorage.setItem("default_fuel_testing", JSON.stringify(updated));
+    if (val > 0) {
+      setGlobalReturnTestingToStorage(true);
+    }
   };
 
   const handleUpdatePerTankTesting = (tankUuid: string, fuelType: string, val: number) => {
     const nextTankMap = { ...perTankTestingMap, [tankUuid]: val };
     setPerTankTestingMap(nextTankMap);
     localStorage.setItem("per_tank_testing_map", JSON.stringify(nextTankMap));
+    if (val > 0) {
+      setGlobalReturnTestingToStorage(true);
+    }
 
     // Aggregate total testing liters per fuel type across tanks
     const aggregatedByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
@@ -169,12 +176,17 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
       });
       setFormItems(initialMap);
 
-      // Restore saved times if present
-      if (bulkForm.items.length > 0 && bulkForm.items[0].opening_time) {
-        setSharedOpeningTime(bulkForm.items[0].opening_time);
-      }
-      if (bulkForm.items.length > 0 && bulkForm.items[0].closing_time) {
-        setSharedClosingTime(bulkForm.items[0].closing_time);
+      // Restore saved times and global testing return flag if present
+      if (bulkForm.items.length > 0) {
+        if (bulkForm.items[0].opening_time) {
+          setSharedOpeningTime(bulkForm.items[0].opening_time);
+        }
+        if (bulkForm.items[0].closing_time) {
+          setSharedClosingTime(bulkForm.items[0].closing_time);
+        }
+        if (bulkForm.items[0].return_testing_to_storage !== null) {
+          setGlobalReturnTestingToStorage(bulkForm.items[0].return_testing_to_storage);
+        }
       }
 
       // Auto-expand 6AM rows if interim reading already saved
@@ -264,6 +276,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
             closing_time: sharedClosingTime,
             interim_6am_reading: interim,
             testing_liters: testing,
+            return_testing_to_storage: globalReturnTestingToStorage,
           };
         });
 
@@ -645,6 +658,10 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               value={stateVals.testing}
                               onChange={(e) => {
                                 const raw = e.target.value;
+                                const val = parseFloat(raw || "0");
+                                if (val > 0) {
+                                  setGlobalReturnTestingToStorage(true);
+                                }
                                 setFormItems((prev) => {
                                   const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
@@ -862,27 +879,43 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                   </div>
                 )}
               </CardContent>
-            </Card>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 pb-2 border-t border-hairline/30 mt-6 px-4">
+                {/* Global option for testing return */}
+                <div className="flex items-center gap-2.5 select-none">
+                  <input
+                    id="globalTestingReturn"
+                    type="checkbox"
+                    checked={globalReturnTestingToStorage}
+                    onChange={(e) => setGlobalReturnTestingToStorage(e.target.checked)}
+                    disabled={isDisabled}
+                    className="h-4.5 w-4.5 rounded border-hairline bg-surface-2 text-fuel-amber focus:ring-fuel-amber/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <Label htmlFor="globalTestingReturn" className="text-xs font-semibold text-ink cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                    Return testing fuel to storage tanks (Do not deduct testing liters from storage stock)
+                  </Label>
+                </div>
 
-            <div className="flex justify-end pt-4 pb-2">
-              {hasSavedReadings && !isEditingSaved ? (
-                <Button
-                  type="button"
-                  onClick={() => setUnlockConfirmOpen(true)}
-                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-8 py-2.5 shadow-md cursor-pointer text-xs"
-                >
-                  Edit Saved Readings
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={postBulkReadingsMutation.isPending}
-                  className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-8 py-2.5 shadow-md cursor-pointer text-xs"
-                >
-                  {postBulkReadingsMutation.isPending ? "Saving changes..." : hasSavedReadings ? "Save Changes" : "Save All Readings"}
-                </Button>
-              )}
-            </div>
+                <div className="flex justify-end gap-2">
+                  {hasSavedReadings && !isEditingSaved ? (
+                    <Button
+                      type="button"
+                      onClick={() => setUnlockConfirmOpen(true)}
+                      className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-8 py-2.5 shadow-md cursor-pointer text-xs"
+                    >
+                      Edit Saved Readings
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled={postBulkReadingsMutation.isPending}
+                      className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold px-8 py-2.5 shadow-md cursor-pointer text-xs"
+                    >
+                      {postBulkReadingsMutation.isPending ? "Saving changes..." : hasSavedReadings ? "Save Changes" : "Save All Readings"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
           </div>
         )}
       </form>

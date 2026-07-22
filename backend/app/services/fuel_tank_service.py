@@ -28,6 +28,7 @@ class FuelTankService:
         fuel_type: FuelType,
         capacity_liters: float,
         current_stock_liters: float = 0.0,
+        tally_godown_name: str | None = None,
         actor_id: int | None = None,
     ) -> FuelTank:
         tank = FuelTank(
@@ -35,6 +36,7 @@ class FuelTankService:
             fuel_type=fuel_type,
             capacity_liters=capacity_liters,
             current_stock_liters=current_stock_liters,
+            tally_godown_name=tally_godown_name,
         )
         tank = self.tank_repo.create(db, tank)
 
@@ -50,6 +52,7 @@ class FuelTankService:
                 "fuel_type": tank.fuel_type.value,
                 "capacity_liters": str(tank.capacity_liters),
                 "current_stock_liters": str(tank.current_stock_liters),
+                "tally_godown_name": tank.tally_godown_name,
             }
         )
         return tank
@@ -249,6 +252,7 @@ class FuelTankService:
         fuel_type: FuelType | None = None,
         capacity_liters: float | None = None,
         current_stock_liters: float | None = None,
+        tally_godown_name: str | None = "-NO_CHANGE-",
         ignore_capacity: bool = False,
         actor_id: int | None = None,
     ) -> FuelTank:
@@ -270,6 +274,8 @@ class FuelTankService:
             tank.capacity_liters = capacity_liters
         if current_stock_liters is not None:
             tank.current_stock_liters = current_stock_liters
+        if tally_godown_name != "-NO_CHANGE-":
+            tank.tally_godown_name = tally_godown_name
 
         self.tank_repo.update(db, tank)
 
@@ -285,6 +291,7 @@ class FuelTankService:
                 "fuel_type": tank.fuel_type.value,
                 "capacity_liters": str(tank.capacity_liters),
                 "current_stock_liters": str(tank.current_stock_liters),
+                "tally_godown_name": tank.tally_godown_name,
             }
         )
         return tank

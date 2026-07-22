@@ -12,6 +12,7 @@ from app.core.exceptions import CustomerNotFoundError
 from app.schemas.report import (
     CustomerReportResponse,
     DailyReportResponse,
+    DebtorAgingResponse,
     LedgerReportResponse,
     VoucherReportResponse,
 )
@@ -209,6 +210,38 @@ def daily_sales_export(
     )
     return csv_streaming_response(
         "daily_sales.csv",
+        header,
+        rows,
+    )
+
+
+# ======================================================
+# Debtor Aging
+# ======================================================
+
+@router.get(
+    "/debtor-aging",
+    response_model=DebtorAgingResponse,
+    dependencies=manager,
+)
+def debtor_aging(
+    as_of: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return service.debtor_aging_report(db, as_of=as_of)
+
+
+@router.get(
+    "/debtor-aging/export",
+    dependencies=manager,
+)
+def debtor_aging_export(
+    as_of: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    header, rows = service.debtor_aging_csv(db, as_of=as_of)
+    return csv_streaming_response(
+        "debtor_aging.csv",
         header,
         rows,
     )

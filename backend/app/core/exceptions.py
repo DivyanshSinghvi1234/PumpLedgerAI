@@ -134,4 +134,16 @@ class DuplicateDailySheetError(AppException):
 class IncomeNotFoundError(AppException):
     def __init__(self, income_uuid: str):
         self.income_uuid = income_uuid
-        super().__init__(f"Income '{income_uuid}' not found.")
+        super().__init__(f"Income '{income_uuid}' not found.")
+
+
+class MissingPumpScopeError(AppException):
+    """A request tried to read pump-scoped data without an active pump.
+
+    Fail-closed guard for multi-tenant isolation: rather than returning
+    unfiltered cross-pump rows, we refuse the query. Maps to 400 via the
+    AppException handler (name has no 'NotFoundError'/'Duplicate')."""
+    def __init__(self) -> None:
+        super().__init__(
+            "No active pump selected. Send a valid X-Pump-UUID header."
+        )

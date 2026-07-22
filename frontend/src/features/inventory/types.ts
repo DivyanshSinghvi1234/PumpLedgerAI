@@ -7,6 +7,7 @@ export interface FuelTank {
   fuel_type: FuelType;
   capacity_liters: number;
   current_stock_liters: number;
+  tally_godown_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -16,6 +17,7 @@ export interface FuelTankCreate {
   fuel_type: FuelType;
   capacity_liters: number;
   current_stock_liters: number;
+  tally_godown_name?: string | null;
 }
 
 export interface DipReading {
@@ -121,6 +123,7 @@ export interface NozzleReading {
   opening_reading: number;
   closing_reading: number;
   testing_liters: number;
+  return_testing_to_storage: boolean;
   sales: number;
   total_sales: number;
   created_at: string;
@@ -134,6 +137,7 @@ export interface NozzleReadingCreate {
   closing_time?: string;       // HH:MM, default "19:30"
   interim_6am_reading?: number | null; // Optional 6:00 AM meter reading
   testing_liters?: number;
+  return_testing_to_storage?: boolean;
 }
 
 export interface BulkNozzleReadingCreate {
@@ -153,6 +157,7 @@ export interface BulkFormNozzleItem {
   closing_time: string | null;
   interim_6am_reading: number | null;
   testing: number | null;
+  return_testing_to_storage: boolean | null;
 }
 
 export interface BulkFormResponse {

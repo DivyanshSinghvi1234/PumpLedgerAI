@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, require_roles
@@ -8,6 +8,7 @@ from app.schemas.tally import (
     TallyExportRequest,
     TallyPreviewResponse,
     TallyMarkSyncedRequest,
+    TallyImportResponse,
 )
 from app.services.tally_service import TallyService
 
@@ -90,4 +91,27 @@ def mark_items_synced(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to mark items as synced: {str(exc)}",
+        )
+
+
+@router.post(
+    "/import",
+    response_model=TallyImportResponse,
+)
+async def import_tally_xml(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        content = await file.read()
+        return service.import_xml_data(db, content)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Import failed: {str(exc)}",
         )

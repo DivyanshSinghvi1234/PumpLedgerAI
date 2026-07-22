@@ -21,6 +21,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [tankFuelType, setTankFuelType] = useState<FuelType>("PETROL");
   const [tankCapacity, setTankCapacity] = useState("");
   const [tankInitialStock, setTankInitialStock] = useState("");
+  const [tallyGodownName, setTallyGodownName] = useState("");
 
   const [editTankDialogOpen, setEditTankDialogOpen] = useState(false);
   const [editingTank, setEditingTank] = useState<any>(null);
@@ -28,6 +29,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [editTankFuelType, setEditTankFuelType] = useState<FuelType>("PETROL");
   const [editTankCapacity, setEditTankCapacity] = useState("");
   const [editTankCurrentStock, setEditTankCurrentStock] = useState("");
+  const [editTallyGodownName, setEditTallyGodownName] = useState("");
   const [editIgnoreCapacity, setEditIgnoreCapacity] = useState(false);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -169,6 +171,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       fuel_type: tankFuelType,
       capacity_liters: parseFloat(tankCapacity),
       current_stock_liters: parseFloat(tankInitialStock),
+      tally_godown_name: tallyGodownName.trim() || undefined,
     });
   };
 
@@ -206,6 +209,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     setEditTankFuelType(tank.fuel_type);
     setEditTankCapacity(String(tank.capacity_liters));
     setEditTankCurrentStock(String(tank.current_stock_liters));
+    setEditTallyGodownName(tank.tally_godown_name || "");
     setEditIgnoreCapacity(false);
     setEditTankDialogOpen(true);
   };
@@ -229,6 +233,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
         fuel_type: editTankFuelType,
         capacity_liters: parseFloat(editTankCapacity),
         current_stock_liters: parseFloat(editTankCurrentStock),
+        tally_godown_name: editTallyGodownName.trim() || null,
         ignore_capacity: editIgnoreCapacity,
       },
     });
@@ -371,6 +376,12 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                         {tank.current_stock_liters.toLocaleString(undefined, { minimumFractionDigits: 1 })} L
                       </span>
                     </div>
+                    {tank.tally_godown_name && (
+                      <div className="flex items-baseline justify-between text-[10px] text-ink-subtle">
+                        <span>Tally Godown:</span>
+                        <span className="font-mono font-bold text-fuel-amber">{tank.tally_godown_name}</span>
+                      </div>
+                    )}
                     <div className="w-full bg-surface-3 rounded-full h-2 overflow-hidden border border-hairline">
                       <div
                         className="bg-fuel-amber h-2 rounded-full transition-all duration-500"
@@ -699,6 +710,17 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
               />
             </div>
 
+            <div className="space-y-1.5">
+              <Label htmlFor="tankTallyGodownInput" className="text-xs font-bold text-ink-muted">Tally Godown Name <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                id="tankTallyGodownInput"
+                placeholder="e.g. Underground Tank 1"
+                value={tallyGodownName}
+                onChange={(e) => setTallyGodownName(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink"
+              />
+            </div>
+
             <DialogFooter className="pt-3 border-t border-hairline">
               <Button
                 type="button"
@@ -875,6 +897,17 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 onChange={(e) => setEditTankCurrentStock(e.target.value)}
                 className="bg-surface-2 border-hairline text-xs text-ink"
                 required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="editTankTallyGodownInput" className="text-xs font-bold text-ink-muted">Tally Godown Name <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                id="editTankTallyGodownInput"
+                placeholder="e.g. Underground Tank 1"
+                value={editTallyGodownName}
+                onChange={(e) => setEditTallyGodownName(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink"
               />
             </div>
 

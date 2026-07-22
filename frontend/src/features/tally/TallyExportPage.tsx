@@ -8,7 +8,14 @@ import {
   Wallet,
   Calendar,
   Layers,
+  Upload,
+  X,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
@@ -36,8 +43,15 @@ export default function TallyExportPage() {
   const [fromDate, setFromDate] = useState(getFirstDayOfMonth());
   const [toDate, setToDate] = useState(getTodayDateString());
   const [markAsSynced, setMarkAsSynced] = useState(true);
+  const [exportInventory, setExportInventory] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"vouchers" | "payments">("vouchers");
+  const [isSyncingDirectly, setIsSyncingDirectly] = useState(false);
+  const [viewMode, setViewMode] = useState<"export" | "import">("export");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [importResult, setImportResult] = useState<any | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const [triggerRefresh, setTriggerRefresh] = useState(0);
 
@@ -48,9 +62,10 @@ export default function TallyExportPage() {
     from_date: fromDate || undefined,
     to_date: toDate || undefined,
     mark_as_synced: false, // handled explicitly in export call
+    export_inventory: exportInventory,
     ledger_mappings: mappings,
     voucher_types: voucherTypes,
-  }), [fromDate, toDate, mappings, voucherTypes]);
+  }), [fromDate, toDate, exportInventory, mappings, voucherTypes]);
 
   const { data: previewData, isLoading, isError, refetch } = useTallyPreview(request);
   const exportMutation = useExportTally();
@@ -92,6 +107,76 @@ export default function TallyExportPage() {
     refetch();
   };
 
+  const handleDirectSync = async () => {
+    if (!previewData) return;
+    setIsSyncingDirectly(true);
+
+    const exportReq: TallyExportRequest = {
+      ...request,
+      mark_as_synced: false,
+    };
+
+    try {
+      const blob = await exportMutation.mutateAsync(exportReq);
+      const xmlText = await blob.text();
+
+      await fetch("http://localhost:9000", {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/xml; charset=utf-8",
+        },
+        body: xmlText,
+        mode: "no-cors",
+      });
+
+      toast.success("Sync command sent directly to local Tally on port 9000!");
+
+      if (markAsSynced) {
+        await handleMarkSynced();
+      }
+      refetch();
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to connect to local Tally. Make sure Tally is open and Server Port 9000 is enabled.");
+    } finally {
+      setIsSyncingDirectly(false);
+    }
+  };
+
+  const handleImportUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importFile) {
+      toast.error("Please select an XML file to upload.");
+      return;
+    }
+
+    setIsUploading(true);
+    setImportError(null);
+    setImportResult(null);
+
+    try {
+      const res = await tallyService.importTallyXml(importFile);
+      setImportResult(res);
+      toast.success("Tally data package parsed and imported successfully!");
+    } catch (err: any) {
+      console.error(err);
+      let errMsg = "Import failed. Please verify that the XML file follows standard Tally export structure.";
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === "string") {
+          errMsg = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          errMsg = err.response.data.detail.map((d: any) => d.msg || JSON.stringify(d)).join(", ");
+        } else {
+          errMsg = JSON.stringify(err.response.data.detail);
+        }
+      }
+      setImportError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   if (isLoading) return <LoadingState />;
   if (isError) return <EmptyState message="Failed to load export preview data." />;
   // Safeguard against undefined previewData for type checker
@@ -113,8 +198,34 @@ export default function TallyExportPage() {
         </button>
       </div>
 
-      {/* Date Filters & Controls */}
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      {/* Mode Navigation tabs */}
+      <div className="flex border-b border-border gap-2">
+        <button
+          onClick={() => setViewMode("export")}
+          className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            viewMode === "export"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Export to Tally
+        </button>
+        <button
+          onClick={() => setViewMode("import")}
+          className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            viewMode === "import"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Import / Data Migration
+        </button>
+      </div>
+
+      {viewMode === "export" ? (
+        <>
+          {/* Date Filters & Controls */}
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
@@ -158,7 +269,7 @@ export default function TallyExportPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm font-medium select-none cursor-pointer">
               <input
                 type="checkbox"
@@ -166,12 +277,29 @@ export default function TallyExportPage() {
                 onChange={(e) => setMarkAsSynced(e.target.checked)}
                 className="rounded border-border text-primary focus:ring-ring"
               />
-              Auto-mark as synced on export
+              Auto-mark as synced
             </label>
+            <label className="flex items-center gap-2 text-sm font-medium select-none cursor-pointer">
+              <input
+                type="checkbox"
+                checked={exportInventory}
+                onChange={(e) => setExportInventory(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-ring"
+              />
+              Sync inventory stock
+            </label>
+            <button
+              onClick={handleDirectSync}
+              disabled={isSyncingDirectly || exportMutation.isPending || (previewData.total_vouchers === 0 && previewData.total_payments === 0)}
+              className="flex items-center gap-2 rounded-md bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-medium transition-colors shadow-sm cursor-pointer"
+            >
+              <CheckCircle size={16} />
+              {isSyncingDirectly ? "Syncing..." : "Sync to Local Tally (Port 9000)"}
+            </button>
             <button
               onClick={handleExport}
               disabled={exportMutation.isPending || (previewData.total_vouchers === 0 && previewData.total_payments === 0)}
-              className="flex items-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-medium transition-colors shadow-sm"
+              className="flex items-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-medium transition-colors shadow-sm cursor-pointer"
             >
               <Download size={16} />
               {exportMutation.isPending ? "Generating..." : "Download XML Package"}
@@ -179,7 +307,7 @@ export default function TallyExportPage() {
             <button
               onClick={handleMarkSynced}
               disabled={markSyncedMutation.isPending || (previewData.total_vouchers === 0 && previewData.total_payments === 0)}
-              className="flex items-center gap-2 rounded-md border border-border bg-card hover:bg-muted/50 disabled:opacity-50 px-4 py-2 text-sm font-medium transition-colors shadow-sm"
+              className="flex items-center gap-2 rounded-md border border-border bg-card hover:bg-muted/50 disabled:opacity-50 px-4 py-2 text-sm font-medium transition-colors shadow-sm cursor-pointer"
             >
               <CheckCircle size={16} className="text-green-500" />
               Mark as Synced
@@ -384,6 +512,192 @@ export default function TallyExportPage() {
           )}
         </div>
       </div>
+      </>
+      ) : (
+        <div className="space-y-6">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm space-y-4">
+            <h3 className="text-base font-bold text-foreground">Import Tally Data Package</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+              Upload XML files exported from Tally ERP 9 or TallyPrime to import historical customer accounts, opening outstanding balances, sales vouchers, and receipts.
+            </p>
+            
+            <div className="rounded-lg bg-muted/20 p-4 border border-border/60 text-xs text-muted-foreground space-y-1.5">
+              <span className="font-semibold text-foreground">How to export:</span>
+              <ul className="list-disc pl-4 space-y-1">
+                <li><strong>Ledgers (Masters) &amp; Balances:</strong> Go to <em>Gateway of Tally &gt; List of Accounts</em>, press <strong>Alt+E</strong>, choose XML format, and set <em>Include Opening Balances</em> to <strong>Yes</strong>.</li>
+                <li><strong>Invoices &amp; Receipts:</strong> Go to <em>Gateway of Tally &gt; Day Book</em>, press <strong>Alt+F2</strong> to select date range, press <strong>Alt+E</strong>, choose XML format, and set <em>Detailed</em> to <strong>Yes</strong>.</li>
+              </ul>
+            </div>
+
+            <form onSubmit={handleImportUpload} className="space-y-4 pt-2">
+              <div
+                className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors bg-card relative"
+                onClick={() => document.getElementById("tally-import-input")?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    setImportFile(e.dataTransfer.files[0]);
+                    setImportResult(null);
+                    setImportError(null);
+                  }
+                }}
+              >
+                <input
+                  id="tally-import-input"
+                  type="file"
+                  accept=".xml"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setImportFile(e.target.files[0]);
+                      setImportResult(null);
+                      setImportError(null);
+                    }
+                  }}
+                />
+                
+                <Upload className="mx-auto text-muted-foreground mb-2" size={28} />
+                {importFile ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">{importFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{(importFile.size / 1024).toFixed(1)} KB</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImportFile(null);
+                        setImportResult(null);
+                        setImportError(null);
+                      }}
+                      className="text-xs text-red-500 hover:text-red-600 font-semibold inline-flex items-center gap-1 mt-1 cursor-pointer"
+                    >
+                      <X size={12} /> Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Drag &amp; drop Tally XML file here, or click to browse</p>
+                    <p className="text-xs text-muted-foreground mt-1">Accepts .xml formats exported from Tally</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                {importFile && (
+                  <button
+                    type="submit"
+                    disabled={isUploading}
+                    className="flex items-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 text-sm font-semibold shadow-sm cursor-pointer animate-fade-in"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        Uploading &amp; Parsing XML...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={16} />
+                        Start Migration Import
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Import Results Summary Dashboard */}
+          {importResult && (
+            <div className="space-y-6">
+              <div className="rounded-lg border border-border bg-card p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-border pb-3">
+                  <CheckCircle2 className="text-green-500" size={20} />
+                  <h3 className="text-sm font-bold text-foreground">Import Summary Report</h3>
+                  <span className="text-[10px] text-muted-foreground ml-auto bg-muted px-2 py-0.5 rounded-full font-mono">
+                    Duration: {(importResult.duration_ms / 1000).toFixed(2)}s
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  <div className="rounded-lg border border-border bg-muted/10 p-3 text-center">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">Cust. Imported</p>
+                    <p className="text-lg font-bold text-green-600 mt-1">{importResult.customers_imported}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/10 p-3 text-center">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">Cust. Skipped</p>
+                    <p className="text-lg font-bold text-muted-foreground mt-1">{importResult.customers_skipped}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/10 p-3 text-center">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">Sales Imported</p>
+                    <p className="text-lg font-bold text-blue-600 mt-1">{importResult.vouchers_imported}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/10 p-3 text-center">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">Receipts Imported</p>
+                    <p className="text-lg font-bold text-purple-600 mt-1">{importResult.payments_imported}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/10 p-3 text-center">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">Duplicates</p>
+                    <p className="text-lg font-bold text-orange-500 mt-1">{importResult.duplicates_found}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/10 p-3 text-center">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase">Errors</p>
+                    <p className="text-lg font-bold text-red-500 mt-1">{importResult.parse_errors}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rich Warnings Table / Log */}
+              {importResult.warnings && importResult.warnings.length > 0 && (
+                <div className="rounded-lg border border-border bg-card p-6 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="text-orange-500" size={18} />
+                    <h3 className="text-sm font-bold text-foreground">Import Log Warnings ({importResult.warnings.length})</h3>
+                  </div>
+                  <div className="border border-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/30 text-muted-foreground font-semibold uppercase">
+                          <th className="p-3">Type</th>
+                          <th className="p-3">Voucher #</th>
+                          <th className="p-3">Description / Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {importResult.warnings.map((w: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-muted/5">
+                            <td className="p-3 font-semibold whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                w.type.toLowerCase().includes("duplicate")
+                                  ? "bg-orange-50 text-orange-700 dark:bg-orange-950/20 dark:text-orange-400"
+                                  : "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400"
+                              }`}>
+                                {w.type}
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono">{w.voucher_number || "—"}</td>
+                            <td className="p-3 text-muted-foreground font-medium">{w.message}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {importError && (
+            <div className="rounded-lg border border-red-200 bg-red-50/50 dark:bg-red-950/10 p-4 text-xs text-red-700 dark:text-red-400 flex gap-2">
+              <XCircle className="shrink-0 mt-0.5" size={16} />
+              <div>
+                <h4 className="font-bold">Migration Interrupted</h4>
+                <p className="mt-1">{importError}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <TallySettingsDialog
         open={settingsOpen}

@@ -6,7 +6,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import FuelType, PaymentMode
+from app.core.enums import FuelType, PaymentMode, PaymentStatus
 from app.models.customer import Customer
 from app.models.voucher import Voucher
 
@@ -180,3 +180,30 @@ class ReportRepository:
             "credit_sales": credit_sales,
             "average_invoice": average_invoice,
         }
+
+    # -----------------------------------
+    # Debtor Aging
+    # -----------------------------------
+
+    def open_credit_vouchers(
+        self,
+        db: Session,
+    ) -> list[tuple[Voucher, Customer]]:
+        """Open (UNPAID/PARTIAL) vouchers linked to a customer, with the
+        customer joined. Walk-in (customer-less) vouchers are excluded — there
+        is no debtor to age. Ordered oldest-first for readable output."""
+
+        query = (
+            select(Voucher, Customer)
+            .join(Customer, Voucher.customer_id == Customer.id)
+            .where(
+                Voucher.customer_id.isnot(None),
+                Voucher.payment_status.in_(
+                    [PaymentStatus.UNPAID, PaymentStatus.PARTIAL]
+                ),
+                Customer.is_active.is_(True),
+            )
+            .order_by(Voucher.invoice_date.asc())
+        )
+
+        return list(db.execute(query).all())

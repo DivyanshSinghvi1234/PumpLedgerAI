@@ -10,6 +10,8 @@ from app.schemas.report import (
     CustomerReportResponse,
     CustomerReportRow,
     DailyReportResponse,
+    DebtorAgingResponse,
+    DebtorAgingRow,
     LedgerReportResponse,
     LedgerReportRow,
     VoucherReportResponse,
@@ -277,6 +279,131 @@ class ReportService:
             ["UPI Sales", str(report.upi_sales)],
             ["Credit Sales", str(report.credit_sales)],
             ["Average Invoice", str(report.average_invoice)],
+        ]
+
+        return header, rows
+
+    # -----------------------------------
+    # Debtor Aging
+    # -----------------------------------
+
+    def debtor_aging_report(
+        self,
+        db: Session,
+        *,
+        as_of: date | None = None,
+    ) -> DebtorAgingResponse:
+        """Bucket each debtor's open invoice balances by age.
+
+        Age = as_of − invoice_date; owed per invoice = voucher.balance_due.
+        Buckets: 0-15, 16-30, 31-60, 60+ days."""
+
+        as_of = as_of or date.today()
+
+        # Accumulate per-customer buckets while walking open vouchers.
+        by_customer: dict[str, dict] = {}
+
+        for voucher, customer in self.repository.open_credit_vouchers(db):
+            due = voucher.balance_due
+            if due <= Decimal("0.00"):
+                continue
+
+            age = (as_of - voucher.invoice_date).days
+
+            row = by_customer.setdefault(
+                customer.uuid,
+                {
+                    "customer_uuid": customer.uuid,
+                    "customer_name": customer.name,
+                    "mobile": customer.mobile,
+                    "bucket_0_15": Decimal("0.00"),
+                    "bucket_16_30": Decimal("0.00"),
+                    "bucket_31_60": Decimal("0.00"),
+                    "bucket_60_plus": Decimal("0.00"),
+                },
+            )
+
+            if age <= 15:
+                row["bucket_0_15"] += due
+            elif age <= 30:
+                row["bucket_16_30"] += due
+            elif age <= 60:
+                row["bucket_31_60"] += due
+            else:
+                row["bucket_60_plus"] += due
+
+        rows: list[DebtorAgingRow] = []
+        totals = {
+            "0_15": Decimal("0.00"),
+            "16_30": Decimal("0.00"),
+            "31_60": Decimal("0.00"),
+            "60_plus": Decimal("0.00"),
+        }
+
+        for data in by_customer.values():
+            row_total = (
+                data["bucket_0_15"]
+                + data["bucket_16_30"]
+                + data["bucket_31_60"]
+                + data["bucket_60_plus"]
+            )
+            totals["0_15"] += data["bucket_0_15"]
+            totals["16_30"] += data["bucket_16_30"]
+            totals["31_60"] += data["bucket_31_60"]
+            totals["60_plus"] += data["bucket_60_plus"]
+
+            rows.append(
+                DebtorAgingRow(total_outstanding=row_total, **data)
+            )
+
+        # Largest debtors first — most relevant for recovery calls.
+        rows.sort(key=lambda r: r.total_outstanding, reverse=True)
+
+        grand_total = (
+            totals["0_15"] + totals["16_30"] + totals["31_60"] + totals["60_plus"]
+        )
+
+        return DebtorAgingResponse(
+            as_of_date=as_of,
+            rows=rows,
+            total_outstanding=grand_total,
+            total_0_15=totals["0_15"],
+            total_16_30=totals["16_30"],
+            total_31_60=totals["31_60"],
+            total_60_plus=totals["60_plus"],
+            count=len(rows),
+        )
+
+    def debtor_aging_csv(
+        self,
+        db: Session,
+        *,
+        as_of: date | None = None,
+    ) -> tuple[list[str], list[list]]:
+
+        report = self.debtor_aging_report(db, as_of=as_of)
+
+        header = [
+            "Customer",
+            "Mobile",
+            "0-15 days",
+            "16-30 days",
+            "31-60 days",
+            "60+ days",
+            "Total Outstanding",
+        ]
+
+        rows = [
+            [
+                r.customer_name,
+                r.mobile or "",
+                str(r.bucket_0_15),
+                str(r.bucket_16_30),
+                str(r.bucket_31_60),
+                str(r.bucket_60_plus),
+                str(r.total_outstanding),
+            ]
+            for r in report.rows
         ]
 
         return header, rows

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, case
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.enums import FuelType, VerificationStatus
@@ -18,36 +18,77 @@ class DashboardRepository:
         db: Session,
     ) -> dict:
 
-        total_sales = db.scalar(
-            select(
-                func.coalesce(
-                    func.sum(Voucher.total_amount),
-                    0,
-                )
-            )
+        # Single conditional aggregation query to load all voucher stats
+        stmt = select(
+            func.coalesce(func.sum(Voucher.total_amount), 0).label("total_sales"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.invoice_date == date.today(), Voucher.total_amount),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("today_sales"),
+            func.count(Voucher.id).label("total_vouchers"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.invoice_date == date.today(), 1),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("today_vouchers"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.verification_status == VerificationStatus.PENDING, 1),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("pending_review"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.verification_status == VerificationStatus.VERIFIED, 1),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("verified"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.fuel_type == FuelType.PETROL, 1),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("petrol"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.fuel_type == FuelType.DIESEL, 1),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("diesel"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Voucher.fuel_type == FuelType.LUBRICANT, 1),
+                        else_=0
+                    )
+                ),
+                0
+            ).label("lubricant")
         )
+        res = db.execute(stmt).mappings().one()
 
-        today_sales = db.scalar(
-            select(
-                func.coalesce(
-                    func.sum(Voucher.total_amount),
-                    0,
-                )
-            ).where(
-                Voucher.invoice_date == date.today()
-            )
-        )
-
-        total_vouchers = db.scalar(
-            select(func.count(Voucher.id))
-        )
-
-        today_vouchers = db.scalar(
-            select(func.count(Voucher.id)).where(
-                Voucher.invoice_date == date.today()
-            )
-        )
-
+        # Counts from independent tables
         total_customers = db.scalar(
             select(func.count(Customer.id))
         )
@@ -56,36 +97,7 @@ class DashboardRepository:
             select(func.count(Vehicle.id))
         )
 
-        pending_review = db.scalar(
-            select(func.count(Voucher.id)).where(
-                Voucher.verification_status == VerificationStatus.PENDING
-            )
-        )
-
-        verified = db.scalar(
-            select(func.count(Voucher.id)).where(
-                Voucher.verification_status == VerificationStatus.VERIFIED
-            )
-        )
-
-        petrol = db.scalar(
-            select(func.count(Voucher.id)).where(
-                Voucher.fuel_type == FuelType.PETROL
-            )
-        )
-
-        diesel = db.scalar(
-            select(func.count(Voucher.id)).where(
-                Voucher.fuel_type == FuelType.DIESEL
-            )
-        )
-
-        lubricant = db.scalar(
-            select(func.count(Voucher.id)).where(
-                Voucher.fuel_type == FuelType.LUBRICANT
-            )
-        )
-
+        # Recent vouchers (maintains original behaviour)
         recent = list(
             db.scalars(
                 select(Voucher)
@@ -97,19 +109,19 @@ class DashboardRepository:
 
         return {
             "summary": {
-                "today_sales": today_sales,
-                "total_sales": total_sales,
-                "today_vouchers": today_vouchers,
-                "total_vouchers": total_vouchers,
-                "total_customers": total_customers,
-                "total_vehicles": total_vehicles,
-                "pending_review": pending_review,
-                "verified": verified,
+                "today_sales": res["today_sales"],
+                "total_sales": res["total_sales"],
+                "today_vouchers": res["today_vouchers"],
+                "total_vouchers": res["total_vouchers"],
+                "total_customers": total_customers or 0,
+                "total_vehicles": total_vehicles or 0,
+                "pending_review": res["pending_review"],
+                "verified": res["verified"],
             },
             "fuel_distribution": {
-                "petrol": petrol,
-                "diesel": diesel,
-                "lubricant": lubricant,
+                "petrol": res["petrol"],
+                "diesel": res["diesel"],
+                "lubricant": res["lubricant"],
             },
             "recent_vouchers": recent,
         }
