@@ -295,6 +295,9 @@ class TallyService:
                     
                     rate_val = v.rate_per_liter if v.rate_per_liter is not None else Decimal("0.00")
                     qty_val = v.quantity_liters if v.quantity_liters is not None else Decimal("0.00")
+                    inv_entry = ET.SubElement(v_element, "ALLINVENTORYENTRIES.LIST")
+                    ET.SubElement(inv_entry, "STOCKITEMNAME").text = stock_item
+                    ET.SubElement(inv_entry, "ISDEEMEDPOSITIVE").text = "No"
                     ET.SubElement(inv_entry, "RATE").text = f"{rate_val:.2f}/LTRS"
                     ET.SubElement(inv_entry, "AMOUNT").text = f"{v_total:.2f}"
                     ET.SubElement(inv_entry, "ACTUALQTY").text = f"{qty_val:.2f} LTRS"
