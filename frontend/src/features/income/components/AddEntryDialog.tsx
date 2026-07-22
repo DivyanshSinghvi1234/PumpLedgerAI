@@ -29,6 +29,13 @@ const FUEL_OPTIONS = [
   { label: "Lubricant", value: "LUBRICANT" },
 ];
 
+const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
+  { label: "Cash", value: "CASH" },
+  { label: "UPI", value: "UPI" },
+  { label: "Card", value: "CARD" },
+  { label: "Credit", value: "CREDIT" },
+];
+
 const entrySchema = z.object({
   income_date: z.string().min(1, "Date is required"),
 
