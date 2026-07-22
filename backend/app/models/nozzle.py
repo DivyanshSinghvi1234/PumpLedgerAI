@@ -35,7 +35,7 @@ class Nozzle(
         nullable=False,
     )
     fuel_type: Mapped[FuelType] = mapped_column(
-        Enum(FuelType),
+        Enum(FuelType, create_type=False),
         nullable=False,
     )
     last_reading: Mapped[float] = mapped_column(
@@ -45,7 +45,7 @@ class Nozzle(
     )
     meter_capacity: Mapped[float] = mapped_column(Float, default=1_000_000.0, nullable=False)
     status: Mapped[NozzleStatus] = mapped_column(
-        Enum(NozzleStatus),
+        Enum(NozzleStatus, create_type=False),
         default=NozzleStatus.ACTIVE,
         nullable=False,
     )

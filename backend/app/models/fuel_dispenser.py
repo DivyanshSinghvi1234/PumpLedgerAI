@@ -29,7 +29,7 @@ class FuelDispenser(
         nullable=False,
     )
     status: Mapped[NozzleStatus] = mapped_column(
-        Enum(NozzleStatus),
+        Enum(NozzleStatus, create_type=False),
         default=NozzleStatus.ACTIVE,
         nullable=False,
     )

@@ -222,13 +222,42 @@ def check_and_update_schema() -> None:
                 db.commit()
             except Exception:
                 db.rollback()
+
+    finally:
+        db.close()
+
+
+def _ensure_enum_types() -> None:
+    """Pre-create PostgreSQL enum types that models reference with create_type=False.
+
+    Must run BEFORE Base.metadata.create_all() so the type exists when the
+    table DDL references it. Safe no-op on SQLite (used in tests).
+    """
+    if engine.dialect.name != "postgresql":
+        return
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        try:
+            db.execute(text("SELECT 'ACTIVE'::nozzlestatus"))
+        except Exception:
+            db.rollback()
+            db.execute(text(
+                "CREATE TYPE nozzlestatus AS ENUM ('ACTIVE', 'MAINTENANCE', 'OUT_OF_ORDER')"
+            ))
+            db.commit()
+            print("Successfully created nozzlestatus enum type.")
     finally:
         db.close()
 
 
 def init_db() -> None:
+    # Pre-create PostgreSQL-only enum types before create_all references them.
+    _ensure_enum_types()
+
     Base.metadata.create_all(bind=engine)
-    
+
+    # Column backfills run after tables exist.
     check_and_update_schema()
 
     seed_admin()
