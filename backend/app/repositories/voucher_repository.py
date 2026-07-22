@@ -116,11 +116,7 @@ class VoucherRepository(BaseRepository[Voucher]):
         sort_order: str = "desc",
     ) -> tuple[list[Voucher], int]:
 
-        statement = select(Voucher).options(
-            joinedload(Voucher.customer),
-            joinedload(Voucher.vehicle),
-            selectinload(Voucher.items),
-        )
+        statement = select(Voucher)
 
         # -------------------------
         # Search
@@ -197,6 +193,13 @@ class VoucherRepository(BaseRepository[Voucher]):
         )
 
         total = db.scalar(count_statement) or 0
+
+        # Apply relationship preloading options to the main statement
+        statement = statement.options(
+            joinedload(Voucher.customer),
+            joinedload(Voucher.vehicle),
+            selectinload(Voucher.items),
+        )
 
         # -------------------------
         # Sorting

@@ -87,7 +87,6 @@ class VehicleRepository(BaseRepository[Vehicle]):
             select(Vehicle)
             .join(Vehicle.customer)
             .where(Vehicle.is_active.is_(True))
-            .options(joinedload(Vehicle.customer))
         )
 
         if search:
@@ -107,6 +106,8 @@ class VehicleRepository(BaseRepository[Vehicle]):
                 query.subquery()
             )
         )
+
+        query = query.options(joinedload(Vehicle.customer))
 
         query = (
             query

@@ -51,7 +51,6 @@ class PaymentRepository(BaseRepository[Payment]):
             select(Payment)
             .join(Payment.customer)
             .where(Payment.is_active.is_(True))
-            .options(joinedload(Payment.customer))
         )
 
         if customer_uuid:
@@ -80,6 +79,8 @@ class PaymentRepository(BaseRepository[Payment]):
                 query.subquery()
             )
         )
+
+        query = query.options(joinedload(Payment.customer))
 
         query = (
             query

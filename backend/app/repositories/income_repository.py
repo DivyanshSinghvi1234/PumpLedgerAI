@@ -40,7 +40,6 @@ class IncomeRepository(BaseRepository[Income]):
         query = (
             select(Income)
             .where(Income.is_active.is_(True))
-            .options(joinedload(Income.customer))
         )
 
         if income_date:
@@ -61,6 +60,8 @@ class IncomeRepository(BaseRepository[Income]):
         total = db.scalar(
             select(func.count()).select_from(query.subquery())
         )
+
+        query = query.options(joinedload(Income.customer))
 
         query = (
             query
