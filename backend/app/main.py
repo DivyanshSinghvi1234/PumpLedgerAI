@@ -1,3 +1,4 @@
+# Reload trigger: 2026-07-22 10:04
 from fastapi import Depends, FastAPI
 from fastapi.responses import ORJSONResponse
 
@@ -213,9 +214,14 @@ app.include_router(
     prefix="/api/v1",
     dependencies=protected,
 )
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+storage_dir = os.path.join(BASE_DIR, "storage")
+os.makedirs(storage_dir, exist_ok=True)
+
 app.mount(
     "/storage",
-    StaticFiles(directory="storage"),
+    StaticFiles(directory=storage_dir),
     name="storage",
 )
 
@@ -223,6 +229,10 @@ app.mount(
 @app.on_event("startup")
 async def startup():
     logger.info("Starting PumpLedger API...")
+
+    from app.core.config import settings
+    with open("backend_db_url.log", "w") as f:
+        f.write(f"DATABASE_URL={settings.DATABASE_URL}\n")
 
     init_db()
 
