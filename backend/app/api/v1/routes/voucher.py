@@ -10,6 +10,7 @@ from datetime import date, datetime
 
 from app.core.dependencies import get_db, require_roles, get_current_user
 from app.models.user import User
+from app.core.logging import get_logger
 from app.core.enums import (
     FuelType,
     PaymentMode,
@@ -43,6 +44,7 @@ router = APIRouter(
 )
 
 service = VoucherService()
+logger = get_logger(__name__)
 
 
 @router.post(
@@ -149,21 +151,28 @@ def get_vouchers(
 
     # Treat empty-string query params as "no filter" (the frontend sends
     # e.g. fuel_type= when a dropdown is on "All").
-    items, total = service.search(
-        db=db,
-        search=search or None,
-        fuel_type=fuel_type or None,
-        payment_mode=payment_mode or None,
-        verification_status=verification_status or None,
-        from_date=from_date,
-        to_date=to_date,
-        from_datetime=from_datetime,
-        to_datetime=to_datetime,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by.value,
-        sort_order=sort_order.value,
-    )
+    try:
+        items, total = service.search(
+            db=db,
+            search=search or None,
+            fuel_type=fuel_type or None,
+            payment_mode=payment_mode or None,
+            verification_status=verification_status or None,
+            from_date=from_date,
+            to_date=to_date,
+            from_datetime=from_datetime,
+            to_datetime=to_datetime,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by.value,
+            sort_order=sort_order.value,
+        )
+    except Exception as exc:
+        logger.exception("Failed to fetch vouchers: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load vouchers: {exc}",
+        )
 
     total_pages = max(
         1,
