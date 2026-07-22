@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import asc, case, desc, func, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.voucher import Voucher
 from app.models.customer import Customer
@@ -39,6 +39,7 @@ class VoucherRepository(BaseRepository[Voucher]):
             .options(
                 joinedload(Voucher.customer),
                 joinedload(Voucher.vehicle),
+                selectinload(Voucher.items),
             )
         )
 
@@ -76,7 +77,11 @@ class VoucherRepository(BaseRepository[Voucher]):
                 Voucher.customer_id == customer_id,
                 Voucher.is_active.is_(True),
             )
-            .options(joinedload(Voucher.customer))
+            .options(
+                joinedload(Voucher.customer),
+                joinedload(Voucher.vehicle),
+                selectinload(Voucher.items),
+            )
         )
 
         if payment_statuses:
@@ -114,6 +119,7 @@ class VoucherRepository(BaseRepository[Voucher]):
         statement = select(Voucher).options(
             joinedload(Voucher.customer),
             joinedload(Voucher.vehicle),
+            selectinload(Voucher.items),
         )
 
         # -------------------------
@@ -257,7 +263,11 @@ class VoucherRepository(BaseRepository[Voucher]):
                 Voucher.payment_status.in_([PaymentStatus.UNPAID, PaymentStatus.PARTIAL]),
             )
             .order_by(Voucher.invoice_date.asc(), Voucher.id.asc())
-            .options(joinedload(Voucher.customer))
+            .options(
+                joinedload(Voucher.customer),
+                joinedload(Voucher.vehicle),
+                selectinload(Voucher.items),
+            )
         )
 
         vouchers = list(db.scalars(statement).all())
@@ -291,6 +301,7 @@ class VoucherRepository(BaseRepository[Voucher]):
             .options(
                 joinedload(Voucher.customer),
                 joinedload(Voucher.vehicle),
+                selectinload(Voucher.items),
             )
         )
         return list(db.scalars(statement).all())

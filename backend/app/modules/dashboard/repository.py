@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import func, select, case
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.enums import FuelType, VerificationStatus
 from app.models.customer import Customer
@@ -101,7 +101,11 @@ class DashboardRepository:
         recent = list(
             db.scalars(
                 select(Voucher)
-                .options(joinedload(Voucher.customer))
+                .options(
+                    joinedload(Voucher.customer),
+                    joinedload(Voucher.vehicle),
+                    selectinload(Voucher.items),
+                )
                 .order_by(Voucher.created_at.desc())
                 .limit(5)
             ).all()

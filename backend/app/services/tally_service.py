@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from datetime import date
 from decimal import Decimal
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.voucher import Voucher
 from app.models.payment import Payment
@@ -25,7 +25,11 @@ class TallyService:
         Fetch verified vouchers and customer payments that are not yet synced to Tally.
         """
         # Vouchers: Must be VERIFIED, not SYNCED, and active.
-        voucher_query = db.query(Voucher).options(joinedload(Voucher.customer)).filter(
+        voucher_query = db.query(Voucher).options(
+            joinedload(Voucher.customer),
+            joinedload(Voucher.vehicle),
+            selectinload(Voucher.items),
+        ).filter(
             Voucher.verification_status == VerificationStatus.VERIFIED,
             Voucher.tally_status != TallyStatus.SYNCED,
             Voucher.is_active == True,
