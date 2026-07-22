@@ -81,6 +81,16 @@ export default function TallyExportPage() {
 
     try {
       const blob = await exportMutation.mutateAsync(exportReq);
+      if (blob.type === "application/json") {
+        const text = await blob.text();
+        try {
+          const json = JSON.parse(text);
+          alert(`Export failed: ${json.detail || "Server error"}`);
+        } catch (_) {
+          alert(`Export failed: ${text}`);
+        }
+        return;
+      }
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -89,8 +99,19 @@ export default function TallyExportPage() {
       link.click();
       link.parentNode?.removeChild(link);
       refetch();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      let message = "Failed to download Tally XML package.";
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          message = json.detail || message;
+        } catch (_) {}
+      } else if (err?.message) {
+        message = err.message;
+      }
+      alert(`Export error: ${message}`);
     }
   };
 

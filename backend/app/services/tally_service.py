@@ -232,28 +232,30 @@ class TallyService:
             ET.SubElement(v_element, "NARRATION").text = " | ".join(remarks_parts)
 
             # --- ALLLEDGERENTRIES.LIST ---
+            v_total = v.total_amount if v.total_amount is not None else Decimal("0.00")
             # Entry 1: Party Debit (positive amount represents DEBIT in Tally XML but uses negative number for value)
             party_entry = ET.SubElement(v_element, "ALLLEDGERENTRIES.LIST")
             ET.SubElement(party_entry, "LEDGERNAME").text = party_ledger
             ET.SubElement(party_entry, "ISDEEMEDPOSITIVE").text = "Yes" # YES = Debit
-            ET.SubElement(party_entry, "AMOUNT").text = f"-{v.total_amount:.2f}" # Debit value is negative in Tally XML
+            ET.SubElement(party_entry, "AMOUNT").text = f"-{v_total:.2f}" # Debit value is negative in Tally XML
 
             # Entry 2: Sales Credit
             if not req.export_inventory:
                 # Accounting-Only Format
                 if v.items:
                     for item in v.items:
+                        item_total = item.total_amount if item.total_amount is not None else Decimal("0.00")
                         sales_ledger = get_sales_ledger(item.fuel_type)
                         sales_entry = ET.SubElement(v_element, "ALLLEDGERENTRIES.LIST")
                         ET.SubElement(sales_entry, "LEDGERNAME").text = sales_ledger
                         ET.SubElement(sales_entry, "ISDEEMEDPOSITIVE").text = "No" # NO = Credit
-                        ET.SubElement(sales_entry, "AMOUNT").text = f"{item.total_amount:.2f}"
+                        ET.SubElement(sales_entry, "AMOUNT").text = f"{item_total:.2f}"
                 else:
                     sales_ledger = get_sales_ledger(v.fuel_type)
                     sales_entry = ET.SubElement(v_element, "ALLLEDGERENTRIES.LIST")
                     ET.SubElement(sales_entry, "LEDGERNAME").text = sales_ledger
                     ET.SubElement(sales_entry, "ISDEEMEDPOSITIVE").text = "No" # NO = Credit
-                    ET.SubElement(sales_entry, "AMOUNT").text = f"{v.total_amount:.2f}"
+                    ET.SubElement(sales_entry, "AMOUNT").text = f"{v_total:.2f}"
             else:
                 # Full Inventory Stock Sync Format
                 if v.items:
@@ -262,39 +264,39 @@ class TallyService:
                         sales_ledger = get_sales_ledger(item.fuel_type)
                         godown_name = godown_map.get(item.fuel_type)
                         
+                        item_rate = item.rate_per_liter if item.rate_per_liter is not None else Decimal("0.00")
+                        item_qty = item.quantity_liters if item.quantity_liters is not None else Decimal("0.00")
+                        item_total = item.total_amount if item.total_amount is not None else Decimal("0.00")
+
                         inv_entry = ET.SubElement(v_element, "ALLINVENTORYENTRIES.LIST")
                         ET.SubElement(inv_entry, "STOCKITEMNAME").text = stock_item
                         ET.SubElement(inv_entry, "ISDEEMEDPOSITIVE").text = "No"
-                        ET.SubElement(inv_entry, "RATE").text = f"{item.rate_per_liter:.2f}/LTRS"
-                        ET.SubElement(inv_entry, "AMOUNT").text = f"{item.total_amount:.2f}"
-                        ET.SubElement(inv_entry, "ACTUALQTY").text = f"{item.quantity_liters:.2f} LTRS"
-                        ET.SubElement(inv_entry, "BILLEDQTY").text = f"{item.quantity_liters:.2f} LTRS"
+                        ET.SubElement(inv_entry, "RATE").text = f"{item_rate:.2f}/LTRS"
+                        ET.SubElement(inv_entry, "AMOUNT").text = f"{item_total:.2f}"
+                        ET.SubElement(inv_entry, "ACTUALQTY").text = f"{item_qty:.2f} LTRS"
+                        ET.SubElement(inv_entry, "BILLEDQTY").text = f"{item_qty:.2f} LTRS"
                         
                         if godown_name:
                             batch_entry = ET.SubElement(inv_entry, "BATCHALLOCATIONS.LIST")
                             ET.SubElement(batch_entry, "GODOWNNAME").text = godown_name
                             ET.SubElement(batch_entry, "BATCHNAME").text = "Primary"
-                            ET.SubElement(batch_entry, "AMOUNT").text = f"{item.total_amount:.2f}"
-                            ET.SubElement(batch_entry, "ACTUALQTY").text = f"{item.quantity_liters:.2f} LTRS"
-                            ET.SubElement(batch_entry, "BILLEDQTY").text = f"{item.quantity_liters:.2f} LTRS"
+                            ET.SubElement(batch_entry, "AMOUNT").text = f"{item_total:.2f}"
+                            ET.SubElement(batch_entry, "ACTUALQTY").text = f"{item_qty:.2f} LTRS"
+                            ET.SubElement(batch_entry, "BILLEDQTY").text = f"{item_qty:.2f} LTRS"
                         
                         acc_entry = ET.SubElement(inv_entry, "ACCOUNTINGALLOCATIONS.LIST")
                         ET.SubElement(acc_entry, "LEDGERNAME").text = sales_ledger
                         ET.SubElement(acc_entry, "ISDEEMEDPOSITIVE").text = "No"
-                        ET.SubElement(acc_entry, "AMOUNT").text = f"{item.total_amount:.2f}"
+                        ET.SubElement(acc_entry, "AMOUNT").text = f"{item_total:.2f}"
                 else:
                     stock_item = get_stock_item(v.fuel_type)
                     sales_ledger = get_sales_ledger(v.fuel_type)
                     godown_name = godown_map.get(v.fuel_type)
                     
-                    inv_entry = ET.SubElement(v_element, "ALLINVENTORYENTRIES.LIST")
-                    ET.SubElement(inv_entry, "STOCKITEMNAME").text = stock_item
-                    ET.SubElement(inv_entry, "ISDEEMEDPOSITIVE").text = "No"
-                    
                     rate_val = v.rate_per_liter if v.rate_per_liter is not None else Decimal("0.00")
                     qty_val = v.quantity_liters if v.quantity_liters is not None else Decimal("0.00")
                     ET.SubElement(inv_entry, "RATE").text = f"{rate_val:.2f}/LTRS"
-                    ET.SubElement(inv_entry, "AMOUNT").text = f"{v.total_amount:.2f}"
+                    ET.SubElement(inv_entry, "AMOUNT").text = f"{v_total:.2f}"
                     ET.SubElement(inv_entry, "ACTUALQTY").text = f"{qty_val:.2f} LTRS"
                     ET.SubElement(inv_entry, "BILLEDQTY").text = f"{qty_val:.2f} LTRS"
                     
@@ -302,14 +304,14 @@ class TallyService:
                         batch_entry = ET.SubElement(inv_entry, "BATCHALLOCATIONS.LIST")
                         ET.SubElement(batch_entry, "GODOWNNAME").text = godown_name
                         ET.SubElement(batch_entry, "BATCHNAME").text = "Primary"
-                        ET.SubElement(batch_entry, "AMOUNT").text = f"{v.total_amount:.2f}"
+                        ET.SubElement(batch_entry, "AMOUNT").text = f"{v_total:.2f}"
                         ET.SubElement(batch_entry, "ACTUALQTY").text = f"{qty_val:.2f} LTRS"
                         ET.SubElement(batch_entry, "BILLEDQTY").text = f"{qty_val:.2f} LTRS"
                     
                     acc_entry = ET.SubElement(inv_entry, "ACCOUNTINGALLOCATIONS.LIST")
                     ET.SubElement(acc_entry, "LEDGERNAME").text = sales_ledger
                     ET.SubElement(acc_entry, "ISDEEMEDPOSITIVE").text = "No"
-                    ET.SubElement(acc_entry, "AMOUNT").text = f"{v.total_amount:.2f}"
+                    ET.SubElement(acc_entry, "AMOUNT").text = f"{v_total:.2f}"
 
         # 2. Generate XML for Payments (Tally Receipt Vouchers)
         for p in payments:

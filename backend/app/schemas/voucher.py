@@ -69,8 +69,15 @@ class VoucherBase(BaseModel):
 
     remarks: str | None = None
 
+
+class VoucherCreate(VoucherBase):
+    # Path to the stored invoice image, set when the voucher is created from
+    # the OCR upload flow. Absent for manually-entered vouchers.
+    image_path: str | None = None
+    items: list[VoucherItemCreate] = Field(default_factory=list)
+
     @model_validator(mode="after")
-    def validate_amount_and_vehicle(self) -> VoucherBase:
+    def validate_amount_and_vehicle(self) -> VoucherCreate:
         # Amount mismatch check
         if self.quantity_liters is not None and self.rate_per_liter is not None:
             expected = self.quantity_liters * self.rate_per_liter
@@ -85,13 +92,6 @@ class VoucherBase(BaseModel):
             if not pattern.match(cleaned):
                 raise ValueError(f"Vehicle number '{self.vehicle_number}' is not a valid Indian registration plate format.")
         return self
-
-
-class VoucherCreate(VoucherBase):
-    # Path to the stored invoice image, set when the voucher is created from
-    # the OCR upload flow. Absent for manually-entered vouchers.
-    image_path: str | None = None
-    items: list[VoucherItemCreate] = Field(default_factory=list)
 
 
 class VoucherUpdate(BaseModel):
