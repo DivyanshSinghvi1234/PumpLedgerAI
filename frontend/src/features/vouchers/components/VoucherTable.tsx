@@ -136,12 +136,27 @@ export default function VoucherTable({
             </TableCell>
 
             <TableCell>
-              <VoucherActions
-                voucherId={voucher.uuid}
-                canManage={canManage}
-                onEdit={() => onEdit(voucher)}
-                onDelete={() => onDelete(voucher)}
-              />
+              <div className="flex items-center gap-2">
+                {voucher.customer_mobile && (
+                  <a
+                    href={`https://wa.me/${voucher.customer_mobile.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                      `Dear Customer, here is your bill details:\nInvoice No: ${voucher.invoice_number}\nDate: ${voucher.invoice_date}\nAmount: ₹${voucher.total_amount}\nBalance Due: ₹${voucher.balance_due}\nThank you for your business!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-lg text-xs font-semibold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 h-8 px-2.5 transition-colors cursor-pointer"
+                    title="Send WhatsApp Billing Link"
+                  >
+                    WhatsApp
+                  </a>
+                )}
+                <VoucherActions
+                  voucherId={voucher.uuid}
+                  canManage={canManage}
+                  onEdit={() => onEdit(voucher)}
+                  onDelete={() => onDelete(voucher)}
+                />
+              </div>
             </TableCell>
           </TableRow>
         ))}

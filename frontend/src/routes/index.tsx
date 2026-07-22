@@ -11,6 +11,7 @@ import VehicleListPage from "../features/vehicles/VehicleListPage";
 import VehicleLedgerPage from "../features/vehicles/VehicleLedgerPage";
 import PaymentListPage from "../features/payments/PaymentListPage";
 import CustomerLedgerPage from "../features/ledger/CustomerLedgerPage";
+import CustomerStatementPrint from "../features/ledger/CustomerStatementPrint";
 import ReportsPage from "../features/reports/ReportsPage";
 import TallyExportPage from "../features/tally/TallyExportPage";
 import InventoryPage from "../features/inventory/InventoryPage";
@@ -21,6 +22,7 @@ import UserManagementPage from "../features/users/UserManagementPage";
 import AppErrorPage from "../components/common/AppErrorPage";
 import AccessDeniedPage from "../components/auth/AccessDeniedPage";
 import ProtectedRoute from "../components/auth/ProtectedRoute";
+import RatingPage from "../components/public/RatingPage";
 
 const router = createBrowserRouter([
   {
@@ -134,6 +136,21 @@ const router = createBrowserRouter([
         ),
       },
     ],
+  },
+  {
+    path: "/statement/:customerUuid",
+    element: <ProtectedRoute allowedRoles={["ADMIN", "MANAGER"]} />,
+    children: [
+      {
+        path: "",
+        element: <CustomerStatementPrint />,
+      },
+    ],
+  },
+  {
+    path: "/public/rate/:token",
+    element: <RatingPage />,
+    errorElement: <AppErrorPage />,
   },
   {
     path: "*",

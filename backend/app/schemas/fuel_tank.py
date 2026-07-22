@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
-from app.core.enums import FuelType
+from app.core.enums import FuelType, PaymentMode
 
 
 class FuelTankCreate(BaseModel):
@@ -70,6 +70,8 @@ class TankerDeliveryCreate(BaseModel):
     density: float | None = None
     supplier_name: str | None = None
     remarks: str | None = None
+    procurement_rate: float | None = None
+    payment_mode: PaymentMode = PaymentMode.CREDIT
     ignore_capacity: bool = False
 
 
@@ -83,6 +85,8 @@ class TankerDeliveryResponse(BaseModel):
     density: float | None = None
     supplier_name: str | None = None
     remarks: str | None = None
+    procurement_rate: float | None = None
+    payment_mode: PaymentMode
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

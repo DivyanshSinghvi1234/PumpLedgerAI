@@ -182,6 +182,7 @@ def check_and_update_schema() -> None:
             ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "physical_leak_variance", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "variance_tolerance_liters", "FLOAT NOT NULL DEFAULT 0"),
+            ("tanker_deliveries", "payment_mode", "VARCHAR(20) NOT NULL DEFAULT 'CREDIT'"),
         ):
             try:
                 db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))

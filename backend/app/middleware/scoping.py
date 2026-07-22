@@ -10,11 +10,15 @@ class PumpScopingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         x_pump_uuid = request.headers.get("X-Pump-UUID")
 
+        # Exempt public NPS rating submissions from request scope fail-closed guard
+        # as anonymous customers do not carry a pump header.
+        is_public_rate = request.url.path.startswith("/api/v1/nps/rate/")
+
         # Initialize context vars for this request. in_request_scope=True arms the
         # fail-closed guard in database/scoping.py: any pump-scoped read without a
         # resolved pump now raises instead of returning cross-pump rows.
         pump_token = active_pump_id.set(None)
-        scope_token = in_request_scope.set(True)
+        scope_token = in_request_scope.set(not is_public_rate)
 
         if x_pump_uuid:
             db = SessionLocal()

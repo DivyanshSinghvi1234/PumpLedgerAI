@@ -10,3 +10,10 @@ export function useDashboard() {
       dashboardService.getDashboard(),
   });
 }
+
+export function useMargins() {
+  return useQuery({
+    queryKey: ["margins"],
+    queryFn: () => dashboardService.getMargins(),
+  });
+}

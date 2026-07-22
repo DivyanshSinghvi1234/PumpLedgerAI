@@ -424,6 +424,7 @@ class NozzleService:
                         interim_6am_reading=interim_6am_reading,
                         testing=testing,
                         return_testing_to_storage=return_testing_to_storage,
+                        meter_capacity=nozzle.meter_capacity,
                     )
                 )
 

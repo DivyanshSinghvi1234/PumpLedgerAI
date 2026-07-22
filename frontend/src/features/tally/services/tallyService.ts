@@ -21,7 +21,11 @@ class TallyService {
   async importTallyXml(file: File): Promise<any> {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await api.post("/v1/tally/import", formData);
+    const response = await api.post("/v1/tally/import", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return response.data;
   }
 }

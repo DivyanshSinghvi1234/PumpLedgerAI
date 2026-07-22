@@ -95,3 +95,58 @@ class TestTallyImporter:
         assert len(data_dup["warnings"]) == 2
         assert any(w["type"] == "Duplicate Voucher" for w in data_dup["warnings"])
         assert any(w["type"] == "Duplicate Receipt" for w in data_dup["warnings"])
+
+    def test_user_xml_import_debug(self, client, auth_headers):
+        user_xml = """<?xml version="1.0" ?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Vouchers</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <VOUCHER ACTION="Create" VCHTYPE="Sales">
+            <DATE>20260721</DATE>
+            <EFFECTIVEDATE>20260721</EFFECTIVEDATE>
+            <GUID>1223a0a0-41e8-4450-b476-d5df2988be10</GUID>
+            <VOUCHERNUMBER>11</VOUCHERNUMBER>
+            <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+            <PARTYLEDGERNAME>1</PARTYLEDGERNAME>
+            <PERSISTEDVIEW>Accounting Voucher</PERSISTEDVIEW>
+            <NARRATION>Fuel: PETROL @ 11.00/L x 1.000L</NARRATION>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>1</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-11.00</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>Petrol Sales</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+              <AMOUNT>11.00</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+          </VOUCHER>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>"""
+        # Create customer "1" so it exists
+        client.post(
+            "/api/v1/customers",
+            headers=auth_headers,
+            json={"name": "1", "opening_balance": "0.00"}
+        )
+
+        files = {"file": ("user_import.xml", io.BytesIO(user_xml.encode("utf-8")), "application/xml")}
+        response = client.post(
+            "/api/v1/tally/import",
+            headers=auth_headers,
+            files=files
+        )
+        print("STATUS:", response.status_code)
+        print("TEXT:", response.text)
+        assert response.status_code == 200

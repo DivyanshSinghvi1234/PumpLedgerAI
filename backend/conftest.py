@@ -16,7 +16,7 @@ os.environ["AI_PROVIDER"] = "GEMINI"
 from app.main import app  # noqa: E402
 from app.database.init_db import init_db  # noqa: E402
 from app.core.dependencies import get_db  # noqa: E402
-from app.models.base import Base  # noqa: E402
+from app.database.base import Base  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)

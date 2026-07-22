@@ -40,6 +40,9 @@ export interface Voucher {
 
   customer_uuid: string | null;
 
+  customer_mobile: string | null;
+
+
   fuel_type: FuelType;
 
   quantity_liters: number;

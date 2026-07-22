@@ -32,39 +32,66 @@ const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
   { label: "Credit", value: "CREDIT" },
 ];
 
-const voucherSchema = z.object({
-  invoice_number: z
-    .string()
-    .min(1, "Invoice number is required"),
+const voucherSchema = z
+  .object({
+    invoice_number: z
+      .string()
+      .min(1, "Invoice number is required"),
 
-  invoice_date: z
-    .string()
-    .min(1, "Invoice date is required"),
+    invoice_date: z
+      .string()
+      .min(1, "Invoice date is required"),
 
-  vehicle_number: z.string().optional(),
+    vehicle_number: z.string().optional().or(z.literal("")),
 
-  customer_name: z.string().optional(),
+    customer_name: z.string().optional(),
 
-  customer_uuid: z.string().optional(),
+    customer_uuid: z.string().optional(),
 
-  fuel_type: z.enum(["PETROL", "SPEED", "DIESEL", "LUBRICANT"]),
+    fuel_type: z.enum(["PETROL", "SPEED", "DIESEL", "LUBRICANT"]),
 
-  quantity_liters: z.coerce
-    .number()
-    .positive("Quantity must be greater than 0"),
+    quantity_liters: z.coerce
+      .number()
+      .positive("Quantity must be greater than 0"),
 
-  rate_per_liter: z.coerce
-    .number()
-    .positive("Rate must be greater than 0"),
+    rate_per_liter: z.coerce
+      .number()
+      .positive("Rate must be greater than 0"),
 
-  total_amount: z.coerce
-    .number()
-    .positive("Total must be greater than 0"),
+    total_amount: z.coerce
+      .number()
+      .positive("Total must be greater than 0"),
 
-  payment_mode: z.enum(["CASH", "UPI", "CARD", "CREDIT"]),
+    payment_mode: z.enum(["CASH", "UPI", "CARD", "CREDIT"]),
 
-  remarks: z.string().optional(),
-});
+    remarks: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    // 1. Amount mismatch check (Quantity * Rate matches Total within ₹1)
+    if (data.quantity_liters && data.rate_per_liter && data.total_amount) {
+      const expected = data.quantity_liters * data.rate_per_liter;
+      if (Math.abs(expected - data.total_amount) > 1.0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Total amount doesn't match Quantity x Rate (expected: ₹${expected.toFixed(2)})`,
+          path: ["total_amount"],
+        });
+      }
+    }
+
+    // 2. Vehicle number pattern check (supports State and BH-series formats)
+    if (data.vehicle_number) {
+      const cleaned = data.vehicle_number.replace(/[\s\-.]+/g, "").toUpperCase();
+      const pattern = /^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$/;
+      if (!pattern.test(cleaned)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid Indian registration plate format (traditional state or BH-series)",
+          path: ["vehicle_number"],
+        });
+      }
+    }
+  });
 
 type VoucherFormData = z.output<typeof voucherSchema>;
 

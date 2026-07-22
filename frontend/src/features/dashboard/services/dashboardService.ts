@@ -11,6 +11,11 @@ class DashboardService {
 
     return response.data;
   }
+
+  async getMargins(): Promise<any[]> {
+    const response = await api.get<any[]>("/v1/analytics/margins");
+    return response.data;
+  }
 }
 
 const dashboardService =

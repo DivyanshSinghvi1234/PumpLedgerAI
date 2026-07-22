@@ -290,3 +290,47 @@ class TestFuelTankExtensions:
         tank_resp = client.get("/api/v1/tanks", headers=auth_headers)
         target_tank = next(t for t in tank_resp.json() if t["uuid"] == tank["uuid"])
         assert target_tank["current_stock_liters"] == 4920.0
+
+    def test_tanker_delivery_automatic_expense(self, client, auth_headers):
+        # Create a tank
+        create_resp = client.post(
+            "/api/v1/tanks",
+            headers=auth_headers,
+            json={
+                "name": "Procurement Test Tank",
+                "fuel_type": "PETROL",
+                "capacity_liters": 10000.0,
+                "current_stock_liters": 1000.0,
+            },
+        )
+        assert create_resp.status_code == 201
+        tank = create_resp.json()
+
+        # Log a tanker delivery with procurement_rate and payment_mode
+        delivery_resp = client.post(
+            "/api/v1/tanks/deliveries",
+            headers=auth_headers,
+            json={
+                "tank_uuid": tank["uuid"],
+                "delivery_date": "2026-07-25",
+                "invoice_number": "DEL-EXPENSE-123",
+                "quantity_liters": 100.0,
+                "procurement_rate": 80.0,
+                "payment_mode": "CASH",
+                "supplier_name": "Test Supplier",
+                "ignore_capacity": True,
+            },
+        )
+        assert delivery_resp.status_code == 201
+        data = delivery_resp.json()
+        assert data["payment_mode"] == "CASH"
+        assert data["procurement_rate"] == 80.0
+
+        # Query income summary for the date to verify automatic expense record creation
+        summary_resp = client.get(
+            "/api/v1/income/summary?on_date=2026-07-25",
+            headers=auth_headers
+        )
+        assert summary_resp.status_code == 200
+        summary_data = summary_resp.json()
+        assert float(summary_data["total_expenses"]) == 8000.0

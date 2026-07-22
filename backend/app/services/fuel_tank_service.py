@@ -10,7 +10,7 @@ from app.models.nozzle import Nozzle
 from app.models.nozzle_reading import NozzleReading
 from app.models.voucher import Voucher
 from app.repositories.fuel_tank_repository import FuelTankRepository, DipReadingRepository
-from app.core.enums import FuelType
+from app.core.enums import FuelType, PaymentMode
 from app.services.audit_log_service import AuditLogService
 
 
@@ -117,6 +117,8 @@ class FuelTankService:
         density: float | None = None,
         supplier_name: str | None = None,
         remarks: str | None = None,
+        procurement_rate: float | None = None,
+        payment_mode: PaymentMode = PaymentMode.CREDIT,
         ignore_capacity: bool = False,
     ) -> TankerDelivery:
         tank = self.tank_repo.get_by_uuid(db, tank_uuid)
@@ -137,10 +139,30 @@ class FuelTankService:
             density=density,
             supplier_name=supplier_name,
             remarks=remarks,
+            procurement_rate=procurement_rate,
+            payment_mode=payment_mode,
         )
+        db.add(delivery)
+        db.flush()
+
+        # Automatically log a corresponding expense record if procurement rate is provided
+        if procurement_rate and procurement_rate > 0:
+            from app.models.income import Income
+            from app.core.enums import IncomeKind
+
+            expense = Income(
+                kind=IncomeKind.EXPENSE,
+                income_date=delivery_date,
+                amount=Decimal(str(round(quantity_liters * procurement_rate, 2))),
+                category="Procurement",
+                description=f"Procurement of {quantity_liters}L {tank.fuel_type} for {tank.name} (Inv: {invoice_number or 'N/A'}, Supplier: {supplier_name or 'N/A'})",
+                payment_mode=payment_mode,
+                pump_id=delivery.pump_id,
+            )
+            db.add(expense)
+
         tank.current_stock_liters += quantity_liters
         self.tank_repo.update(db, tank)
-        db.add(delivery)
         db.commit()
         db.refresh(delivery)
         return delivery

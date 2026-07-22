@@ -16,11 +16,17 @@ import type {
   BulkFormResponse,
   TankerDelivery,
   TankerDeliveryCreate,
+  FuelTankForecast,
 } from "../types";
 
 class InventoryService {
   async getTanks(): Promise<FuelTank[]> {
     const response = await api.get<FuelTank[]>("/v1/tanks");
+    return response.data;
+  }
+
+  async getTankForecasts(): Promise<FuelTankForecast[]> {
+    const response = await api.get<FuelTankForecast[]>("/v1/fuel-tanks/forecast");
     return response.data;
   }
 

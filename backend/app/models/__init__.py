@@ -18,6 +18,7 @@ from app.models.fuel_dispenser import FuelDispenser
 from app.models.pump import Pump
 from app.models.user_pump_access import UserPumpAccess
 from app.models.income import Income
+from app.models.nps_rating import NPSRating
 
 __all__ = [
     "Voucher",
@@ -42,4 +43,5 @@ __all__ = [
     "Pump",
     "UserPumpAccess",
     "Income",
+    "NPSRating",
 ]

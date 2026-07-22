@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import LedgerSummary from "./components/LedgerSummary";
 import LedgerTable from "./components/LedgerTable";
 import AdjustmentDialog from "./components/AdjustmentDialog";
+import ReconciliationDialog from "./components/ReconciliationDialog";
 import CustomerVehicleVouchers from "./components/CustomerVehicleVouchers";
 
 import { useCustomerLedger } from "./hooks/useCustomerLedger";
@@ -22,6 +23,7 @@ export default function CustomerLedgerPage() {
 
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
 
   const {
     data,
@@ -51,20 +53,35 @@ export default function CustomerLedgerPage() {
           <div className="flex items-center gap-3">
             <Link
               to="/dashboard/customers"
-              className="rounded-md border px-4 py-2"
+              className="rounded-md border px-4 py-2 hover:bg-muted/10 transition-colors"
             >
               Back
             </Link>
 
+            <button
+              onClick={() => window.open(`/statement/${customerUuid}`, "_blank")}
+              className="rounded-md border px-4 py-2 hover:bg-muted/10 transition-colors cursor-pointer"
+            >
+              Generate Statement
+            </button>
+
             {canManage && (
-              <button
-                onClick={() =>
-                  setDialogOpen(true)
-                }
-                className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
-              >
-                + Adjustment
-              </button>
+              <>
+                <button
+                  onClick={() => setReconcileOpen(true)}
+                  className="rounded-md border border-fuel-amber/30 bg-fuel-amber/10 text-fuel-amber hover:bg-fuel-amber/20 px-4 py-2 cursor-pointer transition-colors"
+                >
+                  Reconcile
+                </button>
+                <button
+                  onClick={() =>
+                    setDialogOpen(true)
+                  }
+                  className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors"
+                >
+                  + Adjustment
+                </button>
+              </>
             )}
           </div>
         }
@@ -106,11 +123,19 @@ export default function CustomerLedgerPage() {
       </div>
 
       {canManage && (
-        <AdjustmentDialog
-          open={dialogOpen}
-          customerUuid={customerUuid}
-          onOpenChange={setDialogOpen}
-        />
+        <>
+          <AdjustmentDialog
+            open={dialogOpen}
+            customerUuid={customerUuid}
+            onOpenChange={setDialogOpen}
+          />
+          <ReconciliationDialog
+            open={reconcileOpen}
+            customerUuid={customerUuid}
+            customerName={data.customer_name}
+            onOpenChange={setReconcileOpen}
+          />
+        </>
       )}
     </div>
   );

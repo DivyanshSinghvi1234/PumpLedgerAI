@@ -29,6 +29,13 @@ class VoucherItemCreate(BaseModel):
     rate_per_liter: Decimal = Field(..., gt=0)
     total_amount: Decimal = Field(..., gt=0)
 
+    @model_validator(mode="after")
+    def validate_item_amount(self) -> VoucherItemCreate:
+        expected = self.quantity_liters * self.rate_per_liter
+        if abs(expected - self.total_amount) > Decimal("1.00"):
+            raise ValueError("quantity_liters * rate_per_liter must match total_amount within ₹1")
+        return self
+
 
 class VoucherItemResponse(BaseModel):
     uuid: UUID
@@ -62,6 +69,23 @@ class VoucherBase(BaseModel):
 
     remarks: str | None = None
 
+    @model_validator(mode="after")
+    def validate_amount_and_vehicle(self) -> VoucherBase:
+        # Amount mismatch check
+        if self.quantity_liters is not None and self.rate_per_liter is not None:
+            expected = self.quantity_liters * self.rate_per_liter
+            if abs(expected - self.total_amount) > Decimal("1.00"):
+                raise ValueError("quantity_liters * rate_per_liter must match total_amount within ₹1")
+
+        # Vehicle number pattern check
+        if self.vehicle_number:
+            import re
+            cleaned = re.sub(r"[\s\-.]+", "", self.vehicle_number).upper()
+            pattern = re.compile(r"^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$")
+            if not pattern.match(cleaned):
+                raise ValueError(f"Vehicle number '{self.vehicle_number}' is not a valid Indian registration plate format.")
+        return self
+
 
 class VoucherCreate(VoucherBase):
     # Path to the stored invoice image, set when the voucher is created from
@@ -92,6 +116,23 @@ class VoucherUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @model_validator(mode="after")
+    def validate_amount_and_vehicle(self) -> VoucherUpdate:
+        # Amount mismatch check (only if all quantity, rate and total_amount are updated)
+        if self.quantity_liters is not None and self.rate_per_liter is not None and self.total_amount is not None:
+            expected = self.quantity_liters * self.rate_per_liter
+            if abs(expected - self.total_amount) > Decimal("1.00"):
+                raise ValueError("quantity_liters * rate_per_liter must match total_amount within ₹1")
+
+        # Vehicle number pattern check
+        if self.vehicle_number:
+            import re
+            cleaned = re.sub(r"[\s\-.]+", "", self.vehicle_number).upper()
+            pattern = re.compile(r"^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$")
+            if not pattern.match(cleaned):
+                raise ValueError(f"Vehicle number '{self.vehicle_number}' is not a valid Indian registration plate format.")
+        return self
+
 
 class VoucherResponse(VoucherBase):
     uuid: UUID
@@ -113,6 +154,8 @@ class VoucherResponse(VoucherBase):
     # UUID of the linked vehicle (None when the voucher isn't tied to one).
     # Lets clients deep-link to the vehicle ledger without a second lookup.
     vehicle_uuid: UUID | None = None
+
+    customer_mobile: str | None = None
 
     is_active: bool
 
@@ -183,6 +226,9 @@ class VoucherResponse(VoucherBase):
             "customer_name": data.customer_name,
             "customer_uuid": (
                 customer.uuid if customer is not None else None
+            ),
+            "customer_mobile": (
+                customer.mobile if customer is not None else None
             ),
             "vehicle_uuid": (
                 vehicle.uuid if vehicle is not None else None

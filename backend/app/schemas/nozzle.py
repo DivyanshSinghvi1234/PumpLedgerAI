@@ -115,6 +115,7 @@ class BulkFormNozzleItem(BaseModel):
     interim_6am_reading: float | None = None
     testing: float | None = 0.0
     return_testing_to_storage: bool | None = True
+    meter_capacity: float | None = 100000.0
 
 class BulkFormResponse(BaseModel):
     reading_date: date

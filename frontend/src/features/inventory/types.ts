@@ -49,6 +49,8 @@ export interface TankerDelivery {
   density: number | null;
   supplier_name: string | null;
   remarks: string | null;
+  procurement_rate?: number | null;
+  payment_mode: string;
   created_at: string;
 }
 
@@ -60,6 +62,8 @@ export interface TankerDeliveryCreate {
   density?: number | null;
   supplier_name?: string | null;
   remarks?: string | null;
+  procurement_rate?: number | null;
+  payment_mode?: string;
   ignore_capacity?: boolean;
 }
 
@@ -158,9 +162,21 @@ export interface BulkFormNozzleItem {
   interim_6am_reading: number | null;
   testing: number | null;
   return_testing_to_storage: boolean | null;
+  meter_capacity?: number;
 }
 
 export interface BulkFormResponse {
   reading_date: string;
   items: BulkFormNozzleItem[];
+}
+
+export interface FuelTankForecast {
+  tank_id: number;
+  tank_uuid: string;
+  tank_name: string;
+  fuel_type: FuelType;
+  current_stock_liters: number;
+  capacity_liters: number;
+  avg_daily_sales: number;
+  days_until_empty: number | null;
 }

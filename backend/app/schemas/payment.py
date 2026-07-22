@@ -69,6 +69,8 @@ class PaymentAllocationCreate(BaseModel):
 
     customer_uuid: UUID
 
+    amount: Decimal = Field(..., gt=0)
+
     payment_mode: PaymentMode
 
     payment_date: date

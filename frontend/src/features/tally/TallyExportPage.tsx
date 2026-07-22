@@ -21,6 +21,7 @@ import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
 import { useTallyPreview, useExportTally, useMarkTallySynced, getStoredTallyMappings, getStoredTallyVoucherTypes } from "./hooks/useTally";
 import TallySettingsDialog from "./components/TallySettingsDialog";
+import tallyService from "./services/tallyService";
 import type { TallyExportRequest } from "./types";
 
 // Date helpers to avoid external date-fns dependency

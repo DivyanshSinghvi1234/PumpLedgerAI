@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.enums import LedgerEntryType, PaymentStatus, PaymentMode
@@ -13,6 +14,7 @@ from app.core.exceptions import (
     VoucherNotFoundError,
 )
 from app.models.payment import Payment
+from app.models.voucher import Voucher
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.vehicle_repository import VehicleRepository
 from app.repositories.voucher_repository import VoucherRepository
@@ -156,13 +158,21 @@ class VoucherPaymentService:
         if customer is None:
             raise CustomerNotFoundError(str(data.customer_uuid))
 
+        allocation_sum = sum(alloc.amount for alloc in data.allocations)
+        if allocation_sum != data.amount:
+            raise SettlementError(
+                f"The sum of allocations ({allocation_sum}) does not equal the payment amount ({data.amount})."
+            )
+
         total = Decimal("0.00")
         touched = []
 
         for alloc in data.allocations:
-            voucher = self.voucher_repository.get_by_uuid(
-                db,
-                str(alloc.voucher_uuid),
+            # Query with row lock to prevent concurrent allocation race conditions
+            voucher = db.scalar(
+                select(Voucher)
+                .where(Voucher.uuid == str(alloc.voucher_uuid))
+                .with_for_update()
             )
 
             if voucher is None:

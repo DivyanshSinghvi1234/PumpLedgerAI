@@ -258,8 +258,12 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           if (isNaN(opening) || isNaN(closing)) {
             throw new Error(`Reading values for nozzle ${item.nozzle_name} must be numeric.`);
           }
+          const meterCapacity = item.meter_capacity ?? 1000000.0;
           if (closing < opening) {
-            throw new Error(`Final meter reading for nozzle ${item.nozzle_name} cannot be less than initial reading.`);
+            const grossSales = (meterCapacity - opening) + closing;
+            if (grossSales > meterCapacity * 0.1) {
+              throw new Error(`Final meter reading for nozzle ${item.nozzle_name} cannot be less than initial reading (or exceeds safety rollover limits).`);
+            }
           }
           if (interim !== null && (interim < opening || interim > closing)) {
             throw new Error(`6 AM reading for nozzle ${item.nozzle_name} must be between the opening and closing readings.`);

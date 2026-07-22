@@ -12,7 +12,7 @@ from app.database.mixins import (
     UUIDMixin,
     PumpScopedMixin,
 )
-from app.core.enums import FuelType
+from app.core.enums import FuelType, PaymentMode
 
 
 class FuelTank(
@@ -131,5 +131,6 @@ class TankerDelivery(Base, IDMixin, UUIDMixin, TimestampMixin, ActiveMixin, Pump
     supplier_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
     procurement_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    payment_mode: Mapped[PaymentMode] = mapped_column(Enum(PaymentMode), default=PaymentMode.CREDIT, server_default="CREDIT", nullable=False)
 
     fuel_tank = relationship("FuelTank", back_populates="deliveries")

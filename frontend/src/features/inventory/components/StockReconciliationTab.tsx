@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
 import type { FuelType, FuelTankCreate, DipReadingCreate } from "../types";
+import TankVisualization from "./TankVisualization";
 
 export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOrManager: boolean }) {
   const queryClient = useQueryClient();
@@ -47,6 +48,8 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [stockQty, setStockQty] = useState("");
   const [stockInvoice, setStockInvoice] = useState("");
   const [stockSupplier, setStockSupplier] = useState("");
+  const [stockProcurementRate, setStockProcurementRate] = useState("");
+  const [stockPaymentMode, setStockPaymentMode] = useState<string>("CREDIT");
   const [stockIgnoreCapacity, setStockIgnoreCapacity] = useState(false);
 
   // Queries
@@ -72,6 +75,13 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     queryFn: () => inventoryService.getDips(),
   });
 
+  const {
+    data: forecasts,
+  } = useQuery({
+    queryKey: ["tank-forecasts"],
+    queryFn: () => inventoryService.getTankForecasts(),
+  });
+
   // Mutations
   const createTankMutation = useMutation({
     mutationFn: (data: FuelTankCreate) => inventoryService.createTank(data),
@@ -82,6 +92,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       setTankCapacity("");
       setTankInitialStock("");
       queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-forecasts"] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.detail || "Failed to create fuel tank.");
@@ -95,6 +106,8 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       quantity_liters: number;
       invoice_number?: string;
       supplier_name?: string;
+      procurement_rate?: number;
+      payment_mode?: string;
       ignore_capacity?: boolean;
     }) => inventoryService.createDelivery(data),
     onSuccess: () => {
@@ -103,8 +116,11 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       setStockQty("");
       setStockInvoice("");
       setStockSupplier("");
+      setStockProcurementRate("");
+      setStockPaymentMode("CREDIT");
       setStockIgnoreCapacity(false);
       queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-forecasts"] });
     },
     onError: (err: any) => {
       const detail = err.response?.data?.detail || "Failed to add stock.";
@@ -126,6 +142,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       setClosingDip("");
       queryClient.invalidateQueries({ queryKey: ["dips"] });
       queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-forecasts"] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.detail || "Failed to post dip reading.");
@@ -140,6 +157,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       setEditTankDialogOpen(false);
       setEditingTank(null);
       queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-forecasts"] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.detail || "Failed to update fuel tank.");
@@ -153,6 +171,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       setDeleteConfirmOpen(false);
       setDeletingTank(null);
       queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-forecasts"] });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.detail || "Failed to delete fuel tank.");
@@ -181,6 +200,8 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     setStockQty("");
     setStockInvoice("");
     setStockSupplier("");
+    setStockProcurementRate("");
+    setStockPaymentMode("CREDIT");
     setStockIgnoreCapacity(false);
     setAddStockOpen(true);
   };
@@ -193,12 +214,15 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       toast.error("Enter a delivery quantity greater than zero.");
       return;
     }
+    const rate = stockProcurementRate.trim() ? parseFloat(stockProcurementRate) : undefined;
     createDeliveryMutation.mutate({
       tank_uuid: stockTank.uuid,
       delivery_date: stockDate,
       quantity_liters: qty,
       invoice_number: stockInvoice.trim() || undefined,
       supplier_name: stockSupplier.trim() || undefined,
+      procurement_rate: rate,
+      payment_mode: stockPaymentMode,
       ignore_capacity: stockIgnoreCapacity,
     });
   };
@@ -297,6 +321,26 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
         </div>
       )}
 
+      {/* Forecast Run-out Warnings */}
+      {forecasts && forecasts.filter(f => f.days_until_empty !== null && f.days_until_empty <= 3.0).length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-500 p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider font-mono">Run-out Forecast Warning</h4>
+            <p className="text-[11px] opacity-90 leading-relaxed">
+              The following tanks are projected to run dry within 3 days based on the average daily sales from the past 7 days:
+            </p>
+            <ul className="list-disc pl-5 text-[11px] space-y-0.5 font-bold mt-1.5">
+              {forecasts.filter(f => f.days_until_empty !== null && f.days_until_empty <= 3.0).map(f => (
+                <li key={f.tank_uuid}>
+                  {f.tank_name} ({f.fuel_type}): Projected empty in <span className="underline font-black">{f.days_until_empty} days</span> (avg daily sales: {f.avg_daily_sales.toFixed(1)} L/day)
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* Fuel Tanks section */}
       <div className="space-y-3">
         <h3 className="text-xs font-mono uppercase tracking-wider text-ink-muted font-bold flex items-center gap-1.5 px-1">
@@ -325,7 +369,6 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
         ) : tanks && tanks.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {tanks.map((tank) => {
-              const pct = Math.min(100, Math.max(0, (tank.current_stock_liters / tank.capacity_liters) * 100));
               return (
                 <Card key={tank.uuid} className="glass overflow-hidden border-hairline flex flex-col justify-between">
                   <CardHeader className="pb-2">
@@ -382,15 +425,44 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                         <span className="font-mono font-bold text-fuel-amber">{tank.tally_godown_name}</span>
                       </div>
                     )}
-                    <div className="w-full bg-surface-3 rounded-full h-2 overflow-hidden border border-hairline">
-                      <div
-                        className="bg-fuel-amber h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-end text-[9px] font-mono text-ink-subtle">
-                      {pct.toFixed(0)}% Filled
-                    </div>
+
+                    {/* SVG Interactive Tank Visualizer */}
+                    {(() => {
+                      const forecast = forecasts?.find((f) => f.tank_uuid === tank.uuid);
+                      const daysLeft = forecast ? forecast.days_until_empty : null;
+                      const avgSales = forecast ? forecast.avg_daily_sales : 0;
+
+                      return (
+                        <>
+                          <TankVisualization
+                            fuelType={tank.fuel_type}
+                            capacityLiters={tank.capacity_liters}
+                            currentStockLiters={tank.current_stock_liters}
+                            daysUntilEmpty={daysLeft}
+                          />
+
+                          <div className="mt-2.5 flex items-center justify-between text-xs border-t border-hairline/45 pt-2.5">
+                            <span className="text-ink-muted">Run-out Forecast:</span>
+                            <span
+                              className={`font-mono font-bold ${
+                                daysLeft !== null && daysLeft <= 3
+                                  ? "text-red-500 font-black animate-pulse"
+                                  : "text-ink"
+                              }`}
+                            >
+                              {daysLeft !== null ? `${daysLeft} days` : "No sales history"}
+                            </span>
+                          </div>
+
+                          {daysLeft !== null && (
+                            <div className="text-[10px] text-ink-subtle flex justify-between font-mono mt-0.5">
+                              <span>Daily Demand (7d):</span>
+                              <span>{avgSales.toLocaleString(undefined, { maximumFractionDigits: 1 })} L/day</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               );
@@ -802,6 +874,34 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 onChange={(e) => setStockSupplier(e.target.value)}
                 className="bg-surface-2 border-hairline text-xs text-ink h-9"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="stockProcurementRateInput" className="text-xs font-bold text-ink-muted">Procurement Rate (₹/Liter) <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                id="stockProcurementRateInput"
+                type="number"
+                step="0.01"
+                placeholder="e.g. 84.50"
+                value={stockProcurementRate}
+                onChange={(e) => setStockProcurementRate(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="stockPaymentModeInput" className="text-xs font-bold text-ink-muted">Payment Mode</Label>
+              <select
+                id="stockPaymentModeInput"
+                value={stockPaymentMode}
+                onChange={(e) => setStockPaymentMode(e.target.value)}
+                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-xs text-ink h-9 focus:outline-none transition cursor-pointer"
+              >
+                <option value="CREDIT">CREDIT (Pay Later / Due)</option>
+                <option value="CASH">CASH</option>
+                <option value="UPI">UPI</option>
+                <option value="CARD">CARD</option>
+              </select>
             </div>
 
             <label className="flex items-center gap-2 text-[11px] text-ink-muted cursor-pointer">

@@ -41,7 +41,7 @@ class CustomerBase(BaseModel):
 
     name: str = Field(
         ...,
-        min_length=2,
+        min_length=1,
         max_length=150,
     )
 
@@ -90,7 +90,7 @@ class CustomerCreate(BaseModel):
 
     name: str = Field(
         ...,
-        min_length=2,
+        min_length=1,
         max_length=150,
     )
 
@@ -149,7 +149,7 @@ class CustomerUpdate(BaseModel):
     )
     name: str | None = Field(
         default=None,
-        min_length=2,
+        min_length=1,
         max_length=150,
     )
     mobile: str | None = Field(

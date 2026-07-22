@@ -6,6 +6,10 @@ import { useDashboard } from "./hooks/useDashboard";
 import StatCards from "./components/StatCards";
 import FuelDistributionCard from "./components/FuelDistributionCard";
 import RecentVouchers from "./components/RecentVouchers";
+import DebtorAgingCard from "./components/DebtorAgingCard";
+import MarginDashboardCard from "./components/MarginDashboardCard";
+import CustomerAnalyticsCard from "./components/CustomerAnalyticsCard";
+import NPSDashboardCard from "./components/NPSDashboardCard";
 
 export default function DashboardPage() {
   const {
@@ -41,6 +45,14 @@ export default function DashboardPage() {
       </div>
 
       <StatCards summary={data.summary} />
+
+      <DebtorAgingCard />
+
+      <MarginDashboardCard />
+
+      <CustomerAnalyticsCard />
+
+      <NPSDashboardCard />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">

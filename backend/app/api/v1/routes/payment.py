@@ -11,15 +11,19 @@ from app.models.user import User
 from app.core.exceptions import (
     CustomerNotFoundError,
     PaymentNotFoundError,
+    VoucherNotFoundError,
+    SettlementError,
 )
 from app.schemas.payment import (
     PaymentCreate,
     PaymentListResponse,
     PaymentResponse,
     PaymentFifoAllocateRequest,
+    PaymentAllocationCreate,
 )
 from app.services.payment_service import PaymentService
 from app.services.voucher_payment_service import VoucherPaymentService
+
 
 router = APIRouter(
     prefix="/payments",
@@ -85,6 +89,40 @@ def allocate_payment_fifo(
             detail=str(exc),
         ) from exc
     except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/allocate",
+    response_model=PaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=manager,
+)
+def allocate_payment(
+    data: PaymentAllocationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return voucher_payment_service.allocate_payment(
+            db,
+            data,
+            actor_id=current_user.id,
+        )
+    except CustomerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except VoucherNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except SettlementError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),

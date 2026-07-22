@@ -1,3 +1,4 @@
+# Reload trigger: 2026-07-22 10:04
 from fastapi import Depends, FastAPI
 from fastapi.responses import ORJSONResponse
 
@@ -35,6 +36,11 @@ from app.api.v1.routes.audit_log import router as audit_log_router
 from app.api.v1.routes.employee import router as employee_router
 from app.api.v1.routes.pump import router as pump_router
 from app.api.v1.routes.income import router as income_router
+from app.api.v1.routes.aging import router as aging_router
+from app.api.v1.routes.forecast import router as forecast_router
+from app.api.v1.routes.margins import router as margins_router
+from app.api.v1.routes.churn import router as churn_router
+from app.api.v1.routes.nps import router as nps_router
 
 # Configure logging
 setup_logging()
@@ -231,6 +237,30 @@ app.include_router(
     income_router,
     prefix="/api/v1",
     dependencies=manager_protected,
+)
+app.include_router(
+    aging_router,
+    prefix="/api/v1",
+    dependencies=manager_protected,
+)
+app.include_router(
+    forecast_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    margins_router,
+    prefix="/api/v1",
+    dependencies=manager_protected,
+)
+app.include_router(
+    churn_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    nps_router,
+    prefix="/api/v1",
 )
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
