@@ -230,27 +230,58 @@ def check_and_update_schema() -> None:
 
 
 def _ensure_enum_types() -> None:
-    """Pre-create PostgreSQL enum types that models reference with create_type=False.
+    """Pre-create and auto-heal PostgreSQL enum types that models reference.
 
-    Must run BEFORE Base.metadata.create_all() so the type exists when the
-    table DDL references it. Safe no-op on SQLite (used in tests).
+    Ensures custom enum types (like incomekind, nozzlestatus, etc.) exist
+    and contain all values defined in Python enums. Safe no-op on SQLite.
     """
     if engine.dialect.name != "postgresql":
         return
-    db = SessionLocal()
-    try:
-        from sqlalchemy import text
-        try:
-            db.execute(text("SELECT 'ACTIVE'::nozzlestatus"))
-        except Exception:
-            db.rollback()
-            db.execute(text(
-                "CREATE TYPE nozzlestatus AS ENUM ('ACTIVE', 'MAINTENANCE', 'OUT_OF_ORDER')"
-            ))
-            db.commit()
-            print("Successfully created nozzlestatus enum type.")
-    finally:
-        db.close()
+
+    from sqlalchemy import text
+    from app.core.enums import (
+        FuelType,
+        IncomeKind,
+        LedgerEntryType,
+        NozzleStatus,
+        PaymentMode,
+        PaymentStatus,
+        TallyStatus,
+        UserRole,
+        VerificationStatus,
+    )
+
+    enum_mapping = [
+        ("nozzlestatus", NozzleStatus),
+        ("incomekind", IncomeKind),
+        ("fueltype", FuelType),
+        ("paymentmode", PaymentMode),
+        ("paymentstatus", PaymentStatus),
+        ("tallystatus", TallyStatus),
+        ("userrole", UserRole),
+        ("verificationstatus", VerificationStatus),
+        ("ledgerentrytype", LedgerEntryType),
+    ]
+
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        for type_name, enum_cls in enum_mapping:
+            values = [e.value for e in enum_cls]
+            type_exists = conn.execute(
+                text("SELECT 1 FROM pg_type WHERE typname = :name"),
+                {"name": type_name},
+            ).scalar()
+
+            if not type_exists:
+                vals_str = ", ".join(f"'{v}'" for v in values)
+                conn.execute(text(f"CREATE TYPE {type_name} AS ENUM ({vals_str})"))
+            else:
+                for val in values:
+                    try:
+                        conn.execute(
+                            text(f"ALTER TYPE {type_name} ADD VALUE IF NOT EXISTS '{val}'")
+                        )
+                    except Exception:
+                        pass
 
 
 def init_db() -> None:
