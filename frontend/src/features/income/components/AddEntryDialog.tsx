@@ -21,11 +21,12 @@ import { useIncomeCategories } from "../hooks/useIncomeCategories";
 import type { Income, IncomeKind, PaymentMode } from "../types/income";
 
 // Enum values mirror the backend (app/core/enums.py).
-const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
-  { label: "Cash", value: "CASH" },
-  { label: "UPI", value: "UPI" },
-  { label: "Card", value: "CARD" },
-  { label: "Credit", value: "CREDIT" },
+const FUEL_OPTIONS = [
+  { label: "None", value: "" },
+  { label: "Petrol", value: "PETROL" },
+  { label: "Speed", value: "SPEED" },
+  { label: "Diesel", value: "DIESEL" },
+  { label: "Lubricant", value: "LUBRICANT" },
 ];
 
 const entrySchema = z.object({
@@ -35,10 +36,16 @@ const entrySchema = z.object({
 
   amount: z.coerce.number().positive("Amount must be greater than 0"),
 
-  // Optional free-text category (see the categories corner-cut on the page).
+  // Optional free-text category.
   category: z.string().optional(),
 
   payment_mode: z.enum(["CASH", "UPI", "CARD", "CREDIT"]),
+
+  fuel_type: z.string().optional(),
+
+  quantity_liters: z.coerce.number().optional(),
+
+  rate_per_liter: z.coerce.number().optional(),
 });
 
 type EntryFormInput = z.input<typeof entrySchema>;
@@ -74,9 +81,6 @@ export default function AddEntryDialog({
   // Previously-used category names power the datalist autocomplete.
   const { data: categories = [] } = useIncomeCategories();
 
-  // Optional customer link — only for an expense that is a loan. Kept in local
-  // state (like the no-bill sale dialog) because CustomerAutocomplete is not a
-  // register()-style input.
   const [lend, setLend] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerUuid, setCustomerUuid] = useState<string | null>(null);
@@ -86,6 +90,8 @@ export default function AddEntryDialog({
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<EntryFormInput, unknown, EntryFormData>({
     resolver: zodResolver(entrySchema),
@@ -94,6 +100,17 @@ export default function AddEntryDialog({
       payment_mode: "CASH",
     },
   });
+
+  const watchQty = watch("quantity_liters");
+  const watchRate = watch("rate_per_liter");
+
+  useEffect(() => {
+    const qty = Number(watchQty) || 0;
+    const rate = Number(watchRate) || 0;
+    if (qty > 0 && rate > 0) {
+      setValue("amount", Number((qty * rate).toFixed(2)));
+    }
+  }, [watchQty, watchRate, setValue]);
 
   // Reset the form each time the dialog opens or incomeToEdit changes so the values sync.
   useEffect(() => {
@@ -104,6 +121,9 @@ export default function AddEntryDialog({
         amount: incomeToEdit?.amount ?? undefined,
         category: incomeToEdit?.category ?? preset?.category ?? "",
         payment_mode: incomeToEdit?.payment_mode ?? "CASH",
+        fuel_type: incomeToEdit?.fuel_type ?? "",
+        quantity_liters: incomeToEdit?.quantity_liters ?? undefined,
+        rate_per_liter: incomeToEdit?.rate_per_liter ?? undefined,
       });
       setLend(!!incomeToEdit?.customer_uuid);
       setCustomerName(incomeToEdit?.customer_name ?? "");
@@ -119,9 +139,6 @@ export default function AddEntryDialog({
   async function submitForm(data: EntryFormData) {
     setCustomerError(null);
 
-    // Lending needs a customer to charge. A linked uuid targets an existing
-    // ledger; a typed-but-unlinked name is fine too — the backend
-    // resolve-or-creates the customer by name. Only a blank name is invalid.
     const lendName = customerName.trim();
     if (isExpense && lend && !customerUuid && !lendName) {
       setCustomerError(
@@ -137,6 +154,9 @@ export default function AddEntryDialog({
       amount: data.amount,
       category: data.category?.trim() || null,
       payment_mode: data.payment_mode,
+      fuel_type: (data.fuel_type as any) || null,
+      quantity_liters: data.quantity_liters ? Number(data.quantity_liters) : null,
+      rate_per_liter: data.rate_per_liter ? Number(data.rate_per_liter) : null,
       customer_uuid: isExpense && lend ? customerUuid : null,
       customer_name: isExpense && lend && !customerUuid ? lendName : null,
     };
@@ -161,7 +181,7 @@ export default function AddEntryDialog({
     ? "e.g. Cash deposited in SBI"
     : isExpense
       ? "e.g. Generator diesel, staff advance, repairs"
-      : "e.g. Oil sale, scrap sale, misc receipt";
+      : "e.g. Oil sale, UPI petrol sale, scrap sale";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -179,11 +199,39 @@ export default function AddEntryDialog({
             {...register("description")}
           />
 
+          {/* Optional Fuel Details */}
+          <div className="rounded-xl border border-hairline bg-surface-2/40 p-3 space-y-3">
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+              Fuel Sale Parameters (Optional)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <FormSelect
+                label="Fuel Type"
+                options={FUEL_OPTIONS}
+                {...register("fuel_type")}
+              />
+              <FormInput
+                type="number"
+                step="0.001"
+                label="Quantity (Liters)"
+                placeholder="e.g. 50"
+                {...register("quantity_liters")}
+              />
+              <FormInput
+                type="number"
+                step="0.01"
+                label="Rate / Liter (₹)"
+                placeholder="e.g. 100.00"
+                {...register("rate_per_liter")}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormInput
               type="number"
               step="0.01"
-              label="Amount"
+              label="Amount (₹)"
               required
               error={errors.amount?.message}
               {...register("amount")}

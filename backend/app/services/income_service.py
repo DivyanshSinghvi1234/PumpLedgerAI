@@ -6,12 +6,13 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import FuelType, IncomeKind, LedgerEntryType
+from app.core.enums import FuelType, IncomeKind, LedgerEntryType, PaymentMode
 from app.core.exceptions import IncomeNotFoundError
 from app.models.income import Income
 from app.models.nozzle import Nozzle
 from app.models.nozzle_reading import NozzleReading
 from app.models.payment import Payment
+from app.models.voucher import Voucher
 from app.repositories.customer_repository import CustomerRepository
 from app.repositories.income_repository import IncomeRepository
 from app.schemas.income import (
@@ -64,6 +65,9 @@ class IncomeService:
             amount=data.amount,
             category=(data.category.strip() or None) if data.category else None,
             payment_mode=data.payment_mode,
+            fuel_type=data.fuel_type,
+            quantity_liters=data.quantity_liters,
+            rate_per_liter=data.rate_per_liter,
             customer_id=customer.id if customer else None,
         )
 
@@ -103,7 +107,6 @@ class IncomeService:
                 "amount": str(data.amount),
                 "category": income.category,
                 "payment_mode": data.payment_mode.value,
-                "customer_id": str(customer.id) if customer else None,
             },
         )
 
@@ -201,56 +204,115 @@ class IncomeService:
         data: IncomeCreate,
         actor_id: int | None = None,
     ) -> Income:
+
         income = self.repository.get_by_uuid(db, income_uuid)
+
         if income is None:
             raise IncomeNotFoundError(income_uuid)
 
-        # Reversing old ledger entry if customer was linked
-        if income.customer is not None:
-            self.ledger_service.reverse_reference(
-                db,
-                income.customer,
-                "INCOME",
-                income.id,
-                extra_deletes=[],
-                actor_id=actor_id,
-            )
-            # Clear link locally so we can resolve a new one
-            income.customer_id = None
-            income.customer = None
-            db.flush()
+        old_values = {
+            "kind": income.kind.value,
+            "income_date": str(income.income_date),
+            "description": income.description,
+            "amount": str(income.amount),
+            "category": income.category,
+            "payment_mode": income.payment_mode.value,
+            "customer_id": str(income.customer_id) if income.customer_id else None,
+        }
 
-        customer = self.customer_repository.resolve_or_create_customer(
-            db,
-            data.customer_uuid,
-            data.customer_name,
+        old_customer = income.customer
+        old_amount = income.amount
+
+        # Resolve the target customer (if any) for loan expenses.
+        new_customer = (
+            self.customer_repository.resolve_or_create_customer(
+                db,
+                data.customer_uuid,
+                data.customer_name,
+            )
+            if data.kind == IncomeKind.EXPENSE
+            else None
         )
 
+        # Apply basic field updates on the Income row.
         income.kind = data.kind
         income.income_date = data.income_date
         income.description = data.description.strip()
         income.amount = data.amount
         income.category = (data.category.strip() or None) if data.category else None
         income.payment_mode = data.payment_mode
-        income.customer_id = customer.id if customer else None
+        income.fuel_type = data.fuel_type
+        income.quantity_liters = data.quantity_liters
+        income.rate_per_liter = data.rate_per_liter
+        income.customer_id = new_customer.id if new_customer else None
 
-        if customer is not None:
+        # Manage ledger entry sync when customer links or loan amounts change.
+        if old_customer is not None and (
+            new_customer is None or old_customer.id != new_customer.id
+        ):
+            # Linked customer was removed or changed — reverse the old ledger entry.
+            self.ledger_service.reverse_reference(
+                db,
+                old_customer,
+                "INCOME",
+                income.id,
+                extra_deletes=[],
+                actor_id=actor_id,
+            )
+            if new_customer is not None:
+                # Post to the new customer.
+                db.flush()
+                self.ledger_service.post(
+                    db,
+                    new_customer,
+                    LedgerEntryType.DEBIT_ADJUSTMENT,
+                    data.amount,
+                    entry_date=data.income_date,
+                    reference_type="INCOME",
+                    reference_id=income.id,
+                    remarks=f"Loan — {income.description}",
+                    actor_id=actor_id,
+                )
+        elif new_customer is not None and old_customer is None:
+            # Customer was freshly added to an existing expense — post new entry.
             db.flush()
             self.ledger_service.post(
                 db,
-                customer,
+                new_customer,
                 LedgerEntryType.DEBIT_ADJUSTMENT,
                 data.amount,
                 entry_date=data.income_date,
                 reference_type="INCOME",
                 reference_id=income.id,
                 remarks=f"Loan — {income.description}",
-                extra_objects=[],
                 actor_id=actor_id,
             )
-        else:
-            db.add(income)
-            db.flush()
+        elif new_customer is not None and old_customer is not None:
+            # Same customer, but amount or date might have changed.
+            if old_amount != data.amount or old_values["income_date"] != str(data.income_date):
+                self.ledger_service.reverse_reference(
+                    db,
+                    old_customer,
+                    "INCOME",
+                    income.id,
+                    extra_deletes=[],
+                    actor_id=actor_id,
+                )
+                db.flush()
+                self.ledger_service.post(
+                    db,
+                    old_customer,
+                    LedgerEntryType.DEBIT_ADJUSTMENT,
+                    data.amount,
+                    entry_date=data.income_date,
+                    reference_type="INCOME",
+                    reference_id=income.id,
+                    remarks=f"Loan — {income.description}",
+                    actor_id=actor_id,
+                )
+
+        db.commit()
+        db.refresh(income)
 
         self.audit_service.log_action(
             db,
@@ -258,6 +320,7 @@ class IncomeService:
             target_table="incomes",
             target_id=str(income.id),
             actor_id=actor_id,
+            old_values=old_values,
             new_values={
                 "kind": data.kind.value,
                 "income_date": str(data.income_date),
@@ -265,7 +328,7 @@ class IncomeService:
                 "amount": str(data.amount),
                 "category": income.category,
                 "payment_mode": data.payment_mode.value,
-                "customer_id": str(customer.id) if customer else None,
+                "customer_id": str(income.customer_id) if income.customer_id else None,
             },
         )
 
@@ -275,17 +338,14 @@ class IncomeService:
     # Daily summary
     # -----------------------------------
 
-    def daily_summary(
+    def get_daily_summary(
         self,
         db: Session,
-        *,
         on_date: date,
     ) -> IncomeSummaryResponse:
-        """Per-fuel-type sales (aggregated liters × active rate) plus the
-        headline totals for the day."""
+        """Compute headline totals for a given date."""
 
-        # Aggregate net liters sold per fuel type from the day's nozzle
-        # readings. NozzleReading.sales already has testing deducted.
+        # Meter reading total per fuel type.
         rows = db.execute(
             select(
                 Nozzle.fuel_type,
@@ -296,8 +356,7 @@ class IncomeService:
             .group_by(Nozzle.fuel_type)
         ).all()
 
-        # Resolve the active rate for each fuel type as of end-of-day, so the
-        # displayed rate matches what was in effect for that day's sales.
+        # Resolve active rate for each fuel type.
         at_time = datetime.combine(on_date, time.max, tzinfo=timezone.utc)
 
         fuel_sales: list[FuelSaleRow] = []
@@ -336,8 +395,7 @@ class IncomeService:
             str(totals.get(IncomeKind.DEPOSIT, 0))
         ).quantize(Decimal("0.01"))
 
-        # Sum of all customer payments received on this date (money coming in
-        # from credit customers settling their outstanding balances).
+        # Sum of all customer payments received on this date.
         total_payments = Decimal(
             str(
                 db.scalar(
@@ -349,10 +407,67 @@ class IncomeService:
             )
         ).quantize(Decimal("0.01"))
 
+        # Payment mode breakdowns for incomes, payments, and vouchers
+        income_mode_rows = db.execute(
+            select(
+                Income.payment_mode,
+                func.coalesce(func.sum(Income.amount), 0)
+            )
+            .where(Income.income_date == on_date)
+            .where(Income.kind == IncomeKind.INCOME)
+            .where(Income.is_active == True)
+            .group_by(Income.payment_mode)
+        ).all()
+        income_by_mode = {mode: Decimal(str(amt)) for mode, amt in income_mode_rows}
+
+        payment_mode_rows = db.execute(
+            select(
+                Payment.payment_mode,
+                func.coalesce(func.sum(Payment.amount), 0)
+            )
+            .where(Payment.payment_date == on_date)
+            .where(Payment.is_active == True)
+            .group_by(Payment.payment_mode)
+        ).all()
+        payment_by_mode = {mode: Decimal(str(amt)) for mode, amt in payment_mode_rows}
+
+        voucher_mode_rows = db.execute(
+            select(
+                Voucher.payment_mode,
+                func.coalesce(func.sum(Voucher.total_amount), 0)
+            )
+            .where(Voucher.invoice_date == on_date)
+            .where(Voucher.is_active == True)
+            .group_by(Voucher.payment_mode)
+        ).all()
+        voucher_by_mode = {mode: Decimal(str(amt)) for mode, amt in voucher_mode_rows}
+
+        total_upi = (
+            income_by_mode.get(PaymentMode.UPI, Decimal("0.00")) +
+            payment_by_mode.get(PaymentMode.UPI, Decimal("0.00")) +
+            voucher_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
+        ).quantize(Decimal("0.01"))
+
+        total_card = (
+            income_by_mode.get(PaymentMode.CARD, Decimal("0.00")) +
+            payment_by_mode.get(PaymentMode.CARD, Decimal("0.00")) +
+            voucher_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
+        ).quantize(Decimal("0.01"))
+
+        total_credit = (
+            income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00")) +
+            payment_by_mode.get(PaymentMode.CREDIT, Decimal("0.00")) +
+            voucher_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        ).quantize(Decimal("0.01"))
+
+        total_non_cash = total_upi + total_card + total_credit
+
         # Cash actually in hand = fuel sales + other income + payments received,
-        # less money paid out (expenses and deposits).
-        cash_in_hand = (
-            total_sales + total_incomes + total_payments - total_expenses - total_deposits
+        # less non-cash sales/receipts (UPI, Card, Credit) and money paid out (expenses and deposits).
+        gross_cash = total_sales + total_incomes + total_payments
+        cash_in_hand = max(
+            Decimal("0.00"),
+            (gross_cash - total_non_cash - total_expenses - total_deposits)
         ).quantize(Decimal("0.01"))
 
         return IncomeSummaryResponse(
@@ -363,5 +478,10 @@ class IncomeService:
             total_expenses=total_expenses,
             total_deposits=total_deposits,
             total_payments=total_payments,
+            total_upi=total_upi,
+            total_card=total_card,
+            total_credit=total_credit,
             cash_in_hand=cash_in_hand,
         )
+
+    daily_summary = get_daily_summary

@@ -12,7 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums import IncomeKind, PaymentMode
+from app.core.enums import FuelType, IncomeKind, PaymentMode
 from app.database.base import Base
 from app.database.mixins import (
     ActiveMixin,
@@ -75,6 +75,21 @@ class Income(
     payment_mode: Mapped[PaymentMode] = mapped_column(
         SqlEnum(PaymentMode),
         nullable=False,
+    )
+
+    fuel_type: Mapped[FuelType | None] = mapped_column(
+        SqlEnum(FuelType),
+        nullable=True,
+    )
+
+    quantity_liters: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 3),
+        nullable=True,
+    )
+
+    rate_per_liter: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
     )
 
     # Optional customer link. Set when an EXPENSE is a loan to a customer — the

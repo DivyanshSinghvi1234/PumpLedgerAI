@@ -30,6 +30,12 @@ class IncomeBase(BaseModel):
 
     payment_mode: PaymentMode
 
+    fuel_type: FuelType | None = None
+
+    quantity_liters: Decimal | None = Field(default=None, ge=0)
+
+    rate_per_liter: Decimal | None = Field(default=None, ge=0)
+
 
 class IncomeCreate(IncomeBase):
     # Optional customer link. Only meaningful for an EXPENSE that is a loan:
@@ -72,6 +78,9 @@ class IncomeResponse(IncomeBase):
             "amount": data.amount,
             "category": data.category,
             "payment_mode": data.payment_mode,
+            "fuel_type": getattr(data, "fuel_type", None),
+            "quantity_liters": getattr(data, "quantity_liters", None),
+            "rate_per_liter": getattr(data, "rate_per_liter", None),
             "customer_uuid": customer.uuid if customer else None,
             "customer_name": customer.name if customer else None,
         }
@@ -122,5 +131,10 @@ class IncomeSummaryResponse(BaseModel):
     # Sum of customer payments received on this date.
     total_payments: Decimal = Decimal("0.00")
 
-    # total_sales + total_incomes + total_payments - total_expenses - total_deposits.
+    # Breakdowns by payment mode
+    total_upi: Decimal = Decimal("0.00")
+    total_card: Decimal = Decimal("0.00")
+    total_credit: Decimal = Decimal("0.00")
+
+    # Cash in hand = (total_sales + total_incomes + total_payments) - total_non_cash - total_expenses - total_deposits.
     cash_in_hand: Decimal

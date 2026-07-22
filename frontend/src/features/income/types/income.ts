@@ -28,6 +28,12 @@ export interface Income {
 
   payment_mode: PaymentMode;
 
+  fuel_type?: FuelType | null;
+
+  quantity_liters?: number | null;
+
+  rate_per_liter?: number | null;
+
   /** Set when an EXPENSE is a loan posted to a customer's ledger. */
   customer_uuid: string | null;
 
@@ -63,6 +69,12 @@ export interface CreateIncomeRequest {
   category?: string | null;
 
   payment_mode: PaymentMode;
+
+  fuel_type?: FuelType | null;
+
+  quantity_liters?: number | null;
+
+  rate_per_liter?: number | null;
 
   /**
    * Optional customer link. Only meaningful for an EXPENSE that is a loan:
@@ -106,6 +118,12 @@ export interface IncomeSummary {
   /** Sum of customer payments received on this date. */
   total_payments: number;
 
-  /** total_sales + total_incomes + total_payments - total_expenses - total_deposits. */
+  total_upi?: number;
+
+  total_card?: number;
+
+  total_credit?: number;
+
+  /** total_sales + total_incomes + total_payments - total_non_cash - total_expenses - total_deposits. */
   cash_in_hand: number;
 }

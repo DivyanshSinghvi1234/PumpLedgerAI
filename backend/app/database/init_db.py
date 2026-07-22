@@ -185,6 +185,9 @@ def check_and_update_schema() -> None:
             ("tanker_deliveries", "payment_mode", "VARCHAR(20) NOT NULL DEFAULT 'CREDIT'"),
             ("tanker_deliveries", "procurement_rate", "FLOAT"),
             ("fuel_tanks", "tally_godown_name", "VARCHAR(100)"),
+            ("incomes", "fuel_type", "VARCHAR(20)"),
+            ("incomes", "quantity_liters", "NUMERIC(10,3)"),
+            ("incomes", "rate_per_liter", "NUMERIC(10,2)"),
         ):
             try:
                 db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))

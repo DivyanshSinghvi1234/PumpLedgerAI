@@ -7,6 +7,7 @@ import { getTodayDateString } from "@/lib/utils";
 import { Plus, Minus, Fuel, Landmark, Pencil, Trash2, Coins } from "lucide-react";
 import inventoryService from "@/features/inventory/services/inventoryService";
 
+import paymentService from "@/features/payments/services/paymentService";
 import AddEntryDialog from "./components/AddEntryDialog";
 import NoBillSaleDialog from "./components/NoBillSaleDialog";
 
@@ -21,8 +22,6 @@ function formatMoney(value: number): string {
     maximumFractionDigits: 2,
   });
 }
-
-
 
 const DENOMINATIONS = [
   { value: 500, key: "n500" },
@@ -42,6 +41,11 @@ export default function IncomePage() {
   const { data: nozzleData } = useQuery({
     queryKey: ["nozzleReadingsBulkForm", date],
     queryFn: () => inventoryService.getBulkReadingsForm(date),
+  });
+
+  const { data: paymentsData } = useQuery({
+    queryKey: ["paymentsList", date],
+    queryFn: () => paymentService.getPayments({ payment_date: date, page_size: 100 }),
   });
 
   // Helper to normalize fuel type strings
@@ -157,15 +161,29 @@ export default function IncomePage() {
 
   const deleteMutation = useDeleteIncome();
 
-  // Split the single list into income, expense, and deposit rows.
+  // Split the single list into income, expense, and deposit rows, merging customer payments into revenues.
   const { incomeRows, expenseRows, depositRows } = useMemo(() => {
     const items = incomeData?.items ?? [];
+    const rawIncomes = items.filter((i) => i.kind === "INCOME");
+
+    const paymentItems: Income[] = (paymentsData?.items ?? []).map((p: any) => ({
+      uuid: p.uuid,
+      kind: "INCOME" as const,
+      income_date: p.payment_date,
+      description: `Payment from ${p.customer_name}${p.remarks ? ` (${p.remarks})` : ""}`,
+      amount: Number(p.amount),
+      category: "Customer Settlement",
+      payment_mode: p.payment_mode,
+      customer_uuid: p.customer_uuid,
+      customer_name: p.customer_name,
+    }));
+
     return {
-      incomeRows: items.filter((i) => i.kind === "INCOME"),
+      incomeRows: [...rawIncomes, ...paymentItems],
       expenseRows: items.filter((i) => i.kind === "EXPENSE"),
       depositRows: items.filter((i) => i.kind === "DEPOSIT"),
     };
-  }, [incomeData]);
+  }, [incomeData, paymentsData]);
 
   async function handleDelete(income: Income) {
     const noun = income.kind === "DEPOSIT" ? "deposit" : income.kind === "EXPENSE" ? "expense" : "revenue";
@@ -213,7 +231,7 @@ export default function IncomePage() {
     <div className="space-y-6">
       <PageHeader
         title="Revenue / Expenses"
-        description="Daily sales by fuel type, plus revenues, expenses, and cash in hand."
+        description="Daily sales by fuel type, plus revenues, expenses, non-cash breakdowns, and cash in hand."
       />
 
       {/* Date picker + actions */}
@@ -268,52 +286,76 @@ export default function IncomePage() {
       ) : summaryLoading ? (
         <LoadingState />
       ) : summary ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="rounded-2xl border border-hairline bg-card p-5">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-4">
+          <div className="rounded-2xl border border-hairline bg-card p-4">
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">
               Total Sales
             </p>
-            <p className="mt-2 text-2xl font-bold text-ink">
+            <p className="mt-1 text-xl font-bold text-ink">
               ₹{formatMoney(summary.total_sales)}
             </p>
           </div>
-          <div className="rounded-2xl border border-hairline bg-card p-5">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+          <div className="rounded-2xl border border-hairline bg-card p-4">
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">
               Total Revenues
             </p>
-            <p className="mt-2 text-2xl font-bold text-ink">
+            <p className="mt-1 text-xl font-bold text-ink">
               ₹{formatMoney(summary.total_incomes)}
             </p>
           </div>
-          <div className="rounded-2xl border border-hairline bg-card p-5">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+          <div className="rounded-2xl border border-hairline bg-card p-4">
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">
               Payments Received
             </p>
-            <p className="mt-2 text-2xl font-bold text-green-600">
+            <p className="mt-1 text-xl font-bold text-emerald-600">
               ₹{formatMoney(summary.total_payments ?? 0)}
             </p>
           </div>
-          <div className="rounded-2xl border border-hairline bg-card p-5">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4">
+            <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+              UPI Total
+            </p>
+            <p className="mt-1 text-xl font-bold text-purple-700 dark:text-purple-300">
+              ₹{formatMoney(summary.total_upi ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+            <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+              Card Total
+            </p>
+            <p className="mt-1 text-xl font-bold text-blue-700 dark:text-blue-300">
+              ₹{formatMoney(summary.total_card ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+              Total Credit
+            </p>
+            <p className="mt-1 text-xl font-bold text-amber-700 dark:text-amber-300">
+              ₹{formatMoney(summary.total_credit ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-hairline bg-card p-4">
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">
               Total Expenses
             </p>
-            <p className="mt-2 text-2xl font-bold text-error">
+            <p className="mt-1 text-xl font-bold text-error">
               ₹{formatMoney(summary.total_expenses)}
             </p>
           </div>
-          <div className="rounded-2xl border border-hairline bg-card p-5">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+          <div className="rounded-2xl border border-hairline bg-card p-4">
+            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">
               Total Deposits
             </p>
-            <p className="mt-2 text-2xl font-bold text-ink-muted">
+            <p className="mt-1 text-xl font-bold text-ink-muted">
               ₹{formatMoney(summary.total_deposits ?? 0)}
             </p>
           </div>
-          <div className="rounded-2xl border border-fuel-amber/30 bg-fuel-amber/5 p-5">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+          <div className="rounded-2xl border border-fuel-amber/30 bg-fuel-amber/10 p-4">
+            <p className="text-[11px] font-semibold text-fuel-amber uppercase tracking-wide">
               Cash in Hand
             </p>
-            <p className="mt-2 text-2xl font-bold text-ink">
+            <p className="mt-1 text-xl font-bold text-ink">
               ₹{formatMoney(summary.cash_in_hand)}
             </p>
           </div>
@@ -483,45 +525,74 @@ function EntryList({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.uuid} className="border-t border-hairline text-ink">
-                  <td className="px-5 py-2.5">{row.description}</td>
-                  {showCustomer && (
+              {rows.map((row) => {
+                const isUPI = row.payment_mode === "UPI";
+                const isCard = row.payment_mode === "CARD";
+                const isCredit = row.payment_mode === "CREDIT";
+
+                const badgeStyle = isUPI
+                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                  : isCard
+                  ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                  : isCredit
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+
+                return (
+                  <tr key={row.uuid} className="border-t border-hairline text-ink hover:bg-surface-2/30 transition">
+                    <td className="px-5 py-2.5 font-medium">
+                      <div>{row.description}</div>
+                      {row.quantity_liters && row.rate_per_liter ? (
+                        <div className="text-xs text-ink-muted font-mono mt-0.5">
+                          {row.quantity_liters} L @ ₹{row.rate_per_liter}/L {row.fuel_type ? `(${row.fuel_type})` : ""}
+                        </div>
+                      ) : null}
+                    </td>
+                    {showCustomer && (
+                      <td className="px-5 py-2.5 text-ink-muted">
+                        {row.customer_name ?? "—"}
+                      </td>
+                    )}
                     <td className="px-5 py-2.5 text-ink-muted">
-                      {row.customer_name ?? "—"}
+                      <span className="inline-flex items-center rounded-lg bg-surface-2 px-2 py-0.5 text-xs">
+                        {row.category ?? "General"}
+                      </span>
                     </td>
-                  )}
-                  <td className="px-5 py-2.5 text-ink-muted">
-                    {row.category ?? "—"}
-                  </td>
-                  <td className="px-5 py-2.5 text-ink-muted">
-                    {row.payment_mode}
-                  </td>
-                  <td className="px-5 py-2.5 text-right font-semibold">
-                    ₹{formatMoney(row.amount)}
-                  </td>
-                  {canManage && (
-                    <td className="px-5 py-2.5 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button
-                          onClick={() => onEdit?.(row)}
-                          className="text-ink-muted hover:text-fuel-amber transition duration-200 cursor-pointer"
-                          title="Edit"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          onClick={() => onDelete(row)}
-                          className="text-ink-muted hover:text-error transition duration-200 cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
+                    <td className="px-5 py-2.5">
+                      <span className={`inline-flex items-center font-semibold rounded-md border px-2 py-0.5 text-[11px] ${badgeStyle}`}>
+                        {row.payment_mode}
+                      </span>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-5 py-2.5 text-right font-bold text-ink">
+                      ₹{formatMoney(row.amount)}
+                    </td>
+                    {canManage && (
+                      <td className="px-5 py-2.5 text-right">
+                        {row.category !== "Customer Settlement" ? (
+                          <div className="flex justify-end gap-3">
+                            <button
+                              onClick={() => onEdit?.(row)}
+                              className="text-ink-muted hover:text-fuel-amber transition duration-200 cursor-pointer"
+                              title="Edit"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              onClick={() => onDelete(row)}
+                              className="text-ink-muted hover:text-error transition duration-200 cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-ink-muted font-mono">Ledger</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
