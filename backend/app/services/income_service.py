@@ -442,32 +442,32 @@ class IncomeService:
         ).all()
         voucher_by_mode = {mode: Decimal(str(amt)) for mode, amt in voucher_mode_rows}
 
-        total_upi = (
-            income_by_mode.get(PaymentMode.UPI, Decimal("0.00")) +
-            payment_by_mode.get(PaymentMode.UPI, Decimal("0.00")) +
-            voucher_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
-        ).quantize(Decimal("0.01"))
+        income_upi = income_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
+        income_card = income_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
+        income_credit = income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
 
-        total_card = (
-            income_by_mode.get(PaymentMode.CARD, Decimal("0.00")) +
-            payment_by_mode.get(PaymentMode.CARD, Decimal("0.00")) +
-            voucher_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
-        ).quantize(Decimal("0.01"))
+        payment_upi = payment_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
+        payment_card = payment_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
+        payment_credit = payment_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
 
-        total_credit = (
-            income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00")) +
-            payment_by_mode.get(PaymentMode.CREDIT, Decimal("0.00")) +
-            voucher_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
-        ).quantize(Decimal("0.01"))
+        voucher_upi = voucher_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
+        voucher_card = voucher_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
+        voucher_credit = voucher_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
 
-        total_non_cash = total_upi + total_card + total_credit
+        total_upi = (income_upi + payment_upi + voucher_upi).quantize(Decimal("0.01"))
+        total_card = (income_card + payment_card + voucher_card).quantize(Decimal("0.01"))
+        total_credit = (income_credit + payment_credit + voucher_credit).quantize(Decimal("0.01"))
 
-        # Cash actually in hand = fuel sales + other income + payments received,
-        # less non-cash sales/receipts (UPI, Card, Credit) and money paid out (expenses and deposits).
-        gross_cash = total_sales + total_incomes + total_payments
-        cash_in_hand = max(
-            Decimal("0.00"),
-            (gross_cash - total_non_cash - total_expenses - total_deposits)
+        # Cash sales from fuel pumps (meter sales less non-cash fuel sales)
+        non_cash_fuel_vouchers = voucher_upi + voucher_card + voucher_credit
+        cash_fuel_sales = max(Decimal("0.00"), total_sales - non_cash_fuel_vouchers)
+
+        # Cash from extra incomes and customer payments
+        cash_incomes = max(Decimal("0.00"), total_incomes - (income_upi + income_card + income_credit))
+        cash_payments = max(Decimal("0.00"), total_payments - (payment_upi + payment_card + payment_credit))
+
+        cash_in_hand = (
+            cash_fuel_sales + cash_incomes + cash_payments - total_expenses - total_deposits
         ).quantize(Decimal("0.01"))
 
         return IncomeSummaryResponse(
