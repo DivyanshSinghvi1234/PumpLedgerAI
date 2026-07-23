@@ -389,11 +389,11 @@ class IncomeService:
     ) -> IncomeSummaryResponse:
         """Compute headline totals for a given date."""
 
-        # Meter reading total per fuel type.
+        # Meter reading net total per fuel type (gross nozzle sales minus testing liters).
         rows = db.execute(
             select(
                 Nozzle.fuel_type,
-                func.coalesce(func.sum(NozzleReading.sales), 0.0),
+                func.coalesce(func.sum(NozzleReading.sales - func.coalesce(NozzleReading.testing_liters, 0.0)), 0.0),
             )
             .join(Nozzle, NozzleReading.nozzle_id == Nozzle.id)
             .where(NozzleReading.reading_date == on_date)

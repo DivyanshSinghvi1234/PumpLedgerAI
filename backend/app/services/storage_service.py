@@ -25,7 +25,6 @@ class StorageService:
             settings.R2_ACCOUNT_ID
             and settings.R2_ACCESS_KEY_ID
             and settings.R2_SECRET_ACCESS_KEY
-            and settings.R2_PUBLIC_URL
         )
 
         if self._r2_enabled:
@@ -117,18 +116,29 @@ class StorageService:
         if not file_path_or_url:
             return None
 
-        # If already presigned or local path or empty, return as is
-        if "X-Amz-Signature" in file_path_or_url or not self._r2_enabled:
+        # If already presigned, return as is
+        if "X-Amz-Signature" in file_path_or_url:
             return file_path_or_url
 
-        # Extract filename / key from full B2 URL
-        key = file_path_or_url.split("/")[-1]
+        # Only process if R2/B2 client is enabled
+        if not self._r2_enabled:
+            return file_path_or_url
+
+        # If it's a local disk path like storage/invoices/abc.jpg (and not a remote HTTP/S3 URL), don't presign
+        is_remote = file_path_or_url.startswith("http://") or file_path_or_url.startswith("https://")
+        if not is_remote and ("/" in file_path_or_url or "\\" in file_path_or_url):
+            return file_path_or_url
+
+        # Extract filename / key from full B2 URL (e.g. https://f003.backblazeb2.com/file/PumpLedger/79711915-be4d-45ac-acdc-07a7db56eef3.jpg)
+        key = file_path_or_url.split("/")[-1].split("?")[0]
         try:
-            return self._client.generate_presigned_url(
+            presigned = self._client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": settings.R2_BUCKET_NAME, "Key": key},
                 ExpiresIn=604800,  # 7 days
             )
+            logger.info("Generated presigned URL for key %s", key)
+            return presigned
         except Exception as e:
             logger.error(f"Failed to generate presigned URL for {file_path_or_url}: {e}")
             return file_path_or_url
