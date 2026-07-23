@@ -163,13 +163,13 @@ export default function IncomePage() {
     data: summary,
     isLoading: summaryLoading,
     isError: summaryError,
-  } = useIncomeSummary(date);
+  } = useIncomeSummary(apiDate);
 
   const {
     data: incomeData,
     isLoading: listLoading,
     isError: listError,
-  } = useIncomeList({ income_date: date, page: 1, page_size: 100 });
+  } = useIncomeList({ income_date: apiDate, page: 1, page_size: 100 });
 
   const deleteMutation = useDeleteIncome();
 
