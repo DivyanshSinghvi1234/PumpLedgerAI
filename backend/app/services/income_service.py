@@ -416,6 +416,15 @@ class IncomeService:
             ) or Decimal("0.00")
             rate = Decimal(str(rate))
 
+            if rate == Decimal("0.00"):
+                ft_upper = str(fuel_type.value if hasattr(fuel_type, "value") else fuel_type).upper()
+                if "DIESEL" in ft_upper or "HSD" in ft_upper:
+                    rate = Decimal("98.39")
+                elif "SPEED" in ft_upper:
+                    rate = Decimal("123.00")
+                else:
+                    rate = Decimal("113.35")
+
             amount = (liters * rate).quantize(Decimal("0.01"))
             total_sales += amount
 
