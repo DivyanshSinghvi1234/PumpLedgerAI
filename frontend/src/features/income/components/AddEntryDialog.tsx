@@ -116,6 +116,7 @@ export default function AddEntryDialog({
   const watchAmount = watch("amount");
   const watchQty = watch("quantity_liters");
   const watchRate = watch("rate_per_liter");
+  const watchCategory = watch("category");
 
   // Calculate sum of fuel items if present, or single qty * rate
   const calculatedFuelSum = useMemo(() => {
@@ -265,28 +266,6 @@ export default function AddEntryDialog({
         </DialogTitle>
 
         <form onSubmit={handleSubmit(submitForm)} className="space-y-4">
-          {/* Sale vs Other Revenue toggle */}
-          {activeKind === "INCOME" && (
-            <div className="rounded-xl border border-hairline bg-surface-2/60 p-3 flex items-center justify-between">
-              <div>
-                <label className="text-sm font-semibold text-ink flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isSale}
-                    onChange={(e) => setIsSale(e.target.checked)}
-                    className="h-4 w-4 rounded border-hairline"
-                  />
-                  Direct Counter / Fuel Sale
-                </label>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  {isSale
-                    ? "Part of daily sales: non-cash payments (UPI/Card/Credit) automatically deduct from Cash in Hand."
-                    : "Other revenue (e.g. scrap sale, rent): adds to Bank/UPI total without deducting from Cash in Hand."}
-                </p>
-              </div>
-            </div>
-          )}
-
           <FormInput
             label="What is this for?"
             required
@@ -295,88 +274,113 @@ export default function AddEntryDialog({
             {...register("description")}
           />
 
-          {/* Optional Multi-Fuel Items */}
-          <div className="rounded-xl border border-hairline bg-surface-2/40 p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
-                Fuel Parameters (Optional)
-              </p>
-              <button
-                type="button"
-                onClick={addFuelItem}
-                className="text-xs font-semibold text-fuel-amber hover:underline cursor-pointer"
-              >
-                + Add Multiple Fuel Types
-              </button>
-            </div>
-
-            {fuelItems.length === 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FormSelect
-                  label="Fuel Type"
-                  options={FUEL_OPTIONS}
-                  {...register("fuel_type")}
-                />
-                <FormInput
-                  type="number"
-                  step="0.001"
-                  label="Quantity (Liters)"
-                  placeholder="e.g. 50"
-                  {...register("quantity_liters")}
-                />
-                <FormInput
-                  type="number"
-                  step="0.01"
-                  label="Rate / Liter (₹)"
-                  placeholder="e.g. 100.00"
-                  {...register("rate_per_liter")}
-                />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {fuelItems.map((item) => (
-                  <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end bg-card p-2 rounded-lg border border-hairline">
-                    <FormSelect
-                      label="Fuel Type"
-                      options={FUEL_OPTIONS.filter((o) => o.value !== "")}
-                      value={item.fuel_type}
-                      onChange={(e) => updateFuelItem(item.id, "fuel_type", e.target.value)}
-                    />
-                    <FormInput
-                      type="number"
-                      step="0.001"
-                      label="Liters"
-                      placeholder="e.g. 50"
-                      value={item.quantity_liters}
-                      onChange={(e) => updateFuelItem(item.id, "quantity_liters", e.target.value)}
-                    />
-                    <FormInput
-                      type="number"
-                      step="0.01"
-                      label="Rate/L (₹)"
-                      placeholder="e.g. 100"
-                      value={item.rate_per_liter}
-                      onChange={(e) => updateFuelItem(item.id, "rate_per_liter", e.target.value)}
-                    />
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold text-ink">
-                        ₹{((Number(item.quantity_liters) || 0) * (Number(item.rate_per_liter) || 0)).toFixed(2)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeFuelItem(item.id)}
-                        className="text-xs text-error hover:underline ml-auto"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Free-text category with autocomplete. Moved directly below "What is this for?" */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+              Category (optional)
+            </label>
+            <input
+              list="entry-categories"
+              placeholder="e.g. Fuel, Oil / Lubricants, Scrap sale, Expense"
+              className="w-full rounded-xl border border-hairline bg-surface-2 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-tertiary focus:border-fuel-amber/50 focus:ring-2 focus:ring-fuel-amber/20"
+              {...register("category")}
+            />
+            <datalist id="entry-categories">
+              <option value="Fuel" />
+              <option value="Oil / Lubricants" />
+              <option value="Scrap sale" />
+              <option value="Expense" />
+              <option value="Misc sale" />
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Optional Multi-Fuel Items: Shown only when Category is 'Fuel' (or fuel items are already added) */}
+          {(Boolean(watchCategory?.toLowerCase().includes("fuel")) || fuelItems.length > 0) && (
+            <div className="rounded-xl border border-hairline bg-surface-2/40 p-3 space-y-3 animate-fade-in-up">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+                  Fuel Parameters (Optional)
+                </p>
+                <button
+                  type="button"
+                  onClick={addFuelItem}
+                  className="text-xs font-semibold text-fuel-amber hover:underline cursor-pointer"
+                >
+                  + Add Multiple Fuel Types
+                </button>
+              </div>
+
+              {fuelItems.length === 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <FormSelect
+                    label="Fuel Type"
+                    options={FUEL_OPTIONS}
+                    {...register("fuel_type")}
+                  />
+                  <FormInput
+                    type="number"
+                    step="0.001"
+                    label="Quantity (Liters)"
+                    placeholder="e.g. 50"
+                    {...register("quantity_liters")}
+                  />
+                  <FormInput
+                    type="number"
+                    step="0.01"
+                    label="Rate / Liter (₹)"
+                    placeholder="e.g. 100.00"
+                    {...register("rate_per_liter")}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {fuelItems.map((item) => (
+                    <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end bg-card p-2 rounded-lg border border-hairline">
+                      <FormSelect
+                        label="Fuel Type"
+                        options={FUEL_OPTIONS.filter((o) => o.value !== "")}
+                        value={item.fuel_type}
+                        onChange={(e) => updateFuelItem(item.id, "fuel_type", e.target.value)}
+                      />
+                      <FormInput
+                        type="number"
+                        step="0.001"
+                        label="Liters"
+                        placeholder="e.g. 50"
+                        value={item.quantity_liters}
+                        onChange={(e) => updateFuelItem(item.id, "quantity_liters", e.target.value)}
+                      />
+                      <FormInput
+                        type="number"
+                        step="0.01"
+                        label="Rate/L (₹)"
+                        placeholder="e.g. 100"
+                        value={item.rate_per_liter}
+                        onChange={(e) => updateFuelItem(item.id, "rate_per_liter", e.target.value)}
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-ink">
+                          ₹{((Number(item.quantity_liters) || 0) * (Number(item.rate_per_liter) || 0)).toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeFuelItem(item.id)}
+                          className="text-xs text-error hover:underline ml-auto"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <FormInput
                 type="number"
@@ -406,24 +410,6 @@ export default function AddEntryDialog({
               error={errors.income_date?.message}
               {...register("income_date")}
             />
-
-            {/* Free-text category with autocomplete of prior categories. */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
-                Category (optional)
-              </label>
-              <input
-                list="entry-categories"
-                placeholder="e.g. Expense, Misc sale"
-                className="w-full rounded-xl border border-hairline bg-surface-2 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-tertiary focus:border-fuel-amber/50 focus:ring-2 focus:ring-fuel-amber/20"
-                {...register("category")}
-              />
-              <datalist id="entry-categories">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
           </div>
 
           {/* Lending — expense only. Links the expense to a customer so the

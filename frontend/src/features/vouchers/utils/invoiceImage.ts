@@ -6,6 +6,19 @@
  * serves the `storage/` directory at `/storage`. We normalize slashes,
  * ensure the path is rooted at `/storage`, and prefix the full origin.
  */
+function getViteApiBaseUrl(): string {
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== "undefined" && import.meta?.env?.VITE_API_BASE_URL) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_BASE_URL;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
 export function invoiceImageUrl(
   imagePath: string | null | undefined
 ): string | null {
@@ -32,7 +45,7 @@ export function invoiceImageUrl(
 
   // VITE_API_BASE_URL typically ends with /api/v1. Strip it to get origin server root,
   // because static storage is mounted at /storage at the root of the API server.
-  const rawBase = import.meta.env.VITE_API_BASE_URL || "";
+  const rawBase = getViteApiBaseUrl();
   const baseUrl = rawBase.replace(/\/api\/v1\/?$/i, "").replace(/\/+$/, "");
 
   const origin = baseUrl || (typeof window !== "undefined" ? window.location.origin : "");

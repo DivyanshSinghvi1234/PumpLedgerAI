@@ -44,6 +44,16 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   // Which nozzles have the 6 AM interim reading row expanded
   const [expanded6am, setExpanded6am] = useState<Record<string, boolean>>({});
 
+  // Persistent nozzle custom display order saved in localStorage
+  const [customNozzleOrder, setCustomNozzleOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("meter_nozzle_custom_order");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Query: bulk form readings for the selected date
   const {
     data: bulkForm,
@@ -55,6 +65,39 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     queryKey: ["bulkReadings", readingsDate],
     queryFn: () => inventoryService.getBulkReadingsForm(readingsDate),
   });
+
+  // Sort bulk form items according to customNozzleOrder, placing any newly added nozzles at the end
+  const sortedBulkItems = useMemo(() => {
+    if (!bulkForm?.items) return [];
+
+    const itemsCopy = [...bulkForm.items];
+    const orderMap = new Map(customNozzleOrder.map((uuid, idx) => [uuid, idx]));
+
+    return itemsCopy.sort((a, b) => {
+      const idxA = orderMap.has(a.nozzle_uuid) ? (orderMap.get(a.nozzle_uuid) as number) : 999999;
+      const idxB = orderMap.has(b.nozzle_uuid) ? (orderMap.get(b.nozzle_uuid) as number) : 999999;
+
+      if (idxA !== idxB) {
+        return idxA - idxB;
+      }
+      return a.dispenser_name.localeCompare(b.dispenser_name) || a.nozzle_name.localeCompare(b.nozzle_name);
+    });
+  }, [bulkForm, customNozzleOrder]);
+
+  const moveNozzle = (currentIndex: number, direction: "up" | "down") => {
+    if (!sortedBulkItems || sortedBulkItems.length === 0) return;
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= sortedBulkItems.length) return;
+
+    const reordered = [...sortedBulkItems];
+    const temp = reordered[currentIndex];
+    reordered[currentIndex] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    const newUuidOrder = reordered.map((item) => item.nozzle_uuid);
+    setCustomNozzleOrder(newUuidOrder);
+    localStorage.setItem("meter_nozzle_custom_order", JSON.stringify(newUuidOrder));
+  };
 
   // Check if all active nozzles have 6 AM row expanded
   const all6amExpanded = useMemo(() => {
@@ -439,7 +482,10 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-hairline hover:bg-transparent">
-                      <TableHead className="px-5 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
+                      <TableHead className="px-2 text-[11px] font-mono uppercase tracking-wider text-ink-subtle text-center w-16">
+                        Order
+                      </TableHead>
+                      <TableHead className="px-4 text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
                         Dispenser
                       </TableHead>
                       <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle">
@@ -454,7 +500,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                       <TableHead className="text-[11px] font-mono uppercase tracking-wider text-ink-subtle w-36">
                         <div className="flex items-center justify-between gap-1.5">
                           <span>6 AM Reading</span>
-                          {bulkForm && bulkForm.items.length > 0 && (
+                          {sortedBulkItems.length > 0 && (
                             <button
                               type="button"
                               onClick={handleToggleAll6am}
@@ -479,7 +525,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bulkForm.items.map((item, idx) => {
+                    {sortedBulkItems.map((item, idx) => {
                       const stateVals = formItems[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                       const openVal = parseFloat(stateVals.opening.toString() || "0");
                       const closeVal = parseFloat(stateVals.closing.toString() || "0");
@@ -499,7 +545,29 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
 
                       return (
                         <TableRow key={item.nozzle_uuid} className="border-b border-hairline hover:bg-surface-3/35">
-                          <TableCell className="px-5 text-xs font-bold text-ink">
+                          <TableCell className="px-2 py-2 text-center">
+                            <div className="flex items-center justify-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => moveNozzle(idx, "up")}
+                                disabled={idx === 0 || isDisabled}
+                                className="p-1 rounded hover:bg-surface-3 text-ink-muted hover:text-fuel-amber disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors text-[10px] leading-none"
+                                title="Move nozzle up"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveNozzle(idx, "down")}
+                                disabled={idx === sortedBulkItems.length - 1 || isDisabled}
+                                className="p-1 rounded hover:bg-surface-3 text-ink-muted hover:text-fuel-amber disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors text-[10px] leading-none"
+                                title="Move nozzle down"
+                              >
+                                ▼
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-4 text-xs font-bold text-ink">
                             {item.dispenser_name}
                           </TableCell>
                           <TableCell className="text-xs font-semibold text-ink-muted">
