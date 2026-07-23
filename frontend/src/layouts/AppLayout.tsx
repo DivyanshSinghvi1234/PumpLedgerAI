@@ -3,6 +3,7 @@ import { Navigate, Outlet } from "react-router-dom";
 
 import Sidebar from "../components/layout/Sidebar";
 import Navbar from "../components/layout/Navbar";
+import OfflineBanner from "../components/layout/OfflineBanner";
 import { isAuthenticated } from "../features/auth/services/authService";
 
 export default function AppLayout() {
@@ -33,6 +34,7 @@ export default function AppLayout() {
 
       <div className="flex flex-1 flex-col overflow-hidden transition-all duration-300">
         <Navbar onMenuClick={handleToggleSidebar} isSidebarOpen={sidebarOpen} />
+        <OfflineBanner />
 
         <main className="relative flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           {/* Subtle dot-grid background */}

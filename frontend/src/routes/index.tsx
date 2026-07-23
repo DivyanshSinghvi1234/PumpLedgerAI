@@ -5,28 +5,45 @@ import AppLayout from "../layouts/AppLayout";
 import AppErrorPage from "../components/common/AppErrorPage";
 import LoadingState from "../components/common/LoadingState";
 
+// Helper for dynamic chunk loading with automatic cache-buster refresh
+const lazyWithRetry = (componentImport: () => Promise<any>) =>
+  lazy(async () => {
+    const pageRefreshed = sessionStorage.getItem("chunk_retry_refreshed");
+    try {
+      const component = await componentImport();
+      sessionStorage.removeItem("chunk_retry_refreshed");
+      return component;
+    } catch (error) {
+      if (!pageRefreshed) {
+        sessionStorage.setItem("chunk_retry_refreshed", "true");
+        window.location.reload();
+      }
+      throw error;
+    }
+  });
+
 // Code-split page components for fast section & tab switching
-const LoginPage = lazy(() => import("../features/auth/LoginPage"));
-const DashboardPage = lazy(() => import("../features/dashboard/DashboardPage"));
-const UploadPage = lazy(() => import("../features/upload/UploadPage"));
-const OCRReviewPage = lazy(() => import("../features/review/OCRReviewPage"));
-const VoucherListPage = lazy(() => import("../features/vouchers/VoucherListPage"));
-const CustomerListPage = lazy(() => import("../features/customers/CustomerListPage"));
-const VehicleListPage = lazy(() => import("../features/vehicles/VehicleListPage"));
-const VehicleLedgerPage = lazy(() => import("../features/vehicles/VehicleLedgerPage"));
-const PaymentListPage = lazy(() => import("../features/payments/PaymentListPage"));
-const CustomerLedgerPage = lazy(() => import("../features/ledger/CustomerLedgerPage"));
-const CustomerStatementPrint = lazy(() => import("../features/ledger/CustomerStatementPrint"));
-const ReportsPage = lazy(() => import("../features/reports/ReportsPage"));
-const TallyExportPage = lazy(() => import("../features/tally/TallyExportPage"));
-const InventoryPage = lazy(() => import("../features/inventory/InventoryPage"));
-const IncomePage = lazy(() => import("../features/income/IncomePage"));
-const RegisterPage = lazy(() => import("../features/income/RegisterPage"));
-const AuditLogPage = lazy(() => import("../features/audit/AuditLogPage"));
-const UserManagementPage = lazy(() => import("../features/users/UserManagementPage"));
-const AccessDeniedPage = lazy(() => import("../components/auth/AccessDeniedPage"));
-const ProtectedRoute = lazy(() => import("../components/auth/ProtectedRoute"));
-const RatingPage = lazy(() => import("../components/public/RatingPage"));
+const LoginPage = lazyWithRetry(() => import("../features/auth/LoginPage"));
+const DashboardPage = lazyWithRetry(() => import("../features/dashboard/DashboardPage"));
+const UploadPage = lazyWithRetry(() => import("../features/upload/UploadPage"));
+const OCRReviewPage = lazyWithRetry(() => import("../features/review/OCRReviewPage"));
+const VoucherListPage = lazyWithRetry(() => import("../features/vouchers/VoucherListPage"));
+const CustomerListPage = lazyWithRetry(() => import("../features/customers/CustomerListPage"));
+const VehicleListPage = lazyWithRetry(() => import("../features/vehicles/VehicleListPage"));
+const VehicleLedgerPage = lazyWithRetry(() => import("../features/vehicles/VehicleLedgerPage"));
+const PaymentListPage = lazyWithRetry(() => import("../features/payments/PaymentListPage"));
+const CustomerLedgerPage = lazyWithRetry(() => import("../features/ledger/CustomerLedgerPage"));
+const CustomerStatementPrint = lazyWithRetry(() => import("../features/ledger/CustomerStatementPrint"));
+const ReportsPage = lazyWithRetry(() => import("../features/reports/ReportsPage"));
+const TallyExportPage = lazyWithRetry(() => import("../features/tally/TallyExportPage"));
+const InventoryPage = lazyWithRetry(() => import("../features/inventory/InventoryPage"));
+const IncomePage = lazyWithRetry(() => import("../features/income/IncomePage"));
+const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage"));
+const AuditLogPage = lazyWithRetry(() => import("../features/audit/AuditLogPage"));
+const UserManagementPage = lazyWithRetry(() => import("../features/users/UserManagementPage"));
+const AccessDeniedPage = lazyWithRetry(() => import("../components/auth/AccessDeniedPage"));
+const ProtectedRoute = lazyWithRetry(() => import("../components/auth/ProtectedRoute"));
+const RatingPage = lazyWithRetry(() => import("../components/public/RatingPage"));
 
 const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
   <Suspense fallback={<LoadingState />}>{children}</Suspense>
