@@ -239,6 +239,26 @@ export default function IncomePage() {
   const msAmt = msNet * msRate;
   const speedAmt = speedNet * speedRate;
 
+  const calculatedFuelSalesTotal = hsdAmt + msAmt + speedAmt;
+  const effectiveTotalSales = (calculatedFuelSalesTotal > 0)
+    ? calculatedFuelSalesTotal
+    : Number(summary?.total_sales ?? 0);
+
+  const extraIncomesVal = Number(summary?.total_incomes ?? 0);
+  const paymentsVal = Number(summary?.total_payments ?? 0);
+  const upiVal = Number(summary?.total_upi ?? 0);
+  const cardVal = Number(summary?.total_card ?? 0);
+  const creditVal = Number(summary?.total_credit ?? 0);
+  const expensesVal = Number(summary?.total_expenses ?? 0);
+  const depositsVal = Number(summary?.total_deposits ?? 0);
+
+  const nonCashTotal = upiVal + cardVal + creditVal;
+  const netExtraIncomes = Math.max(0, extraIncomesVal - (extraIncomesVal >= nonCashTotal ? nonCashTotal : 0));
+  const effectiveCashInHand = Math.max(
+    0,
+    effectiveTotalSales + netExtraIncomes + paymentsVal - nonCashTotal - expensesVal - depositsVal
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -293,7 +313,7 @@ export default function IncomePage() {
       {/* Headline totals cards */}
       {summaryError ? (
         <p className="rounded-xl border border-error/30 bg-error/5 px-4 py-3 text-sm font-medium text-error">
-          Unable to load the daily summary.
+          Failed to load summary figures. Check backend logs or try again.
         </p>
       ) : summaryLoading ? (
         <LoadingState />
@@ -306,7 +326,7 @@ export default function IncomePage() {
                 Total Sales
               </p>
               <p className="mt-1 text-base sm:text-lg font-bold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
-                ₹{formatMoney(summary.total_sales)}
+                ₹{formatMoney(effectiveTotalSales)}
               </p>
             </div>
             <div className="rounded-2xl border border-hairline bg-card p-4 min-w-0">
@@ -374,7 +394,7 @@ export default function IncomePage() {
                 Cash in Hand
               </p>
               <p className="mt-1 text-lg sm:text-xl font-extrabold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
-                ₹{formatMoney(summary.cash_in_hand)}
+                ₹{formatMoney(effectiveCashInHand)}
               </p>
             </div>
           </div>
