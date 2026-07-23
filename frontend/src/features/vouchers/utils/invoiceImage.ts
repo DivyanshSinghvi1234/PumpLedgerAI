@@ -1,10 +1,10 @@
 /**
- * Build a browser URL for a voucher's stored invoice image.
+ * Build an absolute browser URL for a voucher's stored invoice image.
  *
  * The backend stores `image_path` as a filesystem path like
- * `storage\invoices\abc.jpg` (Windows) or `storage/invoices/abc.jpg`, and
+ * `storage\invoices\abc.jpg` or `storage/invoices/abc.jpg`, and
  * serves the `storage/` directory at `/storage`. We normalize slashes,
- * ensure the path is rooted at `/storage`, and prefix the API origin.
+ * ensure the path is rooted at `/storage`, and prefix the full origin.
  */
 export function invoiceImageUrl(
   imagePath: string | null | undefined
@@ -13,6 +13,9 @@ export function invoiceImageUrl(
 
   // R2 (or any remote storage) returns an absolute URL — use it verbatim.
   if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  // Blob URLs (e.g. local preview before upload) — return verbatim.
+  if (imagePath.startsWith("blob:") || imagePath.startsWith("data:")) return imagePath;
 
   // Normalize Windows backslashes and strip any leading ./ or /
   let p = imagePath.replace(/\\/g, "/").replace(/^\.?\//, "");
@@ -32,5 +35,6 @@ export function invoiceImageUrl(
   const rawBase = import.meta.env.VITE_API_BASE_URL || "";
   const baseUrl = rawBase.replace(/\/api\/v1\/?$/i, "").replace(/\/+$/, "");
 
-  return baseUrl ? `${baseUrl}/${p}` : `/${p}`;
+  const origin = baseUrl || (typeof window !== "undefined" ? window.location.origin : "");
+  return origin ? `${origin}/${p.replace(/^\//, "")}` : `/${p.replace(/^\//, "")}`;
 }

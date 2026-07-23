@@ -246,7 +246,7 @@ export default function DebtorAgingCard() {
                 {formatCurrency(val)}
               </span>
               <span className="text-[10px] text-ink-muted mt-0.5 block">
-                {getPercentage(val.toString()).toFixed(1)}% of total
+                {(getPercentage(val.toString()) || 0).toFixed(1)}% of total
               </span>
             </button>
           );

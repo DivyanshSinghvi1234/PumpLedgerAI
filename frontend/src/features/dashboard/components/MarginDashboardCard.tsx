@@ -190,7 +190,7 @@ export default function MarginDashboardCard() {
                     fontFamily="monospace"
                     textAnchor="end"
                   >
-                    ₹{val.toFixed(0)}
+                    ₹{(val ?? 0).toFixed(0)}
                   </text>
                 </g>
               );
@@ -294,9 +294,9 @@ export default function MarginDashboardCard() {
                       <span className="text-ink-muted capitalize">{f.toLowerCase()}:</span>
                       <span
                         className="font-bold"
-                        style={{ color: margin !== null ? fuelColors[f] : "#71717a" }}
+                        style={{ color: margin != null && !isNaN(margin) ? fuelColors[f] : "#71717a" }}
                       >
-                        {margin !== null ? `₹${margin.toFixed(2)}/L` : "No cost logged"}
+                        {margin != null && !isNaN(margin) ? `₹${Number(margin).toFixed(2)}/L` : "No cost logged"}
                       </span>
                     </div>
                   );
