@@ -498,28 +498,35 @@ class IncomeService:
             .where(Income.is_active == True)
             .group_by(Income.payment_mode)
         ).all()
+        def _get_mode_val(d: dict, mode: PaymentMode) -> Decimal:
+            if mode in d:
+                return d[mode]
+            if mode.value in d:
+                return d[mode.value]
+            return Decimal("0.00")
+
         sale_income_by_mode = {mode: Decimal(str(amt)) for mode, amt in non_cash_sale_income_rows}
 
-        income_upi = income_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
-        income_card = income_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
-        income_credit = income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        income_upi = _get_mode_val(income_by_mode, PaymentMode.UPI)
+        income_card = _get_mode_val(income_by_mode, PaymentMode.CARD)
+        income_credit = _get_mode_val(income_by_mode, PaymentMode.CREDIT)
 
-        payment_upi = payment_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
-        payment_card = payment_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
-        payment_credit = payment_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        payment_upi = _get_mode_val(payment_by_mode, PaymentMode.UPI)
+        payment_card = _get_mode_val(payment_by_mode, PaymentMode.CARD)
+        payment_credit = _get_mode_val(payment_by_mode, PaymentMode.CREDIT)
 
-        voucher_upi = voucher_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
-        voucher_card = voucher_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
-        voucher_credit = voucher_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        voucher_upi = _get_mode_val(voucher_by_mode, PaymentMode.UPI)
+        voucher_card = _get_mode_val(voucher_by_mode, PaymentMode.CARD)
+        voucher_credit = _get_mode_val(voucher_by_mode, PaymentMode.CREDIT)
 
         total_upi = (income_upi + payment_upi + voucher_upi).quantize(Decimal("0.01"))
         total_card = (income_card + payment_card + voucher_card).quantize(Decimal("0.01"))
         total_credit = (income_credit + payment_credit + voucher_credit).quantize(Decimal("0.01"))
 
         # Non-cash sales (from fuel vouchers + counter sales marked as is_sale = True)
-        sale_upi = voucher_upi + sale_income_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
-        sale_card = voucher_card + sale_income_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
-        sale_credit = voucher_credit + sale_income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        sale_upi = voucher_upi + _get_mode_val(sale_income_by_mode, PaymentMode.UPI)
+        sale_card = voucher_card + _get_mode_val(sale_income_by_mode, PaymentMode.CARD)
+        sale_credit = voucher_credit + _get_mode_val(sale_income_by_mode, PaymentMode.CREDIT)
         total_non_cash_sales = sale_upi + sale_card + sale_credit
 
         # Cash sales from fuel pumps & counter sales
@@ -529,9 +536,9 @@ class IncomeService:
         # Cash from non-sale extra incomes (is_sale == False) and customer payments
         other_incomes = total_incomes - sum((amt for mode, amt in sale_income_by_mode.items()), Decimal("0.00"))
         other_income_non_cash = (
-            income_upi - sale_income_by_mode.get(PaymentMode.UPI, Decimal("0.00")) +
-            income_card - sale_income_by_mode.get(PaymentMode.CARD, Decimal("0.00")) +
-            income_credit - sale_income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+            income_upi - _get_mode_val(sale_income_by_mode, PaymentMode.UPI) +
+            income_card - _get_mode_val(sale_income_by_mode, PaymentMode.CARD) +
+            income_credit - _get_mode_val(sale_income_by_mode, PaymentMode.CREDIT)
         )
         cash_incomes = max(Decimal("0.00"), other_incomes - other_income_non_cash)
 
@@ -547,7 +554,7 @@ class IncomeService:
             .group_by(Income.payment_mode)
         ).all()
         expense_by_mode = {mode: Decimal(str(amt)) for mode, amt in expense_mode_rows}
-        cash_expenses = expense_by_mode.get(PaymentMode.CASH, Decimal("0.00"))
+        cash_expenses = _get_mode_val(expense_by_mode, PaymentMode.CASH)
 
         payment_non_cash = payment_upi + payment_card + payment_credit
         cash_payments = max(Decimal("0.00"), total_payments - payment_non_cash)

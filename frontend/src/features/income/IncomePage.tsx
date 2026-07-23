@@ -37,15 +37,27 @@ export default function IncomePage() {
   const canManage = hasRole("ADMIN", "MANAGER");
 
   const [date, setDate] = useState(getTodayDateString());
+
+  // Normalize date string to YYYY-MM-DD for backend API consumption
+  const apiDate = useMemo(() => {
+    if (!date) return getTodayDateString();
+    const str = date.trim();
+    if (/^\d{2}-\d{2}-\d{4}$/.test(str)) {
+      const [d, m, y] = str.split("-");
+      return `${y}-${m}-${d}`;
+    }
+    return str;
+  }, [date]);
+
   const queryClient = useQueryClient();
   const { data: nozzleData } = useQuery({
-    queryKey: ["nozzleReadingsBulkForm", date],
-    queryFn: () => inventoryService.getBulkReadingsForm(date),
+    queryKey: ["nozzleReadingsBulkForm", apiDate],
+    queryFn: () => inventoryService.getBulkReadingsForm(apiDate),
   });
 
   const { data: paymentsData } = useQuery({
-    queryKey: ["paymentsList", date],
-    queryFn: () => paymentService.getPayments({ payment_date: date, page_size: 100 }),
+    queryKey: ["paymentsList", apiDate],
+    queryFn: () => paymentService.getPayments({ payment_date: apiDate, page_size: 100 }),
   });
 
   // Helper to normalize fuel type strings

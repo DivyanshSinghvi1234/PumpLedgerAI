@@ -1,38 +1,46 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 
 import AppLayout from "../layouts/AppLayout";
-import LoginPage from "../features/auth/LoginPage";
-import DashboardPage from "../features/dashboard/DashboardPage";
-import UploadPage from "../features/upload/UploadPage";
-import OCRReviewPage from "../features/review/OCRReviewPage";
-import VoucherListPage from "../features/vouchers/VoucherListPage";
-import CustomerListPage from "../features/customers/CustomerListPage";
-import VehicleListPage from "../features/vehicles/VehicleListPage";
-import VehicleLedgerPage from "../features/vehicles/VehicleLedgerPage";
-import PaymentListPage from "../features/payments/PaymentListPage";
-import CustomerLedgerPage from "../features/ledger/CustomerLedgerPage";
-import CustomerStatementPrint from "../features/ledger/CustomerStatementPrint";
-import ReportsPage from "../features/reports/ReportsPage";
-import TallyExportPage from "../features/tally/TallyExportPage";
-import InventoryPage from "../features/inventory/InventoryPage";
-import IncomePage from "../features/income/IncomePage";
-import RegisterPage from "../features/income/RegisterPage";
-import AuditLogPage from "../features/audit/AuditLogPage";
-import UserManagementPage from "../features/users/UserManagementPage";
 import AppErrorPage from "../components/common/AppErrorPage";
-import AccessDeniedPage from "../components/auth/AccessDeniedPage";
-import ProtectedRoute from "../components/auth/ProtectedRoute";
-import RatingPage from "../components/public/RatingPage";
+import LoadingState from "../components/common/LoadingState";
+
+// Code-split page components for fast section & tab switching
+const LoginPage = lazy(() => import("../features/auth/LoginPage"));
+const DashboardPage = lazy(() => import("../features/dashboard/DashboardPage"));
+const UploadPage = lazy(() => import("../features/upload/UploadPage"));
+const OCRReviewPage = lazy(() => import("../features/review/OCRReviewPage"));
+const VoucherListPage = lazy(() => import("../features/vouchers/VoucherListPage"));
+const CustomerListPage = lazy(() => import("../features/customers/CustomerListPage"));
+const VehicleListPage = lazy(() => import("../features/vehicles/VehicleListPage"));
+const VehicleLedgerPage = lazy(() => import("../features/vehicles/VehicleLedgerPage"));
+const PaymentListPage = lazy(() => import("../features/payments/PaymentListPage"));
+const CustomerLedgerPage = lazy(() => import("../features/ledger/CustomerLedgerPage"));
+const CustomerStatementPrint = lazy(() => import("../features/ledger/CustomerStatementPrint"));
+const ReportsPage = lazy(() => import("../features/reports/ReportsPage"));
+const TallyExportPage = lazy(() => import("../features/tally/TallyExportPage"));
+const InventoryPage = lazy(() => import("../features/inventory/InventoryPage"));
+const IncomePage = lazy(() => import("../features/income/IncomePage"));
+const RegisterPage = lazy(() => import("../features/income/RegisterPage"));
+const AuditLogPage = lazy(() => import("../features/audit/AuditLogPage"));
+const UserManagementPage = lazy(() => import("../features/users/UserManagementPage"));
+const AccessDeniedPage = lazy(() => import("../components/auth/AccessDeniedPage"));
+const ProtectedRoute = lazy(() => import("../components/auth/ProtectedRoute"));
+const RatingPage = lazy(() => import("../components/public/RatingPage"));
+
+const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
+  <Suspense fallback={<LoadingState />}>{children}</Suspense>
+);
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <LoginPage />,
+    element: <SuspenseWrapper><LoginPage /></SuspenseWrapper>,
     errorElement: <AppErrorPage />,
   },
   {
     path: "/login",
-    element: <LoginPage />,
+    element: <SuspenseWrapper><LoginPage /></SuspenseWrapper>,
     errorElement: <AppErrorPage />,
   },
   {
@@ -43,23 +51,23 @@ const router = createBrowserRouter([
       /* ─── Open to ALL authenticated roles ─── */
       {
         index: true,
-        element: <DashboardPage />,
+        element: <SuspenseWrapper><DashboardPage /></SuspenseWrapper>,
       },
       {
         path: "upload",
-        element: <UploadPage />,
+        element: <SuspenseWrapper><UploadPage /></SuspenseWrapper>,
       },
       {
         path: "review",
-        element: <OCRReviewPage />,
+        element: <SuspenseWrapper><OCRReviewPage /></SuspenseWrapper>,
       },
       {
         path: "vouchers",
-        element: <VoucherListPage />,
+        element: <SuspenseWrapper><VoucherListPage /></SuspenseWrapper>,
       },
       {
         path: "access-denied",
-        element: <AccessDeniedPage />,
+        element: <SuspenseWrapper><AccessDeniedPage /></SuspenseWrapper>,
       },
 
       /* ─── Manager + Admin ─── */
@@ -68,47 +76,47 @@ const router = createBrowserRouter([
         children: [
           {
             path: "customers",
-            element: <CustomerListPage />,
+            element: <SuspenseWrapper><CustomerListPage /></SuspenseWrapper>,
           },
           {
             path: "customers/:customerUuid/ledger",
-            element: <CustomerLedgerPage />,
+            element: <SuspenseWrapper><CustomerLedgerPage /></SuspenseWrapper>,
           },
           {
             path: "vehicles",
-            element: <VehicleListPage />,
+            element: <SuspenseWrapper><VehicleListPage /></SuspenseWrapper>,
           },
           {
             path: "vehicles/:vehicleUuid/ledger",
-            element: <VehicleLedgerPage />,
+            element: <SuspenseWrapper><VehicleLedgerPage /></SuspenseWrapper>,
           },
           {
             path: "payments",
-            element: <PaymentListPage />,
+            element: <SuspenseWrapper><PaymentListPage /></SuspenseWrapper>,
           },
           {
             path: "reports",
-            element: <ReportsPage />,
+            element: <SuspenseWrapper><ReportsPage /></SuspenseWrapper>,
           },
           {
             path: "tally",
-            element: <TallyExportPage />,
+            element: <SuspenseWrapper><TallyExportPage /></SuspenseWrapper>,
           },
           {
             path: "inventory",
-            element: <InventoryPage />,
+            element: <SuspenseWrapper><InventoryPage /></SuspenseWrapper>,
           },
           {
             path: "income",
-            element: <IncomePage />,
+            element: <SuspenseWrapper><IncomePage /></SuspenseWrapper>,
           },
           {
             path: "register",
-            element: <RegisterPage />,
+            element: <SuspenseWrapper><RegisterPage /></SuspenseWrapper>,
           },
           {
             path: "audit",
-            element: <AuditLogPage />,
+            element: <SuspenseWrapper><AuditLogPage /></SuspenseWrapper>,
           },
         ],
       },
@@ -119,7 +127,7 @@ const router = createBrowserRouter([
         children: [
           {
             path: "users",
-            element: <UserManagementPage />,
+            element: <SuspenseWrapper><UserManagementPage /></SuspenseWrapper>,
           },
         ],
       },
@@ -143,13 +151,13 @@ const router = createBrowserRouter([
     children: [
       {
         path: "",
-        element: <CustomerStatementPrint />,
+        element: <SuspenseWrapper><CustomerStatementPrint /></SuspenseWrapper>,
       },
     ],
   },
   {
     path: "/public/rate/:token",
-    element: <RatingPage />,
+    element: <SuspenseWrapper><RatingPage /></SuspenseWrapper>,
     errorElement: <AppErrorPage />,
   },
   {
