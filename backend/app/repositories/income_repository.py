@@ -87,7 +87,19 @@ class IncomeRepository(BaseRepository[Income]):
             )
             .group_by(Income.kind)
         ).all()
-        return {kind: total for kind, total in rows}
+        result: dict = {}
+        for kind, total in rows:
+            if kind is None:
+                continue
+            result[kind] = total
+            if hasattr(kind, "value"):
+                result[kind.value] = total
+            else:
+                try:
+                    result[IncomeKind(kind)] = total
+                except Exception:
+                    pass
+        return result
 
     def distinct_categories(self, db: Session) -> list[str]:
         """Previously-used category names, for the frontend autocomplete."""
