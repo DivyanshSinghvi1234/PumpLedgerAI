@@ -524,7 +524,7 @@ class IncomeService:
         total_credit = (income_credit + payment_credit + voucher_credit).quantize(Decimal("0.01"))
         total_non_cash = total_upi + total_card + total_credit
 
-        # Expense breakdown by payment mode (only CASH mode expenses reduce physical Cash in Hand)
+        # Expense breakdown by payment mode (All expenses reduce Cash in Hand UNLESS paid via non-cash mode UPI/Card/Credit)
         expense_mode_rows = db.execute(
             select(
                 Income.payment_mode,
@@ -535,8 +535,14 @@ class IncomeService:
             .where(Income.is_active == True)
             .group_by(Income.payment_mode)
         ).all()
-        expense_by_mode = {mode: Decimal(str(amt)) for mode, amt in expense_mode_rows}
-        cash_expenses = _get_mode_val(expense_by_mode, PaymentMode.CASH)
+        non_cash_expenses = Decimal("0.00")
+        for mode, amt in expense_mode_rows:
+            m_str = str(mode.value if hasattr(mode, "value") else mode).upper()
+            if m_str in ["UPI", "CARD", "CREDIT"]:
+                non_cash_expenses += Decimal(str(amt))
+
+        # Cash expenses = Total Expenses minus non-cash expenses (UPI / Card / Credit)
+        cash_expenses = max(Decimal("0.00"), (total_expenses - non_cash_expenses).quantize(Decimal("0.01")))
 
         # Sum of non-sale extra incomes (e.g. shop rent, decanting fee, scrap sales)
         extra_incomes = Decimal(

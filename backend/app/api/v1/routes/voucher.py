@@ -35,8 +35,10 @@ from app.schemas.voucher import (
 from app.services.voucher_service import VoucherService
 from app.schemas.payment import VoucherSettleRequest
 from app.services.voucher_payment_service import VoucherPaymentService
+from app.services.storage_service import StorageService
 
 voucher_payment_service = VoucherPaymentService()
+storage_service = StorageService()
 
 router = APIRouter(
     prefix="/vouchers",
@@ -179,6 +181,10 @@ def get_vouchers(
         (total + page_size - 1) // page_size,
     )
 
+    for v in items:
+        if v.image_path:
+            v.image_path = storage_service.get_presigned_url(v.image_path)
+
     return VoucherListResponse(
         items=items,
         pagination=PaginationResponse(
@@ -201,10 +207,13 @@ def get_voucher(
     db: Session = Depends(get_db),
 ):
     try:
-        return service.get_by_uuid(
+        voucher = service.get_by_uuid(
             db,
             voucher_uuid,
         )
+        if voucher and voucher.image_path:
+            voucher.image_path = storage_service.get_presigned_url(voucher.image_path)
+        return voucher
 
     except VoucherNotFoundError as exc:
         raise HTTPException(

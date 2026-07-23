@@ -29,6 +29,16 @@ const FUEL_OPTIONS = [
   { label: "Lubricant", value: "LUBRICANT" },
 ];
 
+const DEFAULT_CATEGORY_OPTIONS = [
+  { label: "Select Category (optional)", value: "" },
+  { label: "Fuel", value: "Fuel" },
+  { label: "Oil / Lubricants", value: "Oil / Lubricants" },
+  { label: "Expense", value: "Expense" },
+  { label: "Misc sale", value: "Misc sale" },
+  { label: "Scrap sale", value: "Scrap sale" },
+  { label: "Rent", value: "Rent" },
+];
+
 const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
   { label: "Cash", value: "CASH" },
   { label: "UPI", value: "UPI" },
@@ -117,6 +127,13 @@ export default function AddEntryDialog({
   const watchQty = watch("quantity_liters");
   const watchRate = watch("rate_per_liter");
   const watchCategory = watch("category");
+
+  const categoryOptions = useMemo(() => {
+    const custom = (categories || [])
+      .filter((c) => !DEFAULT_CATEGORY_OPTIONS.some((b) => b.value.toLowerCase() === c.toLowerCase()))
+      .map((c) => ({ label: c, value: c }));
+    return [...DEFAULT_CATEGORY_OPTIONS, ...custom];
+  }, [categories]);
 
   // Calculate sum of fuel items if present, or single qty * rate
   const calculatedFuelSum = useMemo(() => {
@@ -274,28 +291,13 @@ export default function AddEntryDialog({
             {...register("description")}
           />
 
-          {/* Free-text category with autocomplete. Moved directly below "What is this for?" */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
-              Category (optional)
-            </label>
-            <input
-              list="entry-categories"
-              placeholder="e.g. Fuel, Oil / Lubricants, Scrap sale, Expense"
-              className="w-full rounded-xl border border-hairline bg-surface-2 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-tertiary focus:border-fuel-amber/50 focus:ring-2 focus:ring-fuel-amber/20"
-              {...register("category")}
-            />
-            <datalist id="entry-categories">
-              <option value="Fuel" />
-              <option value="Oil / Lubricants" />
-              <option value="Scrap sale" />
-              <option value="Expense" />
-              <option value="Misc sale" />
-              {categories.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </div>
+          {/* Standard FormSelect dropdown for Category */}
+          <FormSelect
+            label="Category (optional)"
+            options={categoryOptions}
+            error={errors.category?.message}
+            {...register("category")}
+          />
 
           {/* Optional Multi-Fuel Items: Shown only when Category is 'Fuel' (or fuel items are already added) */}
           {(Boolean(watchCategory?.toLowerCase().includes("fuel")) || fuelItems.length > 0) && (
