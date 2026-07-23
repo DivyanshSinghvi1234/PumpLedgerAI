@@ -538,11 +538,26 @@ class IncomeService:
         expense_by_mode = {mode: Decimal(str(amt)) for mode, amt in expense_mode_rows}
         cash_expenses = _get_mode_val(expense_by_mode, PaymentMode.CASH)
 
+        # Sum of non-sale extra incomes (e.g. shop rent, decanting fee, scrap sales)
+        extra_incomes = Decimal(
+            str(
+                db.scalar(
+                    select(func.coalesce(func.sum(Income.amount), 0))
+                    .where(Income.income_date == on_date)
+                    .where(Income.kind == IncomeKind.INCOME)
+                    .where(Income.is_sale == False)
+                    .where(Income.is_active == True)
+                )
+                or 0
+            )
+        ).quantize(Decimal("0.01"))
+
         # Cash in Hand formula:
-        # Total Inflows (Meter Sales + Extra Revenues + Customer Payments Received)
-        # Minus Non-Cash Collections (UPI + Card + Credit given)
-        # Minus Cash Expenses paid out and Bank Deposits made
-        total_inflows = total_sales + total_incomes + total_payments
+        # All nozzle meter sales (total_sales) are assumed to be cash initially.
+        # Direct sales & vouchers with non-cash modes (UPI, Card, Credit) deduct from Cash in Hand.
+        # Plus Extra Non-Sale Incomes and Customer Payments Received.
+        # Minus Cash Expenses paid out and Bank Deposits made.
+        total_inflows = total_sales + extra_incomes + total_payments
         cash_in_hand = max(
             Decimal("0.00"),
             (total_inflows - total_non_cash - cash_expenses - total_deposits).quantize(Decimal("0.01"))
