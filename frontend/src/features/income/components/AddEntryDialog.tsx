@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -388,7 +388,7 @@ export default function AddEntryDialog({
               />
               {isMismatch && (
                 <p className="mt-1 text-xs text-amber-500 font-semibold flex items-center gap-1">
-                  <span>⚠️ Handwritten amount (₹{watchAmount}) differs from calculated total (₹{calculatedFuelSum.toFixed(2)}). Will be flagged as Mismatch.</span>
+                  <span>⚠️ Handwritten amount (₹{String(watchAmount ?? "")}) differs from calculated total (₹{calculatedFuelSum.toFixed(2)}). Will be flagged as Mismatch.</span>
                 </p>
               )}
             </div>
