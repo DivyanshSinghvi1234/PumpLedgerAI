@@ -173,8 +173,15 @@ export default function IncomePage() {
 
   const deleteMutation = useDeleteIncome();
 
-  // Split the single list into income, expense, and deposit rows, merging customer payments into revenues.
-  const { incomeRows, expenseRows, depositRows } = useMemo(() => {
+  // Payment mode sorting helper: Credit (1) -> UPI (2) -> Card (3) -> Cash (4)
+  const MODE_ORDER: Record<string, number> = {
+    CREDIT: 1,
+    UPI: 2,
+    CARD: 3,
+    CASH: 4,
+  };
+
+  const { nonCashIncomeRows, cashIncomeRows, sortedExpenseRows, depositRows } = useMemo(() => {
     const items = incomeData?.items ?? [];
     const rawIncomes = items.filter((i) => i.kind === "INCOME");
 
@@ -190,10 +197,36 @@ export default function IncomePage() {
       customer_name: p.customer_name,
     }));
 
+    const allIncomes = [...rawIncomes, ...paymentItems];
+
+    // Non-Cash / Credit Incomes for left side, sorted: CREDIT -> UPI -> CARD
+    const nonCashIncomes = allIncomes
+      .filter((i) => (i.payment_mode || "").toUpperCase() !== "CASH")
+      .sort((a, b) => {
+        const orderA = MODE_ORDER[(a.payment_mode || "").toUpperCase()] || 99;
+        const orderB = MODE_ORDER[(b.payment_mode || "").toUpperCase()] || 99;
+        return orderA - orderB;
+      });
+
+    // Cash Incomes for right side below Speed card
+    const cashIncomes = allIncomes.filter((i) => (i.payment_mode || "").toUpperCase() === "CASH");
+
+    // Expenses sorted: CREDIT -> UPI -> CARD -> CASH
+    const expenses = items
+      .filter((i) => i.kind === "EXPENSE")
+      .sort((a, b) => {
+        const orderA = MODE_ORDER[(a.payment_mode || "").toUpperCase()] || 99;
+        const orderB = MODE_ORDER[(b.payment_mode || "").toUpperCase()] || 99;
+        return orderA - orderB;
+      });
+
+    const deposits = items.filter((i) => i.kind === "DEPOSIT");
+
     return {
-      incomeRows: [...rawIncomes, ...paymentItems],
-      expenseRows: items.filter((i) => i.kind === "EXPENSE"),
-      depositRows: items.filter((i) => i.kind === "DEPOSIT"),
+      nonCashIncomeRows: nonCashIncomes,
+      cashIncomeRows: cashIncomes,
+      sortedExpenseRows: expenses,
+      depositRows: deposits,
     };
   }, [incomeData, paymentsData]);
 
@@ -404,77 +437,93 @@ export default function IncomePage() {
       {/* Cash Denomination Calculator Card */}
       <CashDenominationsCard notes={notes} onChange={handleNotesChange} />
 
-      {/* Fuel sales by type */}
-      {summary && (
-        <div className="rounded-2xl border border-hairline bg-card overflow-hidden">
-          <div className="border-b border-hairline px-5 py-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink">Fuel Sales by Type</h3>
-            <span className="text-xs font-mono font-bold text-fuel-amber bg-fuel-amber/10 px-3 py-1.5 rounded-xl">
-              Total Sales: ₹{formatMoney(hsdAmt + msAmt + speedAmt)}
-            </span>
-          </div>
-          <div className="p-5 space-y-4 bg-surface-2/40 font-mono">
-            {[
-              { label: "H.S.D", raw: hsdRaw, testing: hsdTesting, net: hsdNet, rate: hsdRate, amt: hsdAmt },
-              { label: "M.S", raw: msRaw, testing: msTesting, net: msNet, rate: msRate, amt: msAmt },
-              { label: "Speed", raw: speedRaw, testing: speedTesting, net: speedNet, rate: speedRate, amt: speedAmt },
-            ].map(({ label, raw, testing, net, rate, amt }) => (
-              <div
-                key={label}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hairline/45 pb-3 last:border-none last:pb-0 text-xs sm:text-sm text-ink-muted"
-              >
-                <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                  <span className="font-bold text-ink w-16 text-left">{label}</span>
-                  <span>= {raw.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 3 })}</span>
-                  <span className="text-error font-medium">- {testing.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                  <span className="font-bold text-ink">= {net.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 3 })} L</span>
-                  <span className="text-fuel-amber font-bold">× {rate.toFixed(2)}</span>
-                </div>
-                <span className="font-bold text-neutral-800 text-right min-w-[100px]">
-                  ₹{formatMoney(amt)}
+      {/* Daily Register Content Columns: Left (Non-cash Revenues, Expenses, Deposits) vs Right (Fuel Sales & Cash Revenues) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* LEFT HAND SIDE: Revenues (Credit, UPI, Card) -> Expenses (Credit, UPI, Card, Cash) -> Deposits */}
+        <div className="space-y-6">
+          <EntryList
+            title="Revenues (Credit / UPI / Card)"
+            rows={nonCashIncomeRows}
+            emptyText="No credit/UPI/card revenues recorded for this date."
+            isError={listError}
+            isLoading={listLoading}
+            canManage={canManage}
+            onDelete={handleDelete}
+            onEdit={setIncomeToEdit}
+          />
+
+          <EntryList
+            title="Expenses"
+            rows={sortedExpenseRows}
+            emptyText="No expenses recorded for this date."
+            isError={listError}
+            isLoading={listLoading}
+            canManage={canManage}
+            onDelete={handleDelete}
+            onEdit={setIncomeToEdit}
+            showCustomer
+          />
+
+          <EntryList
+            title="Deposits to Bank"
+            rows={depositRows}
+            emptyText="No bank deposits recorded for this date."
+            isError={listError}
+            isLoading={listLoading}
+            canManage={canManage}
+            onDelete={handleDelete}
+            onEdit={setIncomeToEdit}
+          />
+        </div>
+
+        {/* RIGHT HAND SIDE: Fuel Sales by Type -> Revenue in Cash (Below Speed) */}
+        <div className="space-y-6">
+          {summary && (
+            <div className="rounded-2xl border border-hairline bg-card overflow-hidden shadow-sm">
+              <div className="border-b border-hairline px-5 py-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-ink">Fuel Sales by Type</h3>
+                <span className="text-xs font-mono font-bold text-fuel-amber bg-fuel-amber/10 px-3 py-1.5 rounded-xl">
+                  Total Sales: ₹{formatMoney(hsdAmt + msAmt + speedAmt)}
                 </span>
               </div>
-            ))}
-          </div>
+              <div className="p-5 space-y-4 bg-surface-2/40 font-mono">
+                {[
+                  { label: "H.S.D", raw: hsdRaw, testing: hsdTesting, net: hsdNet, rate: hsdRate, amt: hsdAmt },
+                  { label: "M.S", raw: msRaw, testing: msTesting, net: msNet, rate: msRate, amt: msAmt },
+                  { label: "Speed", raw: speedRaw, testing: speedTesting, net: speedNet, rate: speedRate, amt: speedAmt },
+                ].map(({ label, raw, testing, net, rate, amt }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hairline/45 pb-3 last:border-none last:pb-0 text-xs sm:text-sm text-ink-muted"
+                  >
+                    <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+                      <span className="font-bold text-ink w-16 text-left">{label}</span>
+                      <span>= {raw.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 3 })}</span>
+                      <span className="text-error font-medium">- {testing.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                      <span className="font-bold text-ink">= {net.toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 3 })} L</span>
+                      <span className="text-fuel-amber font-bold">× {rate.toFixed(2)}</span>
+                    </div>
+                    <span className="font-bold text-neutral-800 text-right min-w-[100px]">
+                      ₹{formatMoney(amt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <EntryList
+            title="Revenue in Cash"
+            rows={cashIncomeRows}
+            emptyText="No cash revenues recorded for this date."
+            isError={listError}
+            isLoading={listLoading}
+            canManage={canManage}
+            onDelete={handleDelete}
+            onEdit={setIncomeToEdit}
+          />
         </div>
-      )}
-
-      {/* Income + Expense sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EntryList
-          title="Revenues"
-          rows={incomeRows}
-          emptyText="No revenues recorded for this date."
-          isError={listError}
-          isLoading={listLoading}
-          canManage={canManage}
-          onDelete={handleDelete}
-          onEdit={setIncomeToEdit}
-        />
-        <EntryList
-          title="Expenses"
-          rows={expenseRows}
-          emptyText="No expenses recorded for this date."
-          isError={listError}
-          isLoading={listLoading}
-          canManage={canManage}
-          onDelete={handleDelete}
-          onEdit={setIncomeToEdit}
-          showCustomer
-        />
       </div>
-
-      {/* Deposits Section */}
-      <EntryList
-        title="Deposits to Bank"
-        rows={depositRows}
-        emptyText="No bank deposits recorded for this date."
-        isError={listError}
-        isLoading={listLoading}
-        canManage={canManage}
-        onDelete={handleDelete}
-        onEdit={setIncomeToEdit}
-      />
 
       <AddEntryDialog
         kind={incomeToEdit ? incomeToEdit.kind : (entryKind ?? "INCOME")}
