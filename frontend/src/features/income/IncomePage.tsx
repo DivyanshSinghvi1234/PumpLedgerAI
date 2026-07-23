@@ -298,78 +298,85 @@ export default function IncomePage() {
       ) : summaryLoading ? (
         <LoadingState />
       ) : summary ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3">
-          <div className="rounded-2xl border border-hairline bg-card p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
-              Total Sales
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_sales)}
-            </p>
+        <div className="space-y-3">
+          {/* Row 1: Station Overview (Sales, Revenues, Payments, Expenses, Deposits) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="rounded-2xl border border-hairline bg-card p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
+                Total Sales
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_sales)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-hairline bg-card p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
+                Total Revenues
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_incomes)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-hairline bg-card p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
+                Payments Received
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400 min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_payments ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-hairline bg-card p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
+                Total Expenses
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-error min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_expenses)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-hairline bg-card p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
+                Total Deposits
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-ink-muted min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_deposits ?? 0)}
+              </p>
+            </div>
           </div>
-          <div className="rounded-2xl border border-hairline bg-card p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
-              Total Revenues
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_incomes)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-hairline bg-card p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
-              Payments Received
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400 min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_payments ?? 0)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide truncate">
-              UPI Total
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-purple-700 dark:text-purple-300 min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_upi ?? 0)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide truncate">
-              Card Total
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-blue-700 dark:text-blue-300 min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_card ?? 0)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide truncate">
-              Total Credit
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-amber-700 dark:text-amber-300 min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_credit ?? 0)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-hairline bg-card p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
-              Total Expenses
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-error min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_expenses)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-hairline bg-card p-3.5 min-w-0">
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide truncate">
-              Total Deposits
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-bold text-ink-muted min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.total_deposits ?? 0)}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-fuel-amber/40 bg-fuel-amber/10 p-3.5 min-w-0 col-span-2 sm:col-span-1">
-            <p className="text-[11px] font-bold text-fuel-amber uppercase tracking-wide truncate">
-              Cash in Hand
-            </p>
-            <p className="mt-1 text-base sm:text-lg font-extrabold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
-              ₹{formatMoney(summary.cash_in_hand)}
-            </p>
+
+          {/* Row 2: Payment Mode Breakdown & Cash in Hand */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide truncate">
+                UPI Total
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-purple-700 dark:text-purple-300 min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_upi ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide truncate">
+                Card Total
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-blue-700 dark:text-blue-300 min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_card ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 min-w-0">
+              <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide truncate">
+                Total Credit
+              </p>
+              <p className="mt-1 text-base sm:text-lg font-bold text-amber-700 dark:text-amber-300 min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.total_credit ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-fuel-amber/40 bg-fuel-amber/10 p-4 min-w-0 shadow-sm">
+              <p className="text-[11px] font-bold text-fuel-amber uppercase tracking-wide truncate">
+                Cash in Hand
+              </p>
+              <p className="mt-1 text-lg sm:text-xl font-extrabold text-ink min-w-0 break-words whitespace-normal font-mono leading-tight">
+                ₹{formatMoney(summary.cash_in_hand)}
+              </p>
+            </div>
           </div>
         </div>
       ) : null}
