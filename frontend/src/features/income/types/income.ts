@@ -13,6 +13,13 @@ export type FuelType =
 /** INCOME = money in, EXPENSE = money out, DEPOSIT = bank deposit. */
 export type IncomeKind = "INCOME" | "EXPENSE" | "DEPOSIT";
 
+export interface IncomeItem {
+  fuel_type: FuelType;
+  quantity_liters?: number | null;
+  rate_per_liter?: number | null;
+  amount?: number | null;
+}
+
 export interface Income {
   uuid: string;
 
@@ -33,6 +40,12 @@ export interface Income {
   quantity_liters?: number | null;
 
   rate_per_liter?: number | null;
+
+  is_sale?: boolean;
+
+  is_amount_mismatch?: boolean;
+
+  items?: IncomeItem[] | null;
 
   /** Set when an EXPENSE is a loan posted to a customer's ledger. */
   customer_uuid: string | null;
@@ -76,12 +89,12 @@ export interface CreateIncomeRequest {
 
   rate_per_liter?: number | null;
 
-  /**
-   * Optional customer link. Only meaningful for an EXPENSE that is a loan:
-   * the amount is posted as a debit to that customer's ledger. Send
-   * `customer_uuid` for an existing customer, or `customer_name` (with a null
-   * uuid) to have the backend resolve-or-create the customer by name.
-   */
+  is_sale?: boolean;
+
+  is_amount_mismatch?: boolean;
+
+  items?: IncomeItem[] | null;
+
   customer_uuid?: string | null;
 
   customer_name?: string | null;

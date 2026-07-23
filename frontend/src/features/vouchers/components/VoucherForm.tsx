@@ -78,19 +78,6 @@ const voucherSchema = z
         });
       }
     }
-
-    // 2. Vehicle number pattern check (supports State and BH-series formats)
-    if (data.vehicle_number) {
-      const cleaned = data.vehicle_number.replace(/[\s\-.]+/g, "").toUpperCase();
-      const pattern = /^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$/;
-      if (!pattern.test(cleaned)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Invalid Indian registration plate format (traditional state or BH-series)",
-          path: ["vehicle_number"],
-        });
-      }
-    }
   });
 
 type VoucherFormData = z.output<typeof voucherSchema>;
@@ -151,6 +138,13 @@ export default function VoucherForm({
   const diff = Number(Math.abs(Number(totalAmount) - expectedAmount).toFixed(2));
   const isMismatch = Number(qty) > 0 && Number(rate) > 0 && diff > 0.05;
 
+  const isVehicleFormatNonStandard = (() => {
+    if (!vehicleNumber || !vehicleNumber.trim()) return false;
+    const cleaned = vehicleNumber.replace(/[\s\-.]+/g, "").toUpperCase();
+    const pattern = /^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$/;
+    return !pattern.test(cleaned);
+  })();
+
   function submitForm(
     data: VoucherFormData
   ) {
@@ -207,28 +201,33 @@ export default function VoucherForm({
           }}
         />
 
-        <VehicleAutocomplete
-          value={vehicleNumber}
-          error={errors.vehicle_number?.message}
-          onChange={(number, vehicle) => {
-            setValue("vehicle_number", number, {
-              shouldValidate: true,
-            });
-            // Picking an existing vehicle auto-fills its owning customer and
-            // defaults to a credit sale, matching the customer picker.
-            if (vehicle) {
-              setValue("customer_name", vehicle.customer_name, {
+        <div>
+          <VehicleAutocomplete
+            value={vehicleNumber}
+            error={errors.vehicle_number?.message}
+            onChange={(number, vehicle) => {
+              setValue("vehicle_number", number, {
                 shouldValidate: true,
               });
-              setValue("customer_uuid", vehicle.customer_uuid, {
-                shouldValidate: true,
-              });
-              setValue("payment_mode", "CREDIT", {
-                shouldValidate: true,
-              });
-            }
-          }}
-        />
+              if (vehicle) {
+                setValue("customer_name", vehicle.customer_name, {
+                  shouldValidate: true,
+                });
+                setValue("customer_uuid", vehicle.customer_uuid, {
+                  shouldValidate: true,
+                });
+                setValue("payment_mode", "CREDIT", {
+                  shouldValidate: true,
+                });
+              }
+            }}
+          />
+          {isVehicleFormatNonStandard && (
+            <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              ⚠️ Non-standard vehicle format (will still save)
+            </p>
+          )}
+        </div>
 
         <FormSelect
           label="Fuel Type"

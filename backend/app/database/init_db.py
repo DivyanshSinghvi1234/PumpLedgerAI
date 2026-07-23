@@ -188,6 +188,9 @@ def check_and_update_schema() -> None:
             ("incomes", "fuel_type", "VARCHAR(20)"),
             ("incomes", "quantity_liters", "NUMERIC(10,3)"),
             ("incomes", "rate_per_liter", "NUMERIC(10,2)"),
+            ("incomes", "is_sale", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("incomes", "is_amount_mismatch", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("incomes", "items", "JSON"),
         ):
             try:
                 db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))

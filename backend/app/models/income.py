@@ -4,9 +4,11 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import (
+    Boolean,
     Date,
     Enum as SqlEnum,
     ForeignKey,
+    JSON,
     Numeric,
     String,
 )
@@ -89,6 +91,23 @@ class Income(
 
     rate_per_liter: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2),
+        nullable=True,
+    )
+
+    is_sale: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    is_amount_mismatch: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    items: Mapped[list | None] = mapped_column(
+        JSON,
         nullable=True,
     )
 

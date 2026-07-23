@@ -58,6 +58,25 @@ class IncomeService:
             data.customer_name,
         )
 
+        # Calculate amount mismatch if fuel details/items were provided
+        expected_sum = Decimal("0.00")
+        has_calc = False
+
+        if data.items and len(data.items) > 0:
+            for item in data.items:
+                if item.quantity_liters is not None and item.rate_per_liter is not None:
+                    expected_sum += (item.quantity_liters * item.rate_per_liter)
+                    has_calc = True
+        elif data.quantity_liters is not None and data.rate_per_liter is not None:
+            expected_sum = data.quantity_liters * data.rate_per_liter
+            has_calc = True
+
+        is_mismatch = False
+        if has_calc:
+            is_mismatch = abs(expected_sum - data.amount) > Decimal("1.00")
+
+        items_dict = [i.model_dump(mode="json") for i in data.items] if data.items else None
+
         income = Income(
             kind=data.kind,
             income_date=data.income_date,
@@ -68,6 +87,9 @@ class IncomeService:
             fuel_type=data.fuel_type,
             quantity_liters=data.quantity_liters,
             rate_per_liter=data.rate_per_liter,
+            is_sale=data.is_sale,
+            is_amount_mismatch=is_mismatch,
+            items=items_dict,
             customer_id=customer.id if customer else None,
         )
 
@@ -234,6 +256,25 @@ class IncomeService:
             else None
         )
 
+        # Calculate amount mismatch if fuel details/items were provided
+        expected_sum = Decimal("0.00")
+        has_calc = False
+
+        if data.items and len(data.items) > 0:
+            for item in data.items:
+                if item.quantity_liters is not None and item.rate_per_liter is not None:
+                    expected_sum += (item.quantity_liters * item.rate_per_liter)
+                    has_calc = True
+        elif data.quantity_liters is not None and data.rate_per_liter is not None:
+            expected_sum = data.quantity_liters * data.rate_per_liter
+            has_calc = True
+
+        is_mismatch = False
+        if has_calc:
+            is_mismatch = abs(expected_sum - data.amount) > Decimal("1.00")
+
+        items_dict = [i.model_dump(mode="json") for i in data.items] if data.items else None
+
         # Apply basic field updates on the Income row.
         income.kind = data.kind
         income.income_date = data.income_date
@@ -244,6 +285,9 @@ class IncomeService:
         income.fuel_type = data.fuel_type
         income.quantity_liters = data.quantity_liters
         income.rate_per_liter = data.rate_per_liter
+        income.is_sale = data.is_sale
+        income.is_amount_mismatch = is_mismatch
+        income.items = items_dict
         income.customer_id = new_customer.id if new_customer else None
 
         # Manage ledger entry sync when customer links or loan amounts change.
@@ -442,6 +486,20 @@ class IncomeService:
         ).all()
         voucher_by_mode = {mode: Decimal(str(amt)) for mode, amt in voucher_mode_rows}
 
+        # Non-cash counter sales (Income rows where is_sale == True and mode is non-cash)
+        non_cash_sale_income_rows = db.execute(
+            select(
+                Income.payment_mode,
+                func.coalesce(func.sum(Income.amount), 0)
+            )
+            .where(Income.income_date == on_date)
+            .where(Income.kind == IncomeKind.INCOME)
+            .where(Income.is_sale == True)
+            .where(Income.is_active == True)
+            .group_by(Income.payment_mode)
+        ).all()
+        sale_income_by_mode = {mode: Decimal(str(amt)) for mode, amt in non_cash_sale_income_rows}
+
         income_upi = income_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
         income_card = income_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
         income_credit = income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
@@ -458,16 +516,44 @@ class IncomeService:
         total_card = (income_card + payment_card + voucher_card).quantize(Decimal("0.01"))
         total_credit = (income_credit + payment_credit + voucher_credit).quantize(Decimal("0.01"))
 
-        # Cash sales from fuel pumps (meter sales less non-cash fuel sales)
-        non_cash_fuel_vouchers = voucher_upi + voucher_card + voucher_credit
-        cash_fuel_sales = max(Decimal("0.00"), total_sales - non_cash_fuel_vouchers)
+        # Non-cash sales (from fuel vouchers + counter sales marked as is_sale = True)
+        sale_upi = voucher_upi + sale_income_by_mode.get(PaymentMode.UPI, Decimal("0.00"))
+        sale_card = voucher_card + sale_income_by_mode.get(PaymentMode.CARD, Decimal("0.00"))
+        sale_credit = voucher_credit + sale_income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        total_non_cash_sales = sale_upi + sale_card + sale_credit
 
-        # Cash from extra incomes and customer payments
-        cash_incomes = max(Decimal("0.00"), total_incomes - (income_upi + income_card + income_credit))
-        cash_payments = max(Decimal("0.00"), total_payments - (payment_upi + payment_card + payment_credit))
+        # Cash sales from fuel pumps & counter sales
+        gross_sales = total_sales + sum((amt for mode, amt in sale_income_by_mode.items()), Decimal("0.00"))
+        cash_fuel_sales = max(Decimal("0.00"), gross_sales - total_non_cash_sales)
+
+        # Cash from non-sale extra incomes (is_sale == False) and customer payments
+        other_incomes = total_incomes - sum((amt for mode, amt in sale_income_by_mode.items()), Decimal("0.00"))
+        other_income_non_cash = (
+            income_upi - sale_income_by_mode.get(PaymentMode.UPI, Decimal("0.00")) +
+            income_card - sale_income_by_mode.get(PaymentMode.CARD, Decimal("0.00")) +
+            income_credit - sale_income_by_mode.get(PaymentMode.CREDIT, Decimal("0.00"))
+        )
+        cash_incomes = max(Decimal("0.00"), other_incomes - other_income_non_cash)
+
+        # Expense breakdown by payment mode (only CASH mode expenses reduce physical Cash in Hand)
+        expense_mode_rows = db.execute(
+            select(
+                Income.payment_mode,
+                func.coalesce(func.sum(Income.amount), 0)
+            )
+            .where(Income.income_date == on_date)
+            .where(Income.kind == IncomeKind.EXPENSE)
+            .where(Income.is_active == True)
+            .group_by(Income.payment_mode)
+        ).all()
+        expense_by_mode = {mode: Decimal(str(amt)) for mode, amt in expense_mode_rows}
+        cash_expenses = expense_by_mode.get(PaymentMode.CASH, Decimal("0.00"))
+
+        payment_non_cash = payment_upi + payment_card + payment_credit
+        cash_payments = max(Decimal("0.00"), total_payments - payment_non_cash)
 
         cash_in_hand = (
-            cash_fuel_sales + cash_incomes + cash_payments - total_expenses - total_deposits
+            cash_fuel_sales + cash_incomes + cash_payments - cash_expenses - total_deposits
         ).quantize(Decimal("0.01"))
 
         return IncomeSummaryResponse(

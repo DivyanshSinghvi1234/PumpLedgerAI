@@ -84,13 +84,12 @@ class VoucherCreate(VoucherBase):
             if abs(expected - self.total_amount) > Decimal("1.00"):
                 raise ValueError("quantity_liters * rate_per_liter must match total_amount within ₹1")
 
-        # Vehicle number pattern check
+        # Vehicle number cleaning (normalize spaces/hyphens)
         if self.vehicle_number:
             import re
             cleaned = re.sub(r"[\s\-.]+", "", self.vehicle_number).upper()
-            pattern = re.compile(r"^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$")
-            if not pattern.match(cleaned):
-                raise ValueError(f"Vehicle number '{self.vehicle_number}' is not a valid Indian registration plate format.")
+            if cleaned:
+                self.vehicle_number = cleaned
         return self
 
 
@@ -124,13 +123,12 @@ class VoucherUpdate(BaseModel):
             if abs(expected - self.total_amount) > Decimal("1.00"):
                 raise ValueError("quantity_liters * rate_per_liter must match total_amount within ₹1")
 
-        # Vehicle number pattern check
+        # Vehicle number cleaning
         if self.vehicle_number:
             import re
             cleaned = re.sub(r"[\s\-.]+", "", self.vehicle_number).upper()
-            pattern = re.compile(r"^(?:[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}|\d{2}BH\d{4}[A-Z]{1,2})$")
-            if not pattern.match(cleaned):
-                raise ValueError(f"Vehicle number '{self.vehicle_number}' is not a valid Indian registration plate format.")
+            if cleaned:
+                self.vehicle_number = cleaned
         return self
 
 

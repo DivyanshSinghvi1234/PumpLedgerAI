@@ -15,6 +15,13 @@ from app.core.enums import FuelType, IncomeKind, PaymentMode
 # Income / expense row
 # =====================================================
 
+class IncomeItem(BaseModel):
+    fuel_type: FuelType
+    quantity_liters: Decimal | None = Field(default=None, ge=0)
+    rate_per_liter: Decimal | None = Field(default=None, ge=0)
+    amount: Decimal | None = Field(default=None, ge=0)
+
+
 class IncomeBase(BaseModel):
     income_date: date
 
@@ -35,6 +42,12 @@ class IncomeBase(BaseModel):
     quantity_liters: Decimal | None = Field(default=None, ge=0)
 
     rate_per_liter: Decimal | None = Field(default=None, ge=0)
+
+    is_sale: bool = False
+
+    is_amount_mismatch: bool = False
+
+    items: list[IncomeItem] | None = None
 
 
 class IncomeCreate(IncomeBase):
@@ -81,6 +94,9 @@ class IncomeResponse(IncomeBase):
             "fuel_type": getattr(data, "fuel_type", None),
             "quantity_liters": getattr(data, "quantity_liters", None),
             "rate_per_liter": getattr(data, "rate_per_liter", None),
+            "is_sale": getattr(data, "is_sale", False),
+            "is_amount_mismatch": getattr(data, "is_amount_mismatch", False),
+            "items": getattr(data, "items", None),
             "customer_uuid": customer.uuid if customer else None,
             "customer_name": customer.name if customer else None,
         }

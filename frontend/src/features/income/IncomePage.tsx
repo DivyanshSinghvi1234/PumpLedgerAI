@@ -541,8 +541,23 @@ function EntryList({
                 return (
                   <tr key={row.uuid} className="border-t border-hairline text-ink hover:bg-surface-2/30 transition">
                     <td className="px-5 py-2.5 font-medium">
-                      <div>{row.description}</div>
-                      {row.quantity_liters && row.rate_per_liter ? (
+                      <div className="flex items-center gap-2">
+                        <span>{row.description}</span>
+                        {row.is_sale && (
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-fuel-amber/10 text-fuel-amber border border-fuel-amber/20">
+                            Sale
+                          </span>
+                        )}
+                      </div>
+                      {row.items && row.items.length > 0 ? (
+                        <div className="text-xs text-ink-muted font-mono mt-0.5 space-y-0.5">
+                          {row.items.map((it, idx) => (
+                            <div key={idx}>
+                              • {it.fuel_type}: {it.quantity_liters ?? "—"}L @ ₹{it.rate_per_liter ?? "—"}/L
+                            </div>
+                          ))}
+                        </div>
+                      ) : row.quantity_liters && row.rate_per_liter ? (
                         <div className="text-xs text-ink-muted font-mono mt-0.5">
                           {row.quantity_liters} L @ ₹{row.rate_per_liter}/L {row.fuel_type ? `(${row.fuel_type})` : ""}
                         </div>
@@ -564,7 +579,14 @@ function EntryList({
                       </span>
                     </td>
                     <td className="px-5 py-2.5 text-right font-bold text-ink">
-                      ₹{formatMoney(row.amount)}
+                      <div className="flex flex-col items-end">
+                        <span>₹{formatMoney(row.amount)}</span>
+                        {row.is_amount_mismatch && (
+                          <span className="text-[10px] text-amber-500 font-semibold uppercase tracking-wider mt-0.5" title="Handwritten amount differs from calculated Quantity x Rate">
+                            ⚠️ Mismatch
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {canManage && (
                       <td className="px-5 py-2.5 text-right">

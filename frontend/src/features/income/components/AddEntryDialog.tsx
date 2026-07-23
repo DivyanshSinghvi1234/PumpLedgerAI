@@ -108,16 +108,42 @@ export default function AddEntryDialog({
     },
   });
 
+  const [isSale, setIsSale] = useState(activeKind === "INCOME");
+  const [fuelItems, setFuelItems] = useState<
+    { id: string; fuel_type: string; quantity_liters: string; rate_per_liter: string }[]
+  >([]);
+
+  const watchAmount = watch("amount");
   const watchQty = watch("quantity_liters");
   const watchRate = watch("rate_per_liter");
 
-  useEffect(() => {
-    const qty = Number(watchQty) || 0;
-    const rate = Number(watchRate) || 0;
-    if (qty > 0 && rate > 0) {
-      setValue("amount", Number((qty * rate).toFixed(2)));
+  // Calculate sum of fuel items if present, or single qty * rate
+  const calculatedFuelSum = useMemo(() => {
+    if (fuelItems.length > 0) {
+      return fuelItems.reduce((sum, item) => {
+        const q = Number(item.quantity_liters) || 0;
+        const r = Number(item.rate_per_liter) || 0;
+        return sum + q * r;
+      }, 0);
     }
-  }, [watchQty, watchRate, setValue]);
+    const q = Number(watchQty) || 0;
+    const r = Number(watchRate) || 0;
+    return q > 0 && r > 0 ? q * r : 0;
+  }, [fuelItems, watchQty, watchRate]);
+
+  const isMismatch = useMemo(() => {
+    const amt = Number(watchAmount) || 0;
+    if (calculatedFuelSum > 0 && amt > 0) {
+      return Math.abs(calculatedFuelSum - amt) > 1.0;
+    }
+    return false;
+  }, [calculatedFuelSum, watchAmount]);
+
+  useEffect(() => {
+    if (calculatedFuelSum > 0 && (!watchAmount || fuelItems.length > 0)) {
+      setValue("amount", Number(calculatedFuelSum.toFixed(2)));
+    }
+  }, [calculatedFuelSum, setValue]);
 
   // Reset the form each time the dialog opens or incomeToEdit changes so the values sync.
   useEffect(() => {
@@ -132,6 +158,19 @@ export default function AddEntryDialog({
         quantity_liters: incomeToEdit?.quantity_liters ?? undefined,
         rate_per_liter: incomeToEdit?.rate_per_liter ?? undefined,
       });
+      setIsSale(incomeToEdit ? !!incomeToEdit.is_sale : activeKind === "INCOME");
+      if (incomeToEdit?.items && Array.isArray(incomeToEdit.items)) {
+        setFuelItems(
+          incomeToEdit.items.map((i, idx) => ({
+            id: String(idx),
+            fuel_type: i.fuel_type,
+            quantity_liters: i.quantity_liters ? String(i.quantity_liters) : "",
+            rate_per_liter: i.rate_per_liter ? String(i.rate_per_liter) : "",
+          }))
+        );
+      } else {
+        setFuelItems([]);
+      }
       setLend(!!incomeToEdit?.customer_uuid);
       setCustomerName(incomeToEdit?.customer_name ?? "");
       setCustomerUuid(incomeToEdit?.customer_uuid ?? null);
@@ -142,6 +181,23 @@ export default function AddEntryDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultDate, incomeToEdit]);
+
+  const addFuelItem = () => {
+    setFuelItems((prev) => [
+      ...prev,
+      { id: Date.now().toString(), fuel_type: "PETROL", quantity_liters: "", rate_per_liter: "" },
+    ]);
+  };
+
+  const removeFuelItem = (id: string) => {
+    setFuelItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updateFuelItem = (id: string, field: string, value: string) => {
+    setFuelItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
 
   async function submitForm(data: EntryFormData) {
     setCustomerError(null);
@@ -154,6 +210,15 @@ export default function AddEntryDialog({
       return;
     }
 
+    const formattedItems = fuelItems
+      .filter((i) => i.fuel_type)
+      .map((i) => ({
+        fuel_type: i.fuel_type as any,
+        quantity_liters: i.quantity_liters ? Number(i.quantity_liters) : null,
+        rate_per_liter: i.rate_per_liter ? Number(i.rate_per_liter) : null,
+        amount: Number(i.quantity_liters || 0) * Number(i.rate_per_liter || 0) || null,
+      }));
+
     const payload = {
       kind: activeKind,
       income_date: data.income_date,
@@ -164,6 +229,8 @@ export default function AddEntryDialog({
       fuel_type: (data.fuel_type as any) || null,
       quantity_liters: data.quantity_liters ? Number(data.quantity_liters) : null,
       rate_per_liter: data.rate_per_liter ? Number(data.rate_per_liter) : null,
+      is_sale: activeKind === "INCOME" ? isSale : false,
+      items: formattedItems.length > 0 ? formattedItems : null,
       customer_uuid: isExpense && lend ? customerUuid : null,
       customer_name: isExpense && lend && !customerUuid ? lendName : null,
     };
@@ -192,12 +259,34 @@ export default function AddEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid-cols-1 w-full max-w-2xl bg-card p-6 shadow-xl">
+      <DialogContent className="grid-cols-1 w-full max-w-2xl bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <DialogTitle className="mb-6 text-xl font-semibold">
           {title}
         </DialogTitle>
 
         <form onSubmit={handleSubmit(submitForm)} className="space-y-4">
+          {/* Sale vs Other Revenue toggle */}
+          {activeKind === "INCOME" && (
+            <div className="rounded-xl border border-hairline bg-surface-2/60 p-3 flex items-center justify-between">
+              <div>
+                <label className="text-sm font-semibold text-ink flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isSale}
+                    onChange={(e) => setIsSale(e.target.checked)}
+                    className="h-4 w-4 rounded border-hairline"
+                  />
+                  Direct Counter / Fuel Sale
+                </label>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  {isSale
+                    ? "Part of daily sales: non-cash payments (UPI/Card/Credit) automatically deduct from Cash in Hand."
+                    : "Other revenue (e.g. scrap sale, rent): adds to Bank/UPI total without deducting from Cash in Hand."}
+                </p>
+              </div>
+            </div>
+          )}
+
           <FormInput
             label="What is this for?"
             required
@@ -206,43 +295,103 @@ export default function AddEntryDialog({
             {...register("description")}
           />
 
-          {/* Optional Fuel Details */}
+          {/* Optional Multi-Fuel Items */}
           <div className="rounded-xl border border-hairline bg-surface-2/40 p-3 space-y-3">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
-              Fuel Sale Parameters (Optional)
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <FormSelect
-                label="Fuel Type"
-                options={FUEL_OPTIONS}
-                {...register("fuel_type")}
-              />
-              <FormInput
-                type="number"
-                step="0.001"
-                label="Quantity (Liters)"
-                placeholder="e.g. 50"
-                {...register("quantity_liters")}
-              />
-              <FormInput
-                type="number"
-                step="0.01"
-                label="Rate / Liter (₹)"
-                placeholder="e.g. 100.00"
-                {...register("rate_per_liter")}
-              />
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">
+                Fuel Parameters (Optional)
+              </p>
+              <button
+                type="button"
+                onClick={addFuelItem}
+                className="text-xs font-semibold text-fuel-amber hover:underline cursor-pointer"
+              >
+                + Add Multiple Fuel Types
+              </button>
             </div>
+
+            {fuelItems.length === 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FormSelect
+                  label="Fuel Type"
+                  options={FUEL_OPTIONS}
+                  {...register("fuel_type")}
+                />
+                <FormInput
+                  type="number"
+                  step="0.001"
+                  label="Quantity (Liters)"
+                  placeholder="e.g. 50"
+                  {...register("quantity_liters")}
+                />
+                <FormInput
+                  type="number"
+                  step="0.01"
+                  label="Rate / Liter (₹)"
+                  placeholder="e.g. 100.00"
+                  {...register("rate_per_liter")}
+                />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fuelItems.map((item) => (
+                  <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end bg-card p-2 rounded-lg border border-hairline">
+                    <FormSelect
+                      label="Fuel Type"
+                      options={FUEL_OPTIONS.filter((o) => o.value !== "")}
+                      value={item.fuel_type}
+                      onChange={(e) => updateFuelItem(item.id, "fuel_type", e.target.value)}
+                    />
+                    <FormInput
+                      type="number"
+                      step="0.001"
+                      label="Liters"
+                      placeholder="e.g. 50"
+                      value={item.quantity_liters}
+                      onChange={(e) => updateFuelItem(item.id, "quantity_liters", e.target.value)}
+                    />
+                    <FormInput
+                      type="number"
+                      step="0.01"
+                      label="Rate/L (₹)"
+                      placeholder="e.g. 100"
+                      value={item.rate_per_liter}
+                      onChange={(e) => updateFuelItem(item.id, "rate_per_liter", e.target.value)}
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-ink">
+                        ₹{((Number(item.quantity_liters) || 0) * (Number(item.rate_per_liter) || 0)).toFixed(2)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeFuelItem(item.id)}
+                        className="text-xs text-error hover:underline ml-auto"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormInput
-              type="number"
-              step="0.01"
-              label="Amount (₹)"
-              required
-              error={errors.amount?.message}
-              {...register("amount")}
-            />
+            <div>
+              <FormInput
+                type="number"
+                step="0.01"
+                label="Amount (Handwritten / Final ₹)"
+                required
+                error={errors.amount?.message}
+                {...register("amount")}
+              />
+              {isMismatch && (
+                <p className="mt-1 text-xs text-amber-500 font-semibold flex items-center gap-1">
+                  <span>⚠️ Handwritten amount (₹{watchAmount}) differs from calculated total (₹{calculatedFuelSum.toFixed(2)}). Will be flagged as Mismatch.</span>
+                </p>
+              )}
+            </div>
 
             <FormSelect
               label="Payment Mode"
