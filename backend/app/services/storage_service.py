@@ -79,8 +79,23 @@ class StorageService:
             filename,
             ExtraArgs={"ContentType": content_type},
         )
-        public_url = f"{settings.R2_PUBLIC_URL.rstrip('/')}/{filename}"
-        logger.info("Uploaded %s to R2: %s", filename, public_url)
+        
+        # If R2_PUBLIC_URL is configured and not set to presigned, use direct public URL
+        if settings.R2_PUBLIC_URL and settings.R2_PUBLIC_URL.strip().lower() not in ["", "presigned", "none"]:
+            public_url = f"{settings.R2_PUBLIC_URL.rstrip('/')}/{filename}"
+        else:
+            # Generate S3 pre-signed URL for Private Backblaze B2 / R2 buckets (valid for 7 days)
+            try:
+                public_url = self._client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": settings.R2_BUCKET_NAME, "Key": filename},
+                    ExpiresIn=604800,  # 7 days
+                )
+            except Exception as e:
+                logger.error(f"Failed to generate presigned URL: {e}")
+                public_url = f"https://{settings.R2_BUCKET_NAME}.s3.amazonaws.com/{filename}"
+
+        logger.info("Uploaded %s to R2/B2: %s", filename, public_url)
         return public_url
 
     def _upload_local(self, file_obj: BinaryIO, filename: str) -> str:
@@ -97,3 +112,23 @@ class StorageService:
         local_path = str(filepath)
         logger.info("Saved %s to local disk: %s", filename, local_path)
         return local_path
+
+    def get_presigned_url(self, file_path_or_url: str | None) -> str | None:
+        if not file_path_or_url:
+            return None
+
+        # If already presigned or local path or empty, return as is
+        if "X-Amz-Signature" in file_path_or_url or not self._r2_enabled:
+            return file_path_or_url
+
+        # Extract filename / key from full B2 URL
+        key = file_path_or_url.split("/")[-1]
+        try:
+            return self._client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": settings.R2_BUCKET_NAME, "Key": key},
+                ExpiresIn=604800,  # 7 days
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for {file_path_or_url}: {e}")
+            return file_path_or_url
