@@ -522,25 +522,7 @@ class IncomeService:
         total_upi = (income_upi + payment_upi + voucher_upi).quantize(Decimal("0.01"))
         total_card = (income_card + payment_card + voucher_card).quantize(Decimal("0.01"))
         total_credit = (income_credit + payment_credit + voucher_credit).quantize(Decimal("0.01"))
-
-        # Non-cash sales (from fuel vouchers + counter sales marked as is_sale = True)
-        sale_upi = voucher_upi + _get_mode_val(sale_income_by_mode, PaymentMode.UPI)
-        sale_card = voucher_card + _get_mode_val(sale_income_by_mode, PaymentMode.CARD)
-        sale_credit = voucher_credit + _get_mode_val(sale_income_by_mode, PaymentMode.CREDIT)
-        total_non_cash_sales = sale_upi + sale_card + sale_credit
-
-        # Cash sales from fuel pumps & counter sales
-        gross_sales = total_sales + sum((amt for mode, amt in sale_income_by_mode.items()), Decimal("0.00"))
-        cash_fuel_sales = max(Decimal("0.00"), gross_sales - total_non_cash_sales)
-
-        # Cash from non-sale extra incomes (is_sale == False) and customer payments
-        other_incomes = total_incomes - sum((amt for mode, amt in sale_income_by_mode.items()), Decimal("0.00"))
-        other_income_non_cash = (
-            income_upi - _get_mode_val(sale_income_by_mode, PaymentMode.UPI) +
-            income_card - _get_mode_val(sale_income_by_mode, PaymentMode.CARD) +
-            income_credit - _get_mode_val(sale_income_by_mode, PaymentMode.CREDIT)
-        )
-        cash_incomes = max(Decimal("0.00"), other_incomes - other_income_non_cash)
+        total_non_cash = total_upi + total_card + total_credit
 
         # Expense breakdown by payment mode (only CASH mode expenses reduce physical Cash in Hand)
         expense_mode_rows = db.execute(
@@ -556,12 +538,15 @@ class IncomeService:
         expense_by_mode = {mode: Decimal(str(amt)) for mode, amt in expense_mode_rows}
         cash_expenses = _get_mode_val(expense_by_mode, PaymentMode.CASH)
 
-        payment_non_cash = payment_upi + payment_card + payment_credit
-        cash_payments = max(Decimal("0.00"), total_payments - payment_non_cash)
-
-        cash_in_hand = (
-            cash_fuel_sales + cash_incomes + cash_payments - cash_expenses - total_deposits
-        ).quantize(Decimal("0.01"))
+        # Cash in Hand formula:
+        # Total Inflows (Meter Sales + Extra Revenues + Customer Payments Received)
+        # Minus Non-Cash Collections (UPI + Card + Credit given)
+        # Minus Cash Expenses paid out and Bank Deposits made
+        total_inflows = total_sales + total_incomes + total_payments
+        cash_in_hand = max(
+            Decimal("0.00"),
+            (total_inflows - total_non_cash - cash_expenses - total_deposits).quantize(Decimal("0.01"))
+        )
 
         return IncomeSummaryResponse(
             summary_date=on_date,
