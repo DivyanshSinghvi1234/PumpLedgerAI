@@ -193,6 +193,10 @@ def check_and_update_schema() -> None:
             ("incomes", "is_sale", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("incomes", "is_amount_mismatch", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("incomes", "items", "JSON"),
+            ("vouchers", "cash_amount", "NUMERIC(12,2) DEFAULT 0.00"),
+            ("vouchers", "upi_amount", "NUMERIC(12,2) DEFAULT 0.00"),
+            ("vouchers", "card_amount", "NUMERIC(12,2) DEFAULT 0.00"),
+            ("vouchers", "credit_amount", "NUMERIC(12,2) DEFAULT 0.00"),
             ("vouchers", "bank_account_id", "INTEGER"),
             ("payments", "bank_account_id", "INTEGER"),
             ("incomes", "bank_account_id", "INTEGER"),
@@ -203,6 +207,7 @@ def check_and_update_schema() -> None:
                 db.rollback()
                 db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
                 db.commit()
+
 
 
         # audit_logs.pump_id — audit trail became pump-scoped. create_all can't
