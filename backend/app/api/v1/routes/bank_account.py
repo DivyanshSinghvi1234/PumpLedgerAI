@@ -31,8 +31,13 @@ manager_required = [
 
 
 def _get_active_pump_id(db: Session) -> int:
+    from app.database.scoping import active_pump_id
+    pid = active_pump_id.get()
+    if pid is not None:
+        return pid
     p = db.scalars(select(Pump).where(Pump.is_active.is_(True))).first()
     return p.id if p else 1
+
 
 
 @router.get(

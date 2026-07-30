@@ -1,3 +1,4 @@
+import app.models  # noqa: F401 - ensures all SQLAlchemy models (BankAccount, etc.) are registered
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.security import hash_password
@@ -9,6 +10,7 @@ from app.models.user import User
 from app.models.user_pump_access import UserPumpAccess
 from app.repositories.pump_repository import PumpRepository
 from app.repositories.user_repository import UserRepository
+
 
 
 # The 3 filling stations to seed
