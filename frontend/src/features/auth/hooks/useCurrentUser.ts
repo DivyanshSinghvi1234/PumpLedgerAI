@@ -16,7 +16,13 @@ export function useCurrentUser(): {
   const user = getCurrentUser();
   const pumps = user?.pump_access ?? [];
   const activeUuid = getActivePumpUuid();
-  const activePump = pumps.find((p) => p.uuid === activeUuid) || null;
+  let activePump = pumps.find((p) => p.uuid === activeUuid) || null;
+
+  if (!activePump && pumps.length > 0) {
+    activePump = pumps[0];
+    setActivePumpUuid(pumps[0].uuid);
+  }
+
 
   function switchPump(uuid: string) {
     if (pumps.some((p) => p.uuid === uuid)) {

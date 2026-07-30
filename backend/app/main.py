@@ -134,8 +134,9 @@ async def add_security_headers(request, call_next):
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: http: https:; "
-        "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 http://localhost:5173 http://127.0.0.1:5173;"
+        "connect-src 'self' http: https: ws: wss:;"
     )
+
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"

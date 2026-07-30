@@ -20,18 +20,23 @@ class PumpScopingMiddleware(BaseHTTPMiddleware):
         pump_token = active_pump_id.set(None)
         scope_token = in_request_scope.set(not is_public_rate)
 
-        if x_pump_uuid:
-            db = SessionLocal()
-            try:
-                # Resolve the pump UUID → integer id. Pump is NOT pump-scoped, so
-                # this read is safe even though the guard is already armed.
+        db = SessionLocal()
+        try:
+            pump = None
+            if x_pump_uuid:
                 pump = db.scalar(select(Pump).where(Pump.uuid == x_pump_uuid))
-                if pump:
-                    active_pump_id.set(pump.id)
-            except Exception:
-                pass
-            finally:
-                db.close()
+            if not pump:
+                pump = db.scalar(select(Pump).where(Pump.is_active.is_(True)).order_by(Pump.id))
+            if not pump:
+                pump = db.scalar(select(Pump).order_by(Pump.id))
+
+            if pump:
+                active_pump_id.set(pump.id)
+        except Exception:
+            pass
+        finally:
+            db.close()
+
 
         try:
             response = await call_next(request)
