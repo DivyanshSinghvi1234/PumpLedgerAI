@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { History, User, Clock, ShieldCheck, AlertCircle } from "lucide-react";
+import { History, User, Clock, AlertCircle } from "lucide-react";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import auditService from "@/features/audit/services/auditService";

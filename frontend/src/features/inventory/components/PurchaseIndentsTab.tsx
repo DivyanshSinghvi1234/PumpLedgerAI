@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Truck, Plus, CheckCircle, Clock, XCircle, AlertCircle, Droplet, ArrowRight, ShieldCheck } from "lucide-react";
+import { Truck, Plus, CheckCircle, Clock, AlertCircle, ShieldCheck } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,9 @@ import type {
   PurchaseIndentCreate,
   PurchaseIndentStatusUpdate,
   OMCCompany,
-  IndentStatus,
   FuelType,
 } from "../types";
+
 
 export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrManager: boolean }) {
   const queryClient = useQueryClient();
@@ -619,7 +619,18 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
               </div>
             </div>
 
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-ink-muted">Delivery Remarks <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                placeholder="e.g. TT decanted cleanly, seal verified"
+                value={deliverRemarks}
+                onChange={(e) => setDeliverRemarks(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink"
+              />
+            </div>
+
             {selectedIndent && decantedTankUuid && (
+
               <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-xs space-y-1 font-mono">
                 <p className="font-bold text-[11px] uppercase tracking-wider mb-0.5">Automated Stock Increase Preview:</p>
                 <p>

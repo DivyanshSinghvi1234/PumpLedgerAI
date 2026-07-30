@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Send, Users, CheckCircle, AlertCircle } from "lucide-react";
+import { MessageCircle, Send, Users, AlertCircle } from "lucide-react";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,8 @@ interface WhatsAppDigestDialogProps {
 }
 
 export default function WhatsAppDigestDialog({ open, onOpenChange }: WhatsAppDigestDialogProps) {
-  const [minBalance, setMinBalance] = useState("1.0");
+  const [minBalance] = useState("1.0");
+
 
   const { data: digest, isLoading, isError, refetch } = useQuery({
     queryKey: ["whatsapp-digest", minBalance],

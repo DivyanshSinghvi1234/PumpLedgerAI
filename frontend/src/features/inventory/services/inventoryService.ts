@@ -150,6 +150,11 @@ class InventoryService {
     return response.data;
   }
 
+  async deleteTank(tankUuid: string): Promise<void> {
+    await api.delete(`/v1/tanks/${tankUuid}`);
+  }
+
+
   async getTransfers(): Promise<TankTransfer[]> {
     const response = await api.get<TankTransfer[]>("/v1/tanks/transfers");
     return response.data;

@@ -8,8 +8,10 @@ export type PaymentMode =
   | "CASH"
   | "CARD"
   | "UPI"
+  | "BANK"
   | "CREDIT"
   | "SPLIT";
+
 
 export type VerificationStatus =
   | "PENDING"
@@ -133,7 +135,10 @@ export interface CreateVoucherRequest {
 
   payment_mode: PaymentMode;
 
+  bank_account_uuid?: string | null;
+
   cash_amount?: number | null;
+
 
   upi_amount?: number | null;
 

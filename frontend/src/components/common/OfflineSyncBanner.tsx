@@ -24,8 +24,9 @@ export default function OfflineSyncBanner() {
 
     setIsSyncing(true);
     try {
-      const res = await offlineStore.syncQueue((payload) => voucherService.create(payload));
+      const res = await offlineStore.syncQueue((payload) => voucherService.createVoucher(payload));
       if (res.synced > 0) {
+
         toast.success(`Successfully synced ${res.synced} offline slips!`);
       }
       if (res.failed > 0) {

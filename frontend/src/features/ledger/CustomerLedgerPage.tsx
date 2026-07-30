@@ -14,8 +14,9 @@ import LedgerSummary from "./components/LedgerSummary";
 import LedgerTable from "./components/LedgerTable";
 import AdjustmentDialog from "./components/AdjustmentDialog";
 import ReconciliationDialog from "./components/ReconciliationDialog";
-
+import { useCustomerLedger } from "./hooks/useCustomerLedger";
 import AuditTimelineDialog from "@/components/common/AuditTimelineDialog";
+
 import { History } from "lucide-react";
 
 export default function CustomerLedgerPage() {
@@ -156,6 +157,10 @@ export default function CustomerLedgerPage() {
             customerUuid={customerUuid}
             customerName={data.customer_name}
             onOpenChange={setReconcileOpen}
+          />
+        </>
+      )}
+
       <AuditTimelineDialog
         open={auditOpen}
         onOpenChange={setAuditOpen}
@@ -166,4 +171,5 @@ export default function CustomerLedgerPage() {
     </div>
   );
 }
+
 

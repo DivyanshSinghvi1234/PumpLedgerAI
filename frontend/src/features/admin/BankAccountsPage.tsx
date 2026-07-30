@@ -7,12 +7,10 @@ import {
   ArrowUpRight,
   Wallet,
   Building2,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
   TrendingUp,
   Receipt,
 } from "lucide-react";
+
 import PageHeader from "@/components/common/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -47,7 +45,8 @@ export default function BankAccountsPage() {
   const [depositRemarks, setDepositRemarks] = useState("");
 
   // Queries
-  const { data: summary, isLoading, isError, refetch } = useQuery({
+  const { data: summary, isLoading, isError } = useQuery({
+
     queryKey: ["bank-accounts-summary"],
     queryFn: () => bankAccountService.getLiquidFundsSummary(),
   });

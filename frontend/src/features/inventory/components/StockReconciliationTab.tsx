@@ -95,8 +95,8 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
 
   const {
     data: transfers,
-    refetch: refetchTransfers,
   } = useQuery({
+
     queryKey: ["tank-transfers"],
     queryFn: () => inventoryService.getTransfers(),
   });
@@ -767,6 +767,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                               {statusBadge}
                             </TableCell>
                           </TableRow>
+
                         );
                       })}
                     </TableBody>
@@ -777,8 +778,14 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                   No physical dip readings reconciliation logs recorded yet.
                 </div>
               )}
+
+            </CardContent>
+          </Card>
+
+
           {/* Inter-Tank Transfers & Decanting Log Card */}
-          <Card className="glass border-hairline overflow-hidden">
+          <Card className="glass border-hairline overflow-hidden mt-6">
+
             <CardHeader className="bg-surface-2/60 border-b border-hairline py-4">
               <div className="flex items-center justify-between">
                 <div>

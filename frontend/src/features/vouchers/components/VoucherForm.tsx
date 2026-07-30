@@ -69,7 +69,8 @@ const voucherSchema = z
       .number()
       .positive("Total must be greater than 0"),
 
-    payment_mode: z.enum(["CASH", "UPI", "CARD", "CREDIT", "SPLIT"]),
+    payment_mode: z.enum(["CASH", "UPI", "CARD", "BANK", "CREDIT", "SPLIT"]),
+
 
     cash_amount: z.coerce.number().min(0).optional(),
     upi_amount: z.coerce.number().min(0).optional(),
@@ -208,9 +209,10 @@ export default function VoucherForm({
         `Fuel Voucher #${payload.invoice_number}`
       );
       toast.warning(`📡 Offline Forecourt: Slip queued locally (${item.id.substring(0, 15)}...). Will auto-sync when connected!`);
-      if (onSuccess) onSuccess();
+      if (onCancel) onCancel();
       return;
     }
+
 
     return onSubmit(payload);
   }
