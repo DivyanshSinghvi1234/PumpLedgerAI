@@ -75,7 +75,10 @@ class IncomeService:
         if has_calc:
             is_mismatch = abs(expected_sum - data.amount) > Decimal("1.00")
 
+        items_dict = [i.model_dump(mode="json") for i in data.items] if data.items else None
+
         bank_account_id = None
+
         if getattr(data, "bank_account_uuid", None):
             from app.models.bank_account import BankAccount, BankTransaction
             ba = db.scalars(select(BankAccount).where(BankAccount.uuid == str(data.bank_account_uuid))).first()
