@@ -191,6 +191,9 @@ def check_and_update_schema() -> None:
             ("incomes", "is_sale", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("incomes", "is_amount_mismatch", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("incomes", "items", "JSON"),
+            ("vouchers", "bank_account_id", "INTEGER"),
+            ("payments", "bank_account_id", "INTEGER"),
+            ("incomes", "bank_account_id", "INTEGER"),
         ):
             try:
                 db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
@@ -198,6 +201,7 @@ def check_and_update_schema() -> None:
                 db.rollback()
                 db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
                 db.commit()
+
 
         # audit_logs.pump_id — audit trail became pump-scoped. create_all can't
         # add it to an existing table; backfill legacy rows to the first pump so

@@ -90,6 +90,16 @@ async def app_exception_handler(request: Request, exc: AppException):
         content={"detail": str(exc)},
     )
 
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
+    return ORJSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+    )
+
+
 # CORS: reads ALLOWED_ORIGINS env-var (comma-separated) so Render frontend URL
 # can be injected at runtime without code changes.  Falls back to localhost dev URLs.
 _default_origins = [
@@ -120,10 +130,12 @@ _allowed_origins = (
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 @app.middleware("http")

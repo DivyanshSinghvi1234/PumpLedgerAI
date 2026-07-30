@@ -33,12 +33,13 @@ api.interceptors.request.use((config) => {
   }
 
   const pumpUuid = localStorage.getItem("active_pump_uuid");
-  if (pumpUuid) {
+  if (pumpUuid && pumpUuid !== "undefined" && pumpUuid !== "null") {
     config.headers["X-Pump-UUID"] = pumpUuid;
   }
 
   return config;
 });
+
 
 let isRedirecting = false;
 
