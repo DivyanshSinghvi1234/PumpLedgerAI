@@ -238,9 +238,11 @@ def check_and_update_schema() -> None:
             try:
                 db.execute(text("ALTER TABLE tanker_deliveries ALTER COLUMN created_at SET DEFAULT now()"))
                 db.execute(text("ALTER TABLE tanker_deliveries ALTER COLUMN updated_at SET DEFAULT now()"))
+                db.execute(text("ALTER TABLE bank_accounts ALTER COLUMN account_number DROP NOT NULL"))
                 db.commit()
             except Exception:
                 db.rollback()
+
 
     finally:
         db.close()

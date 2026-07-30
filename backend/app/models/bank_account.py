@@ -39,11 +39,12 @@ class BankAccount(
         index=True,
     )
 
-    account_number: Mapped[str] = mapped_column(
+    account_number: Mapped[Optional[str]] = mapped_column(
         String(50),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+
 
     ifsc_code: Mapped[Optional[str]] = mapped_column(
         String(20),

@@ -2,7 +2,7 @@ export interface BankAccount {
   uuid: string;
   account_name: string;
   bank_name: string;
-  account_number: string;
+  account_number?: string;
   ifsc_code?: string;
   account_type: string;
   opening_balance: number;
@@ -15,8 +15,9 @@ export interface BankAccount {
 export interface BankAccountCreate {
   account_name: string;
   bank_name: string;
-  account_number: string;
+  account_number?: string;
   ifsc_code?: string;
+
   account_type?: string;
   opening_balance?: number;
 }

@@ -194,8 +194,9 @@ export default function BankAccountsPage() {
                   </div>
                   <CardTitle className="text-sm font-bold text-ink mt-1.5">{acc.account_name}</CardTitle>
                   <CardDescription className="text-xs font-mono text-ink-subtle">
-                    A/C: ****{acc.account_number.slice(-4)} {acc.ifsc_code ? `| IFSC: ${acc.ifsc_code}` : ""}
+                    {acc.account_number ? `A/C: ****${acc.account_number.slice(-4)}` : "A/C: N/A"} {acc.ifsc_code ? `| IFSC: ${acc.ifsc_code}` : ""}
                   </CardDescription>
+
                 </CardHeader>
                 <CardContent className="pt-2 border-t border-hairline flex items-center justify-between">
                   <div>
@@ -344,15 +345,15 @@ export default function BankAccountsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-bold text-ink-muted">Account Number</Label>
+                <Label className="text-xs font-bold text-ink-muted">Account Number <span className="font-normal text-ink-subtle">(optional)</span></Label>
                 <Input
                   placeholder="e.g. 9180100998822"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                   className="bg-surface-2 border-hairline text-xs font-mono text-ink"
-                  required
                 />
               </div>
+
 
               <div className="space-y-1">
                 <Label className="text-xs font-bold text-ink-muted">IFSC Code <span className="font-normal text-ink-subtle">(optional)</span></Label>
@@ -448,8 +449,9 @@ export default function BankAccountsPage() {
                 <option value="">-- Select Destination Bank --</option>
                 {summary?.accounts?.map((acc) => (
                   <option key={acc.uuid} value={acc.uuid}>
-                    {acc.bank_name} - {acc.account_name} (****{acc.account_number.slice(-4)})
+                    {acc.bank_name} - {acc.account_name} ({acc.account_number ? `****${acc.account_number.slice(-4)}` : "N/A"})
                   </option>
+
                 ))}
               </select>
             </div>

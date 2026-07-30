@@ -45,8 +45,9 @@ export default function BankAccountSelect({
         ) : (
           accounts.map((acc) => (
             <option key={acc.uuid} value={acc.uuid}>
-              {acc.bank_name} - {acc.account_name} (****{acc.account_number.slice(-4)}) — Bal: {formatCurrency(acc.current_balance)}
+              {acc.bank_name} - {acc.account_name} ({acc.account_number ? `****${acc.account_number.slice(-4)}` : "N/A"}) — Bal: {formatCurrency(acc.current_balance)}
             </option>
+
           ))
         )}
       </select>

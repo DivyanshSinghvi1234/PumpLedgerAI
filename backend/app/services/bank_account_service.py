@@ -47,8 +47,9 @@ class BankAccountService:
         account = BankAccount(
             account_name=data.account_name.strip(),
             bank_name=data.bank_name.strip(),
-            account_number=data.account_number.strip(),
+            account_number=data.account_number.strip() if data.account_number else None,
             ifsc_code=data.ifsc_code.strip() if data.ifsc_code else None,
+
             account_type=data.account_type,
             opening_balance=data.opening_balance,
             current_balance=data.opening_balance,

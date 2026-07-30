@@ -7,10 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field
 class BankAccountBase(BaseModel):
     account_name: str = Field(..., min_length=2, max_length=100)
     bank_name: str = Field(..., min_length=2, max_length=100)
-    account_number: str = Field(..., min_length=3, max_length=50)
+    account_number: Optional[str] = Field(None, max_length=50)
     ifsc_code: Optional[str] = Field(None, max_length=20)
     account_type: str = Field("CURRENT", max_length=30)
     opening_balance: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
+
 
 
 class BankAccountCreate(BankAccountBase):
