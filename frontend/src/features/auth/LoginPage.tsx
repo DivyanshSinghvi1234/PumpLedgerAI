@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Fuel, Eye, EyeOff } from "lucide-react";
 import { login } from "./services/authService";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const formRef = useRef<HTMLFormElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -14,6 +15,12 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (location.search.includes("expired=true")) {
+      setError("Your session expired due to inactivity. Please sign in again.");
+    }
+  }, [location.search]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +36,13 @@ export default function LoginPage() {
 
       await login({ username, password });
 
-      navigate("/dashboard");
+      const returnUrl = sessionStorage.getItem("redirect_after_login");
+      if (returnUrl) {
+        sessionStorage.removeItem("redirect_after_login");
+        navigate(returnUrl);
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: unknown) {
       console.error(err);
       const msg =

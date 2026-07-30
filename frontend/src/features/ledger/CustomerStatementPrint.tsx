@@ -7,6 +7,8 @@ import api from "@/api/client";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
 import { formatCurrency } from "@/lib/utils";
+import settingService from "@/features/settings/services/settingService";
+import type { StationBranding } from "@/features/settings/components/StationBrandingDialog";
 
 interface LedgerRow {
   entry_type: string;
@@ -68,6 +70,12 @@ export default function CustomerStatementPrint() {
     );
   }
 
+  // Fetch station branding
+  const { data: branding } = useQuery({
+    queryKey: ["settings", "station_branding"],
+    queryFn: () => settingService.getSetting<StationBranding>("station_branding"),
+  });
+
   // Calculate totals
   const totalDebit = statement.rows.reduce(
     (sum: number, r: LedgerRow) => (r.signed_amount > 0 ? sum + r.amount : sum),
@@ -105,14 +113,28 @@ export default function CustomerStatementPrint() {
         <div className="flex flex-col sm:flex-row justify-between items-start border-b pb-6 mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-ink print:text-black">
-              PUMPLEDGER AI
+              {branding?.station_name || "PUMPLEDGER AI"}
             </h1>
-            <p className="text-xs text-ink-muted print:text-gray-600 mt-1">
-              Automated Ledger & Fuel Station Management
-            </p>
-            <p className="text-xs text-ink-muted print:text-gray-600">
-              GSTIN: 07AAAAA1111A1Z1
-            </p>
+            {branding?.tagline && (
+              <p className="text-xs text-ink-muted print:text-gray-600 mt-1 font-medium">
+                {branding.tagline}
+              </p>
+            )}
+            {branding?.gstin && (
+              <p className="text-xs text-ink-muted print:text-gray-600">
+                GSTIN: {branding.gstin}
+              </p>
+            )}
+            {branding?.phone && (
+              <p className="text-xs text-ink-muted print:text-gray-600">
+                Tel: {branding.phone}
+              </p>
+            )}
+            {branding?.address && (
+              <p className="text-xs text-ink-muted print:text-gray-600">
+                {branding.address}
+              </p>
+            )}
           </div>
           <div className="text-left sm:text-right">
             <h2 className="text-lg font-bold uppercase tracking-wide text-ink print:text-black">

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import tallyService from "../services/tallyService";
+import settingService from "@/features/settings/services/settingService";
 import type { TallyExportRequest, TallyMarkSyncedRequest, TallyLedgerMappings, TallyVoucherTypes } from "../types";
 
 export const DEFAULT_TALLY_MAPPINGS: TallyLedgerMappings = {
@@ -33,6 +34,42 @@ export function getStoredTallyMappings(): TallyLedgerMappings {
 export function getStoredTallyVoucherTypes(): TallyVoucherTypes {
   const stored = localStorage.getItem("tally_voucher_types");
   return stored ? JSON.parse(stored) : DEFAULT_TALLY_VOUCHER_TYPES;
+}
+
+export function saveStoredTallyMappings(mappings: TallyLedgerMappings) {
+  localStorage.setItem("tally_ledger_mappings", JSON.stringify(mappings));
+  settingService.saveSetting("tally_ledger_mappings", mappings).catch((err) => {
+    console.error("Failed to sync Tally mappings to backend:", err);
+  });
+}
+
+export function saveStoredTallyVoucherTypes(types: TallyVoucherTypes) {
+  localStorage.setItem("tally_voucher_types", JSON.stringify(types));
+  settingService.saveSetting("tally_voucher_types", types).catch((err) => {
+    console.error("Failed to sync Tally voucher types to backend:", err);
+  });
+}
+
+export function useTallySettings() {
+  const query = useQuery({
+    queryKey: ["settings", "tally"],
+    queryFn: async () => {
+      const [backendMappings, backendVoucherTypes] = await Promise.all([
+        settingService.getSetting<TallyLedgerMappings>("tally_ledger_mappings"),
+        settingService.getSetting<TallyVoucherTypes>("tally_voucher_types"),
+      ]);
+
+      const mappings = backendMappings || getStoredTallyMappings();
+      const voucherTypes = backendVoucherTypes || getStoredTallyVoucherTypes();
+
+      localStorage.setItem("tally_ledger_mappings", JSON.stringify(mappings));
+      localStorage.setItem("tally_voucher_types", JSON.stringify(voucherTypes));
+
+      return { mappings, voucherTypes };
+    },
+  });
+
+  return query;
 }
 
 export function useTallyPreview(request: TallyExportRequest, enabled: boolean = true) {

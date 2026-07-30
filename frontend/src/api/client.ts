@@ -40,7 +40,9 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// On 401, drop the stale token and send the user back to login.
+let isRedirecting = false;
+
+// On 401, drop the stale token and send the user back to login with return path preserved.
 // On 403, redirect to the access-denied page.
 api.interceptors.response.use(
   (response) => response,
@@ -48,8 +50,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
 
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+      if (window.location.pathname !== "/login" && !isRedirecting) {
+        isRedirecting = true;
+        sessionStorage.setItem(
+          "redirect_after_login",
+          window.location.pathname + window.location.search
+        );
+        window.location.href = "/login?expired=true";
       }
     }
 

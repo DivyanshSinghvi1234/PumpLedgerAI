@@ -41,6 +41,7 @@ from app.api.v1.routes.forecast import router as forecast_router
 from app.api.v1.routes.margins import router as margins_router
 from app.api.v1.routes.churn import router as churn_router
 from app.api.v1.routes.nps import router as nps_router
+from app.api.v1.routes.setting import router as setting_router
 
 # Configure logging
 setup_logging()
@@ -255,6 +256,11 @@ app.include_router(
 )
 app.include_router(
     churn_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+app.include_router(
+    setting_router,
     prefix="/api/v1",
     dependencies=protected,
 )

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, Calendar, AlertTriangle, Sunrise, ChevronDown, ChevronRight, Clock, Fuel } from "lucide-react";
+import { Activity, Calendar, AlertTriangle, Sunrise, ChevronDown, ChevronRight, Clock, Fuel, Wrench } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
+import settingService from "@/features/settings/services/settingService";
 import type { BulkNozzleReadingCreate } from "../types";
 
 export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManager: boolean }) {
@@ -32,6 +33,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
   const [globalReturnTestingToStorage, setGlobalReturnTestingToStorage] = useState(true);
   const [isEditingSaved, setIsEditingSaved] = useState(false);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+  const [maintenanceMap, setMaintenanceMap] = useState<Record<string, boolean>>({});
 
   // Shared times for all nozzles (operator takes readings together)
   const [sharedOpeningTime, setSharedOpeningTime] = useState(
@@ -84,6 +86,56 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     });
   }, [bulkForm, customNozzleOrder]);
 
+  // Sync settings from backend
+  const settingsQuery = useQuery({
+    queryKey: ["settings", "meter_readings"],
+    queryFn: async () => {
+      const [backendPerTank, backendDefaultTesting, backendNozzleOrder, backendMaintenance] = await Promise.all([
+        settingService.getSetting<Record<string, number>>("per_tank_testing_map"),
+        settingService.getSetting<Record<string, number>>("default_fuel_testing"),
+        settingService.getSetting<string[]>("meter_nozzle_custom_order"),
+        settingService.getSetting<Record<string, boolean>>("nozzle_maintenance_status"),
+      ]);
+      return {
+        perTank: backendPerTank,
+        defaultTesting: backendDefaultTesting,
+        nozzleOrder: backendNozzleOrder,
+        maintenance: backendMaintenance,
+      };
+    },
+  });
+
+  useEffect(() => {
+    if (settingsQuery.data) {
+      if (settingsQuery.data.perTank) {
+        setPerTankTestingMap(settingsQuery.data.perTank);
+        localStorage.setItem("per_tank_testing_map", JSON.stringify(settingsQuery.data.perTank));
+      }
+      if (settingsQuery.data.defaultTesting) {
+        setFuelTestingMap(settingsQuery.data.defaultTesting);
+        localStorage.setItem("default_fuel_testing", JSON.stringify(settingsQuery.data.defaultTesting));
+      }
+      if (settingsQuery.data.nozzleOrder) {
+        setCustomNozzleOrder(settingsQuery.data.nozzleOrder);
+        localStorage.setItem("meter_nozzle_custom_order", JSON.stringify(settingsQuery.data.nozzleOrder));
+      }
+      if (settingsQuery.data.maintenance) {
+        setMaintenanceMap(settingsQuery.data.maintenance);
+      }
+    }
+  }, [settingsQuery.data]);
+
+  const toggleNozzleMaintenance = (nozzleUuid: string) => {
+    const updated = { ...maintenanceMap, [nozzleUuid]: !maintenanceMap[nozzleUuid] };
+    setMaintenanceMap(updated);
+    settingService.saveSetting("nozzle_maintenance_status", updated).catch(() => {});
+    if (updated[nozzleUuid]) {
+      toast.info("Nozzle marked Out of Service / Under Maintenance");
+    } else {
+      toast.success("Nozzle marked Active & Operational");
+    }
+  };
+
   const moveNozzle = (currentIndex: number, direction: "up" | "down") => {
     if (!sortedBulkItems || sortedBulkItems.length === 0) return;
     const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
@@ -97,6 +149,9 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     const newUuidOrder = reordered.map((item) => item.nozzle_uuid);
     setCustomNozzleOrder(newUuidOrder);
     localStorage.setItem("meter_nozzle_custom_order", JSON.stringify(newUuidOrder));
+    settingService.saveSetting("meter_nozzle_custom_order", newUuidOrder).catch((err) => {
+      console.error("Failed to sync nozzle order to backend:", err);
+    });
   };
 
   // Check if all active nozzles have 6 AM row expanded
@@ -151,6 +206,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     const updated = { ...fuelTestingMap, [fuelType]: val };
     setFuelTestingMap(updated);
     localStorage.setItem("default_fuel_testing", JSON.stringify(updated));
+    settingService.saveSetting("default_fuel_testing", updated).catch(() => {});
     if (val > 0) {
       setGlobalReturnTestingToStorage(true);
     }
@@ -160,6 +216,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     const nextTankMap = { ...perTankTestingMap, [tankUuid]: val };
     setPerTankTestingMap(nextTankMap);
     localStorage.setItem("per_tank_testing_map", JSON.stringify(nextTankMap));
+    settingService.saveSetting("per_tank_testing_map", nextTankMap).catch(() => {});
     if (val > 0) {
       setGlobalReturnTestingToStorage(true);
     }
@@ -189,6 +246,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
     const nextFuelMap = { ...fuelTestingMap, ...aggregatedByFuel };
     setFuelTestingMap(nextFuelMap);
     localStorage.setItem("default_fuel_testing", JSON.stringify(nextFuelMap));
+    settingService.saveSetting("default_fuel_testing", nextFuelMap).catch(() => {});
   };
 
   // Sync bulk reading form items into local state when data is loaded
@@ -539,12 +597,14 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                       const isNegative = closingEntered && closeVal < openVal;
                       const is6amExpanded = expanded6am[item.nozzle_uuid] ?? false;
 
+                      const isMaintenance = maintenanceMap[item.nozzle_uuid] ?? false;
+
                       // Show split if interim reading entered
                       const before6am = interimVal !== null && !isNaN(interimVal) ? Math.max(0, interimVal - openVal) : null;
                       const after6am = interimVal !== null && !isNaN(interimVal) ? Math.max(0, closeVal - interimVal) : null;
 
                       return (
-                        <TableRow key={item.nozzle_uuid} className="border-b border-hairline hover:bg-surface-3/35">
+                        <TableRow key={item.nozzle_uuid} className={`border-b border-hairline ${isMaintenance ? "bg-fuel-amber/5 opacity-75" : "hover:bg-surface-3/35"}`}>
                           <TableCell className="px-2 py-2 text-center">
                             <div className="flex items-center justify-center gap-0.5">
                               <button
@@ -565,13 +625,32 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               >
                                 ▼
                               </button>
+                              {isAdminOrManager && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleNozzleMaintenance(item.nozzle_uuid)}
+                                  className={`p-1 rounded hover:bg-surface-3 transition-colors cursor-pointer ${
+                                    isMaintenance ? "text-fuel-amber" : "text-ink-subtle hover:text-fuel-amber"
+                                  }`}
+                                  title={isMaintenance ? "Mark Active & Operational" : "Mark Out of Service / Under Maintenance"}
+                                >
+                                  <Wrench size={13} />
+                                </button>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="px-4 text-xs font-bold text-ink">
                             {item.dispenser_name}
                           </TableCell>
                           <TableCell className="text-xs font-semibold text-ink-muted">
-                            {item.nozzle_name}
+                            <div className="flex items-center gap-1.5">
+                              <span>{item.nozzle_name}</span>
+                              {isMaintenance && (
+                                <Badge className="text-[8px] bg-fuel-amber/20 text-fuel-amber border-fuel-amber/40">
+                                  MAINTENANCE
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-xs font-medium text-ink-muted">
                             <Badge className="text-[9px] uppercase font-mono font-bold bg-fuel-amber/15 text-fuel-amber hover:bg-fuel-amber/15 border-transparent">
@@ -583,6 +662,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               type="number"
                               step="0.001"
                               placeholder="0.000"
+                              disabled={isDisabled || isMaintenance}
                               value={stateVals.opening}
                               onChange={(e) => {
                                 const raw = e.target.value;
@@ -607,7 +687,6 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   e.preventDefault();
                                 }
                               }}
-                              disabled={isDisabled}
                               className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>
@@ -718,7 +797,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   }
                                 }
                               }}
-                              disabled={isDisabled}
+                              disabled={isDisabled || isMaintenance}
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>

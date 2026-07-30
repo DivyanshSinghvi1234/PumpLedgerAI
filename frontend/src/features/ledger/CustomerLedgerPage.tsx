@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { MessageCircle } from "lucide-react";
 
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
+import { formatCurrency } from "@/lib/utils";
+import { getWhatsAppShareUrl } from "@/lib/whatsapp";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 
@@ -17,7 +20,7 @@ import { useCustomerLedger } from "./hooks/useCustomerLedger";
 export default function CustomerLedgerPage() {
   const { customerUuid = "" } = useParams();
 
-  const { hasRole } = useCurrentUser();
+  const { hasRole, activePump } = useCurrentUser();
   const canManage = hasRole("ADMIN", "MANAGER");
 
   const [page, setPage] = useState(1);
@@ -62,6 +65,17 @@ export default function CustomerLedgerPage() {
               className="rounded-md border px-4 py-2 hover:bg-muted/10 transition-colors cursor-pointer"
             >
               Generate Statement
+            </button>
+
+            <button
+              onClick={() => {
+                const message = `Dear ${data.customer_name}, your account balance at ${activePump?.name || "Fuel Station"} is ${formatCurrency(data.closing_balance)}. Statement link: ${window.location.origin}/statement/${customerUuid}`;
+                window.open(getWhatsAppShareUrl((data as any).mobile, message), "_blank");
+              }}
+              className="rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-4 py-2 cursor-pointer transition-colors flex items-center gap-2 font-medium"
+            >
+              <MessageCircle size={16} />
+              WhatsApp Reminder
             </button>
 
             {canManage && (

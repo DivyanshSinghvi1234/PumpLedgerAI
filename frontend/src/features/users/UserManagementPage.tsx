@@ -8,13 +8,16 @@ import {
   ShieldAlert,
   Trash2,
   Pencil,
+  Building2,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { extractApiError } from "@/api/client";
+import api, { extractApiError } from "@/api/client";
 import userService from "./services/userService";
 
 import UserDialog from "./components/UserDialog";
+import StationBrandingDialog from "@/features/settings/components/StationBrandingDialog";
 import { useUserList } from "./hooks/useUserList";
 
 import type { User } from "./types/user";
@@ -42,11 +45,34 @@ export default function UserManagementPage() {
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [brandingOpen, setBrandingOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User>();
 
   const pageError = isError
     ? extractApiError(queryError, "Failed to load users.")
     : "";
+
+  async function handleDownloadBackup() {
+    try {
+      toast.info("Preparing database backup download...");
+      const response = await api.get("/v1/settings/backup/download", {
+        responseType: "blob",
+      });
+      const blob = new Blob([response.data], { type: "application/octet-stream" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const today = new Date().toISOString().split("T")[0].replace(/-/g, "");
+      link.setAttribute("download", `pumpledger_backup_${today}.db`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Database backup downloaded successfully!");
+    } catch (err) {
+      toast.error("Failed to download database backup.");
+    }
+  }
 
   /* ---- User Deletion ---- */
   async function handleDelete(user: User) {
@@ -135,13 +161,31 @@ export default function UserManagementPage() {
           </div>
         </div>
 
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuel-amber to-fuel-orange hover:from-fuel-gold hover:to-fuel-amber text-canvas px-4 py-2.5 text-sm font-bold transition-all shadow-lg shadow-fuel-amber/25 hover:shadow-fuel-amber/35 cursor-pointer"
-        >
-          <Plus size={16} />
-          Add User
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setBrandingOpen(true)}
+            className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-1 hover:bg-surface-2 text-ink px-4 py-2.5 text-sm font-semibold transition cursor-pointer"
+          >
+            <Building2 size={16} className="text-fuel-amber" />
+            Station Branding
+          </button>
+
+          <button
+            onClick={handleDownloadBackup}
+            className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-1 hover:bg-surface-2 text-ink px-4 py-2.5 text-sm font-semibold transition cursor-pointer"
+          >
+            <Download size={16} className="text-emerald-500" />
+            Download DB Backup
+          </button>
+
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-fuel-amber to-fuel-orange hover:from-fuel-gold hover:to-fuel-amber text-canvas px-4 py-2.5 text-sm font-bold transition-all shadow-lg shadow-fuel-amber/25 hover:shadow-fuel-amber/35 cursor-pointer"
+          >
+            <Plus size={16} />
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -292,6 +336,10 @@ export default function UserManagementPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         user={selectedUser}
+      />
+      <StationBrandingDialog
+        open={brandingOpen}
+        onOpenChange={setBrandingOpen}
       />
     </div>
   );

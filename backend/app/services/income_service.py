@@ -573,10 +573,9 @@ class IncomeService:
         # Plus Extra Non-Sale Incomes and Customer Payments Received.
         # Minus Cash Expenses paid out and Bank Deposits made.
         total_inflows = total_sales + extra_incomes + total_payments
-        cash_in_hand = max(
-            Decimal("0.00"),
-            (total_inflows - total_non_cash - cash_expenses - total_deposits).quantize(Decimal("0.01"))
-        )
+        cash_in_hand = (
+            total_inflows - total_non_cash - cash_expenses - total_deposits
+        ).quantize(Decimal("0.01"))
 
         return IncomeSummaryResponse(
             summary_date=on_date,

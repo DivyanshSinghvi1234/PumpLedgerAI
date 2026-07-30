@@ -14,11 +14,20 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
+  Code,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useTallyPreview, useExportTally, useMarkTallySynced, getStoredTallyMappings, getStoredTallyVoucherTypes } from "./hooks/useTally";
 import TallySettingsDialog from "./components/TallySettingsDialog";
 import tallyService from "./services/tallyService";
@@ -53,6 +62,11 @@ export default function TallyExportPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [importResult, setImportResult] = useState<any | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // XML Inspector State
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectXmlContent, setInspectXmlContent] = useState("");
+  const [isGeneratingXml, setIsGeneratingXml] = useState(false);
 
   const [triggerRefresh, setTriggerRefresh] = useState(0);
 
@@ -113,6 +127,32 @@ export default function TallyExportPage() {
       }
       alert(`Export error: ${message}`);
     }
+  };
+
+  const handleInspectXml = async () => {
+    if (!previewData) return;
+    setIsGeneratingXml(true);
+    try {
+      const exportReq: TallyExportRequest = {
+        ...request,
+        mark_as_synced: false,
+      };
+      const blob = await exportMutation.mutateAsync(exportReq);
+      const text = await blob.text();
+      setInspectXmlContent(text);
+      setInspectorOpen(true);
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to generate XML preview.");
+    } finally {
+      setIsGeneratingXml(false);
+    }
+  };
+
+  const handleCopyXml = () => {
+    if (!inspectXmlContent) return;
+    navigator.clipboard.writeText(inspectXmlContent);
+    toast.success("XML content copied to clipboard!");
   };
 
   const handleMarkSynced = async () => {
@@ -317,6 +357,14 @@ export default function TallyExportPage() {
             >
               <CheckCircle size={16} />
               {isSyncingDirectly ? "Syncing..." : "Sync to Local Tally (Port 9000)"}
+            </button>
+            <button
+              onClick={handleInspectXml}
+              disabled={isGeneratingXml || exportMutation.isPending || (previewData.total_vouchers === 0 && previewData.total_payments === 0)}
+              className="flex items-center gap-2 rounded-md border border-fuel-amber/30 bg-fuel-amber/10 text-fuel-amber hover:bg-fuel-amber/20 disabled:opacity-50 px-4 py-2 text-sm font-medium transition-colors shadow-sm cursor-pointer"
+            >
+              <Code size={16} />
+              {isGeneratingXml ? "Generating XML..." : "Inspect Tally XML"}
             </button>
             <button
               onClick={handleExport}
@@ -726,6 +774,62 @@ export default function TallyExportPage() {
         onOpenChange={setSettingsOpen}
         onSave={() => setTriggerRefresh((prev) => prev + 1)}
       />
+
+      {/* Tally XML Inspector Modal */}
+      <Dialog open={inspectorOpen} onOpenChange={setInspectorOpen}>
+        <DialogContent className="max-w-4xl bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold tracking-tight flex items-center gap-2">
+              <Code className="text-fuel-amber" size={20} />
+              Tally ERP 9 / TallyPrime XML Package Inspector
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Previewing raw XML tags generated for Tally import:</span>
+              <span className="font-mono text-ink">{inspectXmlContent.length} bytes</span>
+            </div>
+
+            <pre className="max-h-[60vh] overflow-auto p-4 rounded-lg bg-slate-950 text-emerald-400 font-mono text-xs leading-relaxed border border-slate-800 selection:bg-emerald-900 selection:text-white">
+              {inspectXmlContent || "<!-- No XML content generated -->"}
+            </pre>
+          </div>
+
+          <DialogFooter className="mt-4 flex flex-col sm:flex-row gap-2 justify-between">
+            <button
+              type="button"
+              onClick={handleCopyXml}
+              className="flex items-center gap-2 rounded-md border border-hairline bg-surface-2 hover:bg-surface-3 px-4 py-2 text-sm font-medium text-ink transition cursor-pointer"
+            >
+              <Copy size={16} />
+              Copy to Clipboard
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setInspectorOpen(false)}
+                className="rounded-md border border-hairline px-4 py-2 text-sm font-medium text-ink-muted hover:bg-surface-2 transition cursor-pointer"
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleExport();
+                  setInspectorOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium transition cursor-pointer"
+              >
+                <Download size={16} />
+                Download XML Package
+              </button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

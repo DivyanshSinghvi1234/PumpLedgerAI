@@ -19,6 +19,8 @@ from app.models.pump import Pump
 from app.models.user_pump_access import UserPumpAccess
 from app.models.income import Income
 from app.models.nps_rating import NPSRating
+from app.models.daily_cash_sheet import DailyCashSheet
+from app.models.pump_setting import PumpSetting
 
 __all__ = [
     "Voucher",
@@ -44,4 +46,6 @@ __all__ = [
     "UserPumpAccess",
     "Income",
     "NPSRating",
+    "DailyCashSheet",
+    "PumpSetting",
 ]

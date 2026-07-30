@@ -6,6 +6,7 @@ import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
 import voucherService from "@/features/vouchers/services/voucherService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "@/features/inventory/services/inventoryService";
+import api from "@/api/client";
 
 // Cash denominations rendered in the collection-counts grid (note value → state key)
 const DENOMINATIONS = [
@@ -34,7 +35,7 @@ export default function RegisterPage() {
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
 
-  // Local state for cash denominations, cached to localStorage per date
+  // Backend-synced state for cash denominations & daily sheet totals (with localStorage fallback)
   const cacheKey = `ledger_denominations_${date}`;
 
   const [notes, setNotes] = useState(() => ({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 }));
@@ -42,33 +43,80 @@ export default function RegisterPage() {
   const [prevDeposit, setPrevDeposit] = useState(0);
   const [ledgerInterest, setLedgerInterest] = useState(0);
 
-  // Load cash denomination cache on date changes
-  useEffect(() => {
-    const saved = localStorage.getItem(cacheKey);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setNotes(parsed.notes || { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
-        setCashHome(parsed.cashHome ?? 0);
-        setPrevDeposit(parsed.prevDeposit ?? 0);
-        setLedgerInterest(parsed.ledgerInterest ?? 0);
-      } catch (e) {
-        console.error("Failed to parse denominations", e);
-      }
-    } else {
-      setNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
-      setCashHome(0);
-      setPrevDeposit(0);
-      setLedgerInterest(0);
-    }
-  }, [date, cacheKey]);
+  const cashSheetQuery = useQuery({
+    queryKey: ["dailyCashSheet", date],
+    queryFn: async () => {
+      const res = await api.get("/income/cash-sheet", { params: { on_date: date } });
+      return res.data;
+    },
+  });
 
-  // Save cache helper
-  const saveDenominations = (updatedNotes: typeof notes, updatedHome = cashHome, updatedDeposit = prevDeposit, updatedInterest = ledgerInterest) => {
+  useEffect(() => {
+    if (cashSheetQuery.data) {
+      const d = cashSheetQuery.data;
+      setNotes({
+        n500: d.notes_500 || 0,
+        n200: d.notes_200 || 0,
+        n100: d.notes_100 || 0,
+        n50: d.notes_50 || 0,
+        n20: d.notes_20 || 0,
+        n10: d.notes_10 || 0,
+      });
+      setCashHome(Number(d.cash_sent_home) || 0);
+      setPrevDeposit(Number(d.prev_deposit) || 0);
+      setLedgerInterest(Number(d.ledger_interest) || 0);
+    } else if (cashSheetQuery.isFetched && !cashSheetQuery.data) {
+      const saved = localStorage.getItem(cacheKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setNotes(parsed.notes || { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
+          setCashHome(parsed.cashHome ?? 0);
+          setPrevDeposit(parsed.prevDeposit ?? 0);
+          setLedgerInterest(parsed.ledgerInterest ?? 0);
+        } catch (e) {
+          console.error("Failed to parse denominations", e);
+        }
+      } else {
+        setNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
+        setCashHome(0);
+        setPrevDeposit(0);
+        setLedgerInterest(0);
+      }
+    }
+  }, [cashSheetQuery.data, cashSheetQuery.isFetched, cacheKey]);
+
+  // Save cache helper (writes to localStorage + syncs with backend)
+  const saveDenominations = (
+    updatedNotes: typeof notes,
+    updatedHome = cashHome,
+    updatedDeposit = prevDeposit,
+    updatedInterest = ledgerInterest
+  ) => {
     localStorage.setItem(
       cacheKey,
-      JSON.stringify({ notes: updatedNotes, cashHome: updatedHome, prevDeposit: updatedDeposit, ledgerInterest: updatedInterest })
+      JSON.stringify({
+        notes: updatedNotes,
+        cashHome: updatedHome,
+        prevDeposit: updatedDeposit,
+        ledgerInterest: updatedInterest,
+      })
     );
+
+    api.post("/income/cash-sheet", {
+      sheet_date: date,
+      notes_500: updatedNotes.n500,
+      notes_200: updatedNotes.n200,
+      notes_100: updatedNotes.n100,
+      notes_50: updatedNotes.n50,
+      notes_20: updatedNotes.n20,
+      notes_10: updatedNotes.n10,
+      cash_sent_home: updatedHome,
+      prev_deposit: updatedDeposit,
+      ledger_interest: updatedInterest,
+    }).catch((err) => {
+      console.error("Failed to sync cash sheet to backend:", err);
+    });
   };
 
   // Queries for live Vouchers and Nozzle Meter readings
@@ -490,10 +538,23 @@ export default function RegisterPage() {
     netVol: Math.max(0, speedRaw - speedTesting),
   };
 
-  // Fuel rate constants (₹ per liter)
-  const hsdRate = 98.39;
-  const msRate = 113.35;
-  const msRate2 = 123.00;
+  // Fetch active fuel price schedules (with fallback constants)
+  const priceSchedulesQuery = useQuery({
+    queryKey: ["priceSchedules"],
+    queryFn: () => inventoryService.getPriceSchedules(),
+  });
+
+  const getDynamicFuelRate = (fuelType: "DIESEL" | "PETROL" | "SPEED", fallback: number): number => {
+    if (!priceSchedulesQuery.data || priceSchedulesQuery.data.length === 0) return fallback;
+    const match = priceSchedulesQuery.data.find(
+      (s) => normalizeFuelType(s.fuel_type) === fuelType && s.is_applied
+    );
+    return match ? Number(match.rate) || fallback : fallback;
+  };
+
+  const hsdRate = getDynamicFuelRate("DIESEL", 98.39);
+  const msRate = getDynamicFuelRate("PETROL", 113.35);
+  const msRate2 = getDynamicFuelRate("SPEED", 123.00);
 
   const hsdAmt = hsdSummary.netVol * hsdRate;
   const msAmt = msSummary.netVol * msRate;

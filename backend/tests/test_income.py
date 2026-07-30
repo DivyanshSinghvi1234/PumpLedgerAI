@@ -11,7 +11,7 @@ def test_income_flow(client, auth_headers, db_session):
         headers=auth_headers,
         json={
             "kind": "INCOME",
-            "income_date": "2026-07-20",
+            "income_date": "2026-07-29",
             "description": "Misc scrap sale",
             "amount": 500.0,
             "payment_mode": "CASH",
@@ -30,7 +30,7 @@ def test_income_flow(client, auth_headers, db_session):
         headers=auth_headers,
         json={
             "kind": "DEPOSIT",
-            "income_date": "2026-07-20",
+            "income_date": "2026-07-29",
             "description": "SBI bank deposit",
             "amount": 200.0,
             "payment_mode": "CASH",
@@ -48,7 +48,7 @@ def test_income_flow(client, auth_headers, db_session):
         headers=auth_headers,
         json={
             "kind": "EXPENSE",
-            "income_date": "2026-07-20",
+            "income_date": "2026-07-29",
             "description": "Generator repair",
             "amount": 100.0,
             "payment_mode": "CASH",
@@ -62,7 +62,7 @@ def test_income_flow(client, auth_headers, db_session):
 
     # 4. Get Summary
     summary_resp = client.get(
-        "/api/v1/income/summary?on_date=2026-07-20",
+        "/api/v1/income/summary?on_date=2026-07-29",
         headers=auth_headers
     )
     assert summary_resp.status_code == 200
@@ -82,7 +82,7 @@ def test_income_flow(client, auth_headers, db_session):
         headers=auth_headers,
         json={
             "kind": "INCOME",
-            "income_date": "2026-07-20",
+            "income_date": "2026-07-29",
             "description": "Misc scrap sale updated",
             "amount": 600.0,
             "payment_mode": "CASH",
@@ -96,7 +96,7 @@ def test_income_flow(client, auth_headers, db_session):
 
     # Check summary again after update
     summary_resp2 = client.get(
-        "/api/v1/income/summary?on_date=2026-07-20",
+        "/api/v1/income/summary?on_date=2026-07-29",
         headers=auth_headers
     )
     summary_data2 = summary_resp2.json()
@@ -114,7 +114,7 @@ def test_income_flow(client, auth_headers, db_session):
 
     # Check summary again after delete
     summary_resp3 = client.get(
-        "/api/v1/income/summary?on_date=2026-07-20",
+        "/api/v1/income/summary?on_date=2026-07-29",
         headers=auth_headers
     )
     summary_data3 = summary_resp3.json()

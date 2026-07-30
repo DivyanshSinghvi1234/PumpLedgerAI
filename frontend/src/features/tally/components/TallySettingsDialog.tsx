@@ -10,6 +10,8 @@ import FormActions from "@/components/forms/FormActions";
 import {
   getStoredTallyMappings,
   getStoredTallyVoucherTypes,
+  saveStoredTallyMappings,
+  saveStoredTallyVoucherTypes,
 } from "../hooks/useTally";
 import type { TallyLedgerMappings, TallyVoucherTypes } from "../types";
 
@@ -36,8 +38,8 @@ export default function TallySettingsDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("tally_ledger_mappings", JSON.stringify(mappings));
-    localStorage.setItem("tally_voucher_types", JSON.stringify(vchTypes));
+    saveStoredTallyMappings(mappings);
+    saveStoredTallyVoucherTypes(vchTypes);
     onSave();
     onOpenChange(false);
   };

@@ -7,18 +7,20 @@ import MeterLogsTab from "./components/MeterLogsTab";
 import PriceSchedulesTab from "./components/PriceSchedulesTab";
 import StockReconciliationTab from "./components/StockReconciliationTab";
 
+import LubricantsTab from "./components/LubricantsTab";
+
 export default function InventoryPage() {
   const { hasRole } = useCurrentUser();
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
 
-  const [activeTab, setActiveTab] = useState<"dips" | "readings" | "prices" | "dispensers" | "history">("dips");
+  const [activeTab, setActiveTab] = useState<"dips" | "readings" | "prices" | "dispensers" | "history" | "lubricants">("dips");
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <PageHeader
           title="Inventory & Pricing"
-          description="Configure storage tanks, bulk meter entries, scheduled fuel rates, dispensers, and logs."
+          description="Configure storage tanks, bulk meter entries, packaged lubricants & DEF, fuel rates, and dispensers."
         />
       </div>
 
@@ -43,6 +45,16 @@ export default function InventoryPage() {
           }`}
         >
           Meter Readings
+        </button>
+        <button
+          onClick={() => setActiveTab("lubricants")}
+          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+            activeTab === "lubricants"
+              ? "border-fuel-amber text-ink font-bold"
+              : "border-transparent text-ink-muted hover:text-ink"
+          }`}
+        >
+          Lube & DEF Stock
         </button>
         <button
           onClick={() => setActiveTab("prices")}
@@ -83,6 +95,10 @@ export default function InventoryPage() {
 
       {activeTab === "readings" && (
         <MeterReadingsTab isAdminOrManager={isAdminOrManager} />
+      )}
+
+      {activeTab === "lubricants" && (
+        <LubricantsTab isAdminOrManager={isAdminOrManager} />
       )}
 
       {activeTab === "prices" && (

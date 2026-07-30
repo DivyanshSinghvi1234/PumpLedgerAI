@@ -155,3 +155,37 @@ def update_income(
             detail=str(exc),
         ) from exc
 
+
+# -----------------------------------------------------
+# Daily cash sheet endpoints
+# -----------------------------------------------------
+from app.schemas.daily_cash_sheet import DailyCashSheetCreate, DailyCashSheetResponse
+from app.services.daily_cash_sheet_service import DailyCashSheetService
+
+cash_sheet_service = DailyCashSheetService()
+
+
+@router.get(
+    "/cash-sheet",
+    response_model=DailyCashSheetResponse | None,
+)
+def get_daily_cash_sheet(
+    on_date: date = Query(..., description="Date for the cash sheet"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return cash_sheet_service.get_by_date(db, on_date)
+
+
+@router.post(
+    "/cash-sheet",
+    response_model=DailyCashSheetResponse,
+)
+def save_daily_cash_sheet(
+    data: DailyCashSheetCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return cash_sheet_service.upsert(db, data)
+
+
