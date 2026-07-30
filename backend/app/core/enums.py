@@ -13,8 +13,10 @@ class PaymentMode(str, Enum):
     CASH = "CASH"
     UPI = "UPI"
     CARD = "CARD"
+    BANK = "BANK"
     CREDIT = "CREDIT"
     SPLIT = "SPLIT"
+
 
 
 

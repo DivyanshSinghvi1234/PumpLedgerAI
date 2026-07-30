@@ -79,6 +79,15 @@ class Income(
         nullable=False,
     )
 
+    bank_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bank_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    bank_account = relationship("BankAccount")
+
+
     fuel_type: Mapped[FuelType | None] = mapped_column(
         SqlEnum(FuelType),
         nullable=True,

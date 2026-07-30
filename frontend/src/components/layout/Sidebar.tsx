@@ -14,7 +14,9 @@ import {
   UserCog,
   Coins,
   BookOpen,
+  Landmark,
 } from "lucide-react";
+
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import type { UserRole } from "@/features/auth/services/authService";
 import PumpSwitcher from "./PumpSwitcher";
@@ -109,8 +111,14 @@ const menuItems: MenuGroup[] = [
   },
   {
     section: "Administration",
-    allowedRoles: ["ADMIN"],
+    allowedRoles: ["ADMIN", "MANAGER"],
     items: [
+      {
+        title: "Bank & Cash Accounts",
+        path: "/dashboard/bank-accounts",
+        icon: Landmark,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
       {
         title: "User Management",
         path: "/dashboard/users",
@@ -119,6 +127,7 @@ const menuItems: MenuGroup[] = [
       },
     ],
   },
+
 ];
 
 interface SidebarProps {

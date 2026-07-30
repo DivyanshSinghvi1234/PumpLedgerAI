@@ -75,7 +75,28 @@ class IncomeService:
         if has_calc:
             is_mismatch = abs(expected_sum - data.amount) > Decimal("1.00")
 
-        items_dict = [i.model_dump(mode="json") for i in data.items] if data.items else None
+        bank_account_id = None
+        if getattr(data, "bank_account_uuid", None):
+            from app.models.bank_account import BankAccount, BankTransaction
+            ba = db.scalars(select(BankAccount).where(BankAccount.uuid == str(data.bank_account_uuid))).first()
+            if ba:
+                bank_account_id = ba.id
+                if data.kind == IncomeKind.INCOME:
+                    ba.current_balance = ba.current_balance + data.amount
+                    txn_type = "INCOME"
+                else:
+                    ba.current_balance = ba.current_balance - data.amount
+                    txn_type = "EXPENSE"
+
+                txn = BankTransaction(
+                    bank_account_id=ba.id,
+                    transaction_type=txn_type,
+                    amount=data.amount,
+                    transaction_date=data.income_date,
+                    remarks=f"{data.kind.value}: {data.description}",
+                    pump_id=ba.pump_id,
+                )
+                db.add(txn)
 
         income = Income(
             kind=data.kind,
@@ -84,6 +105,7 @@ class IncomeService:
             amount=data.amount,
             category=(data.category.strip() or None) if data.category else None,
             payment_mode=data.payment_mode,
+            bank_account_id=bank_account_id,
             fuel_type=data.fuel_type,
             quantity_liters=data.quantity_liters,
             rate_per_liter=data.rate_per_liter,
@@ -92,6 +114,7 @@ class IncomeService:
             items=items_dict,
             customer_id=customer.id if customer else None,
         )
+
 
         if customer is not None:
             # Flush to assign income.id so the ledger entry can reference it,

@@ -174,6 +174,15 @@ class Voucher(
         nullable=False,
     )
 
+    bank_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bank_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    bank_account = relationship("BankAccount")
+
+
     # For SPLIT payment mode allocations
     cash_amount: Mapped[Decimal | None] = mapped_column(
         Numeric(12, 2),

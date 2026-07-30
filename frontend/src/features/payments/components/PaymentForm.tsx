@@ -21,11 +21,14 @@ interface CustomerOption {
   value: string;
 }
 
+import BankAccountSelect from "@/components/common/BankAccountSelect";
+
 // Enum values mirror the backend (app/core/enums.py).
 const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
   { label: "Cash", value: "CASH" },
   { label: "UPI", value: "UPI" },
   { label: "Card", value: "CARD" },
+  { label: "Bank Transfer", value: "BANK" },
   { label: "Credit", value: "CREDIT" },
 ];
 
@@ -45,7 +48,9 @@ const paymentSchema = z.object({
     .number()
     .positive("Amount must be greater than 0"),
 
-  payment_mode: z.enum(["CASH", "UPI", "CARD", "CREDIT"]),
+  payment_mode: z.enum(["CASH", "UPI", "CARD", "BANK", "CREDIT"]),
+
+  bank_account_uuid: z.string().optional(),
 
   payment_date: z
     .string()
@@ -55,6 +60,7 @@ const paymentSchema = z.object({
 
   remarks: z.string().optional(),
 });
+
 
 type PaymentFormData = z.output<typeof paymentSchema>;
 
@@ -106,6 +112,7 @@ export default function PaymentForm({
   const customerName = watch("customer_name") ?? "";
   const customerUuid = watch("customer_uuid") ?? "";
   const vehicleNumber = watch("vehicle_number") ?? "";
+  const paymentMode = watch("payment_mode");
 
   function submitForm(
     data: PaymentFormData
@@ -114,6 +121,7 @@ export default function PaymentForm({
       customer_uuid: data.customer_uuid,
       amount: data.amount,
       payment_mode: data.payment_mode,
+      bank_account_uuid: data.bank_account_uuid || null,
       payment_date: data.payment_date,
       reference_number: data.reference_number,
       remarks: data.remarks,
@@ -121,6 +129,7 @@ export default function PaymentForm({
       vehicle_number: data.vehicle_number || null,
     });
   }
+
 
   return (
     <form
@@ -191,12 +200,22 @@ export default function PaymentForm({
           {...register("payment_mode")}
         />
 
+        {(paymentMode === "UPI" || paymentMode === "CARD" || paymentMode === "BANK") && (
+          <div className="col-span-1 sm:col-span-2">
+            <BankAccountSelect
+              value={watch("bank_account_uuid")}
+              onChange={(uuid) => setValue("bank_account_uuid", uuid, { shouldValidate: true })}
+            />
+          </div>
+        )}
+
         <FormDatePicker
           label="Payment Date"
           required
           error={errors.payment_date?.message}
           {...register("payment_date")}
         />
+
 
         <FormInput
           label="Reference Number"

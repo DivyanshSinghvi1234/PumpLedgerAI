@@ -74,11 +74,20 @@ class Payment(
         index=True,
     )
 
+    bank_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bank_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    bank_account = relationship("BankAccount")
+
     # Optional external reference (UPI txn id, cheque number, etc.)
     reference_number: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
+
 
     remarks: Mapped[str | None] = mapped_column(
         String(500),

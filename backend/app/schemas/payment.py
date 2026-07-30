@@ -28,7 +28,10 @@ class PaymentBase(BaseModel):
 
     payment_mode: PaymentMode
 
+    bank_account_uuid: UUID | None = None
+
     payment_date: date
+
 
     reference_number: str | None = Field(
         default=None,
@@ -73,6 +76,8 @@ class PaymentAllocationCreate(BaseModel):
 
     payment_mode: PaymentMode
 
+    bank_account_uuid: UUID | None = None
+
     payment_date: date
 
     reference_number: str | None = Field(
@@ -87,7 +92,7 @@ class PaymentAllocationCreate(BaseModel):
 
     allocations: list[VoucherAllocation] = Field(..., min_length=1)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
 
 class VoucherSettleRequest(BaseModel):
@@ -97,7 +102,10 @@ class VoucherSettleRequest(BaseModel):
 
     payment_mode: PaymentMode
 
+    bank_account_uuid: UUID | None = None
+
     payment_date: date
+
 
     reference_number: str | None = Field(
         default=None,

@@ -41,6 +41,8 @@ const IncomePage = lazyWithRetry(() => import("../features/income/IncomePage"));
 const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage"));
 const AuditLogPage = lazyWithRetry(() => import("../features/audit/AuditLogPage"));
 const UserManagementPage = lazyWithRetry(() => import("../features/users/UserManagementPage"));
+const BankAccountsPage = lazyWithRetry(() => import("../features/admin/BankAccountsPage"));
+
 const AccessDeniedPage = lazyWithRetry(() => import("../components/auth/AccessDeniedPage"));
 const ProtectedRoute = lazyWithRetry(() => import("../components/auth/ProtectedRoute"));
 const RatingPage = lazyWithRetry(() => import("../components/public/RatingPage"));
@@ -135,8 +137,13 @@ const router = createBrowserRouter([
             path: "audit",
             element: <SuspenseWrapper><AuditLogPage /></SuspenseWrapper>,
           },
+          {
+            path: "bank-accounts",
+            element: <SuspenseWrapper><BankAccountsPage /></SuspenseWrapper>,
+          },
         ],
       },
+
 
       /* ─── Admin only ─── */
       {

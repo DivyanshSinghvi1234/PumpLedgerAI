@@ -33,9 +33,11 @@ const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
   { label: "Cash", value: "CASH" },
   { label: "UPI", value: "UPI" },
   { label: "Card", value: "CARD" },
+  { label: "Bank Transfer", value: "BANK" },
   { label: "Credit", value: "CREDIT" },
   { label: "Split (Multi-Payment)", value: "SPLIT" },
 ];
+
 
 const voucherSchema = z
   .object({

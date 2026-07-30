@@ -2,6 +2,7 @@ export type PaymentMode =
   | "CASH"
   | "UPI"
   | "CARD"
+  | "BANK"
   | "CREDIT";
 
 export interface Payment {
@@ -15,7 +16,10 @@ export interface Payment {
 
   payment_mode: PaymentMode;
 
+  bank_account_uuid?: string | null;
+
   payment_date: string;
+
 
   reference_number: string | null;
 
@@ -48,7 +52,10 @@ export interface CreatePaymentRequest {
 
   payment_mode: PaymentMode;
 
+  bank_account_uuid?: string | null;
+
   payment_date: string;
+
 
   reference_number?: string | null;
 

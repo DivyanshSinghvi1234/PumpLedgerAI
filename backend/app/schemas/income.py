@@ -37,7 +37,10 @@ class IncomeBase(BaseModel):
 
     payment_mode: PaymentMode
 
+    bank_account_uuid: UUID | None = None
+
     fuel_type: FuelType | None = None
+
 
     quantity_liters: Decimal | None = Field(default=None, ge=0)
 

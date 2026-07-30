@@ -43,6 +43,8 @@ from app.api.v1.routes.churn import router as churn_router
 from app.api.v1.routes.nps import router as nps_router
 from app.api.v1.routes.setting import router as setting_router
 from app.api.v1.routes.purchase_indent import router as purchase_indent_router
+from app.api.v1.routes.bank_account import router as bank_account_router
+
 
 
 # Configure logging
@@ -271,6 +273,12 @@ app.include_router(
     prefix="/api/v1",
     dependencies=protected,
 )
+app.include_router(
+    bank_account_router,
+    prefix="/api/v1",
+    dependencies=manager_protected,
+)
+
 
 app.include_router(
     nps_router,

@@ -85,8 +85,24 @@ class VoucherPaymentService:
 
         customer = voucher.customer
 
-        # Record the payment + ledger effect atomically. If the voucher has
-        # no linked customer, we still update its paid amount (no ledger).
+        bank_account_id = None
+        if getattr(data, "bank_account_uuid", None):
+            from app.models.bank_account import BankAccount, BankTransaction
+            ba = db.scalars(select(BankAccount).where(BankAccount.uuid == str(data.bank_account_uuid))).first()
+            if ba:
+                bank_account_id = ba.id
+                ba.current_balance = ba.current_balance + data.amount
+                txn = BankTransaction(
+                    bank_account_id=ba.id,
+                    transaction_type="INCOME",
+                    amount=data.amount,
+                    transaction_date=data.payment_date,
+                    reference_number=data.reference_number,
+                    remarks=f"Voucher Settlement — Invoice #{voucher.invoice_number}",
+                    pump_id=ba.pump_id,
+                )
+                db.add(txn)
+
         if customer is not None:
             payment = Payment(
                 customer_id=customer.id,
@@ -94,6 +110,7 @@ class VoucherPaymentService:
                 payment_mode=data.payment_mode,
                 payment_date=data.payment_date,
                 reference_number=data.reference_number,
+                bank_account_id=bank_account_id,
                 remarks=(
                     data.remarks
                     or f"Settlement — invoice {voucher.invoice_number}"
@@ -101,6 +118,7 @@ class VoucherPaymentService:
             )
             db.add(payment)
             db.flush()
+
 
             self.ledger_service.post(
                 db,
@@ -188,6 +206,24 @@ class VoucherPaymentService:
             total += alloc.amount
             touched.append(voucher)
 
+        bank_account_id = None
+        if getattr(data, "bank_account_uuid", None):
+            from app.models.bank_account import BankAccount, BankTransaction
+            ba = db.scalars(select(BankAccount).where(BankAccount.uuid == str(data.bank_account_uuid))).first()
+            if ba:
+                bank_account_id = ba.id
+                ba.current_balance = ba.current_balance + total
+                txn = BankTransaction(
+                    bank_account_id=ba.id,
+                    transaction_type="INCOME",
+                    amount=total,
+                    transaction_date=data.payment_date,
+                    reference_number=data.reference_number,
+                    remarks=f"Customer Payment from {customer.name}",
+                    pump_id=ba.pump_id,
+                )
+                db.add(txn)
+
         # One Payment row for the whole receive action; one ledger PAYMENT
         # entry carries the total and commits every touched voucher together.
         payment = Payment(
@@ -196,10 +232,12 @@ class VoucherPaymentService:
             payment_mode=data.payment_mode,
             payment_date=data.payment_date,
             reference_number=data.reference_number,
+            bank_account_id=bank_account_id,
             remarks=data.remarks or "Voucher settlement",
         )
         db.add(payment)
         db.flush()
+
 
         self.ledger_service.post(
             db,
