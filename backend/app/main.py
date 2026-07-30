@@ -77,6 +77,14 @@ app.add_middleware(PumpScopingMiddleware)
 from app.core.exceptions import AppException
 from fastapi import Request
 
+def _attach_cors_headers(request: Request, response: ORJSONResponse) -> ORJSONResponse:
+    origin = request.headers.get("origin") or "*"
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Vary"] = "Origin"
+    return response
+
+
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
     status_code = 400
@@ -85,19 +93,22 @@ async def app_exception_handler(request: Request, exc: AppException):
         status_code = 404
     elif "Duplicate" in name:
         status_code = 409
-    return ORJSONResponse(
+    res = ORJSONResponse(
         status_code=status_code,
         content={"detail": str(exc)},
     )
+    return _attach_cors_headers(request, res)
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
-    return ORJSONResponse(
+    res = ORJSONResponse(
         status_code=500,
         content={"detail": f"Internal Server Error: {str(exc)}"},
     )
+    return _attach_cors_headers(request, res)
+
 
 
 # CORS: reads ALLOWED_ORIGINS env-var (comma-separated) so Render frontend URL
