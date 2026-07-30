@@ -296,18 +296,19 @@ export default function BankAccountsPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (!bankName.trim() || !accountNumber.trim()) {
-                toast.error("Please enter Bank Name and Account Number.");
+              if (!bankName.trim() || !accountName.trim()) {
+                toast.error("Please enter Bank Name and Account Label.");
                 return;
               }
               createBankMutation.mutate({
                 account_name: accountName.trim(),
                 bank_name: bankName.trim(),
-                account_number: accountNumber.trim(),
+                account_number: accountNumber.trim() || undefined,
                 ifsc_code: ifscCode.trim() || undefined,
                 account_type: accountType,
                 opening_balance: parseFloat(openingBalance) || 0,
               });
+
             }}
             className="space-y-3 py-2"
           >
