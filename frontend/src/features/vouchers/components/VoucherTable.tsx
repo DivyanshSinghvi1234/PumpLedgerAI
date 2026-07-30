@@ -114,6 +114,15 @@ export default function VoucherTable({
             <TableCell className="text-sm font-semibold text-ink font-mono pl-numeric">
               <div className="flex flex-col">
                 <span>{formatCurrency(voucher.total_amount)}</span>
+                <span className="text-[10px] text-slate-500 font-sans font-normal mt-0.5">
+                  {voucher.payment_mode === "SPLIT" ? (
+                    <span title={`Cash: ₹${voucher.cash_amount || 0}, UPI: ₹${voucher.upi_amount || 0}, Card: ₹${voucher.card_amount || 0}, Credit: ₹${voucher.credit_amount || 0}`}>
+                      Split Mode
+                    </span>
+                  ) : (
+                    voucher.payment_mode
+                  )}
+                </span>
                 {voucher.is_amount_mismatch && (
                   <span className="text-[10px] text-amber-500 font-semibold uppercase tracking-wider mt-0.5" title="Quantity * Rate does not match Total Amount">
                     ⚠️ Mismatch

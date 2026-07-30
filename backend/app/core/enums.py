@@ -14,6 +14,8 @@ class PaymentMode(str, Enum):
     UPI = "UPI"
     CARD = "CARD"
     CREDIT = "CREDIT"
+    SPLIT = "SPLIT"
+
 
 
 class IncomeKind(str, Enum):

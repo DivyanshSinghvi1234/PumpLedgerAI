@@ -90,3 +90,30 @@ class TankerDeliveryResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TankTransferCreate(BaseModel):
+    source_tank_uuid: str
+    destination_tank_uuid: str
+    transfer_date: date
+    quantity_liters: float
+    reason: str
+    remarks: str | None = None
+    ignore_capacity: bool = False
+
+
+class TankTransferResponse(BaseModel):
+    id: int
+    uuid: str
+    transfer_date: date
+    source_tank_id: int
+    destination_tank_id: int
+    source_tank_name: str | None = None
+    destination_tank_name: str | None = None
+    quantity_liters: float
+    reason: str
+    remarks: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+

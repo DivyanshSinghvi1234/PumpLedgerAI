@@ -67,6 +67,11 @@ class VoucherBase(BaseModel):
 
     payment_mode: PaymentMode
 
+    cash_amount: Decimal | None = Decimal("0.00")
+    upi_amount: Decimal | None = Decimal("0.00")
+    card_amount: Decimal | None = Decimal("0.00")
+    credit_amount: Decimal | None = Decimal("0.00")
+
     remarks: str | None = None
 
 
@@ -83,6 +88,19 @@ class VoucherCreate(VoucherBase):
             expected = self.quantity_liters * self.rate_per_liter
             if abs(expected - self.total_amount) > Decimal("1.00"):
                 raise ValueError("quantity_liters * rate_per_liter must match total_amount within ₹1")
+
+        # Split payment sum check
+        if self.payment_mode == PaymentMode.SPLIT:
+            split_sum = (
+                (self.cash_amount or Decimal("0.00"))
+                + (self.upi_amount or Decimal("0.00"))
+                + (self.card_amount or Decimal("0.00"))
+                + (self.credit_amount or Decimal("0.00"))
+            )
+            if abs(split_sum - self.total_amount) > Decimal("0.05"):
+                raise ValueError(
+                    f"For SPLIT payment mode, sum of split amounts (₹{split_sum:.2f}) must equal total_amount (₹{self.total_amount:.2f})"
+                )
 
         # Vehicle number cleaning (normalize spaces/hyphens)
         if self.vehicle_number:
@@ -110,6 +128,11 @@ class VoucherUpdate(BaseModel):
 
     payment_mode: PaymentMode | None = None
 
+    cash_amount: Decimal | None = None
+    upi_amount: Decimal | None = None
+    card_amount: Decimal | None = None
+    credit_amount: Decimal | None = None
+
     remarks: str | None = None
     items: list[VoucherItemCreate] | None = None
 
@@ -130,6 +153,7 @@ class VoucherUpdate(BaseModel):
             if cleaned:
                 self.vehicle_number = cleaned
         return self
+
 
 
 class VoucherResponse(VoucherBase):

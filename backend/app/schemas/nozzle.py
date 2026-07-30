@@ -65,6 +65,8 @@ class NozzleReadingCreate(BaseModel):
     interim_6am_reading: float | None = None  # Optional meter reading at 6:00 AM
     testing_liters: float | None = 0.0
     return_testing_to_storage: bool | None = True
+    is_rollover: bool | None = False
+    is_meter_replaced: bool | None = False
 
 class NozzleReadingResponse(BaseModel):
     id: int
@@ -78,6 +80,8 @@ class NozzleReadingResponse(BaseModel):
     interim_6am_reading: float | None = None
     testing_liters: float
     return_testing_to_storage: bool
+    is_rollover: bool = False
+    is_meter_replaced: bool = False
     sales: float
     total_sales: float
     created_at: datetime
@@ -116,6 +120,9 @@ class BulkFormNozzleItem(BaseModel):
     testing: float | None = 0.0
     return_testing_to_storage: bool | None = True
     meter_capacity: float | None = 100000.0
+    is_rollover: bool | None = False
+    is_meter_replaced: bool | None = False
+
 
 class BulkFormResponse(BaseModel):
     reading_date: date

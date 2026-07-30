@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import select, func
+from sqlalchemy import select, func, desc
+
 from sqlalchemy.orm import Session
 
 from app.models.fuel_tank import FuelTank, DipReading, TankerDelivery
@@ -141,7 +142,9 @@ class FuelTankService:
             remarks=remarks,
             procurement_rate=procurement_rate,
             payment_mode=payment_mode,
+            pump_id=tank.pump_id,
         )
+
         db.add(delivery)
         db.flush()
 
@@ -346,3 +349,124 @@ class FuelTankService:
                 "fuel_type": tank.fuel_type.value,
             }
         )
+
+    def create_tank_transfer(
+        self,
+        db: Session,
+        source_tank_uuid: str,
+        destination_tank_uuid: str,
+        transfer_date: date,
+        quantity_liters: float,
+        reason: str,
+        remarks: str | None = None,
+        ignore_capacity: bool = False,
+        actor_id: int | None = None,
+    ) -> TankTransfer:
+        from app.models.fuel_tank import TankTransfer
+        source_tank = self.tank_repo.get_by_uuid(db, source_tank_uuid)
+        if not source_tank:
+            raise ValueError("Source fuel tank not found")
+
+        destination_tank = self.tank_repo.get_by_uuid(db, destination_tank_uuid)
+        if not destination_tank:
+            raise ValueError("Destination fuel tank not found")
+
+        if source_tank.id == destination_tank.id:
+            raise ValueError("Source and destination tank cannot be the same")
+
+        if quantity_liters <= 0:
+            raise ValueError("Transfer quantity must be greater than zero")
+
+        if source_tank.current_stock_liters < quantity_liters:
+            raise ValueError(
+                f"Insufficient stock in '{source_tank.name}': current stock is "
+                f"{source_tank.current_stock_liters:.1f} L, but transfer requires {quantity_liters:.1f} L."
+            )
+
+        if not ignore_capacity and (destination_tank.current_stock_liters + quantity_liters > destination_tank.capacity_liters):
+            raise ValueError("CAPACITY_WARNING: Transfer would exceed destination tank capacity")
+
+        # Execute stock movement
+        source_tank.current_stock_liters -= quantity_liters
+        destination_tank.current_stock_liters += quantity_liters
+
+        self.tank_repo.update(db, source_tank)
+        self.tank_repo.update(db, destination_tank)
+
+        transfer = TankTransfer(
+            transfer_date=transfer_date,
+            source_tank_id=source_tank.id,
+            destination_tank_id=destination_tank.id,
+            quantity_liters=quantity_liters,
+            reason=reason.strip(),
+            remarks=remarks.strip() if remarks else None,
+            pump_id=source_tank.pump_id,
+        )
+        db.add(transfer)
+        db.flush()
+
+        self.audit_service.log_action(
+            db,
+            action="Recorded Inter-Tank Transfer",
+            target_table="tank_transfers",
+            target_id=str(transfer.id),
+            actor_id=actor_id,
+            new_values={
+                "source_tank": source_tank.name,
+                "destination_tank": destination_tank.name,
+                "quantity_liters": str(quantity_liters),
+                "reason": reason,
+            }
+        )
+        return transfer
+
+    def list_tank_transfers(self, db: Session) -> list[dict]:
+        from app.models.fuel_tank import TankTransfer
+        transfers = db.scalars(select(TankTransfer).order_by(desc(TankTransfer.transfer_date), desc(TankTransfer.created_at))).all()
+        result = []
+        for t in transfers:
+            src = db.get(FuelTank, t.source_tank_id)
+            dst = db.get(FuelTank, t.destination_tank_id)
+            result.append({
+                "id": t.id,
+                "uuid": t.uuid,
+                "transfer_date": t.transfer_date,
+                "source_tank_id": t.source_tank_id,
+                "destination_tank_id": t.destination_tank_id,
+                "source_tank_name": src.name if src else "Unknown",
+                "destination_tank_name": dst.name if dst else "Unknown",
+                "quantity_liters": t.quantity_liters,
+                "reason": t.reason,
+                "remarks": t.remarks,
+                "created_at": t.created_at,
+            })
+        return result
+
+    def delete_tank_transfer(self, db: Session, transfer_uuid: str, actor_id: int | None = None) -> None:
+        from app.models.fuel_tank import TankTransfer
+        transfer = db.scalar(select(TankTransfer).where(TankTransfer.uuid == transfer_uuid))
+        if not transfer:
+            raise ValueError("Tank transfer record not found")
+
+        source_tank = db.get(FuelTank, transfer.source_tank_id)
+        destination_tank = db.get(FuelTank, transfer.destination_tank_id)
+
+        # Revert stock movements
+        if source_tank:
+            source_tank.current_stock_liters += transfer.quantity_liters
+            self.tank_repo.update(db, source_tank)
+        if destination_tank:
+            destination_tank.current_stock_liters = max(0.0, destination_tank.current_stock_liters - transfer.quantity_liters)
+            self.tank_repo.update(db, destination_tank)
+
+        db.delete(transfer)
+        db.commit()
+
+        self.audit_service.log_action(
+            db,
+            action="Reverted Inter-Tank Transfer",
+            target_table="tank_transfers",
+            target_id=str(transfer.id),
+            actor_id=actor_id,
+        )
+

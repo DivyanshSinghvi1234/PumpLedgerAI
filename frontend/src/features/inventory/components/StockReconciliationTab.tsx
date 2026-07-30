@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Fuel, Plus, PlusCircle, Calculator, History, AlertTriangle, Edit, Trash2 } from "lucide-react";
+import { Fuel, Plus, PlusCircle, Calculator, History, AlertTriangle, Edit, Trash2, ArrowRightLeft } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
-import type { FuelType, FuelTankCreate, DipReadingCreate } from "../types";
+import type { FuelType, FuelTankCreate, DipReadingCreate, TankTransferCreate } from "../types";
 import TankVisualization from "./TankVisualization";
+
 
 export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOrManager: boolean }) {
   const queryClient = useQueryClient();
@@ -52,6 +53,16 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [stockPaymentMode, setStockPaymentMode] = useState<string>("CREDIT");
   const [stockIgnoreCapacity, setStockIgnoreCapacity] = useState(false);
 
+  // Inter-Tank Transfer states
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferSourceUuid, setTransferSourceUuid] = useState("");
+  const [transferDestUuid, setTransferDestUuid] = useState("");
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+  const [transferQty, setTransferQty] = useState("");
+  const [transferReason, setTransferReason] = useState("Tank Cleaning & Decanting");
+  const [transferRemarks, setTransferRemarks] = useState("");
+  const [transferIgnoreCapacity, setTransferIgnoreCapacity] = useState(false);
+
   // Queries
   const {
     data: tanks,
@@ -82,7 +93,45 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     queryFn: () => inventoryService.getTankForecasts(),
   });
 
+  const {
+    data: transfers,
+    refetch: refetchTransfers,
+  } = useQuery({
+    queryKey: ["tank-transfers"],
+    queryFn: () => inventoryService.getTransfers(),
+  });
+
   // Mutations
+  const createTransferMutation = useMutation({
+    mutationFn: (data: TankTransferCreate) => inventoryService.createTankTransfer(data),
+    onSuccess: () => {
+      toast.success("Inter-tank transfer recorded successfully!");
+      setTransferDialogOpen(false);
+      setTransferSourceUuid("");
+      setTransferDestUuid("");
+      setTransferQty("");
+      setTransferRemarks("");
+      setTransferIgnoreCapacity(false);
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-transfers"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to record inter-tank transfer.");
+    },
+  });
+
+  const deleteTransferMutation = useMutation({
+    mutationFn: (uuid: string) => inventoryService.deleteTankTransfer(uuid),
+    onSuccess: () => {
+      toast.success("Inter-tank transfer reverted successfully!");
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-transfers"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to revert transfer.");
+    },
+  });
+
   const createTankMutation = useMutation({
     mutationFn: (data: FuelTankCreate) => inventoryService.createTank(data),
     onSuccess: () => {
@@ -289,17 +338,33 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
 
   return (
     <div className="space-y-6">
-      {/* Header Add Button (Mounted inside the main page, but triggers tank dialog) */}
+      {/* Header Add Button & Transfer Button */}
       {isAdminOrManager && (
-        <div className="flex justify-end -mt-12 mb-6">
+        <div className="flex justify-end items-center gap-2 -mt-12 mb-6">
+          <Button
+            onClick={() => {
+              if (!tanks || tanks.length < 2) {
+                toast.error("At least 2 fuel tanks are required to perform an inter-tank transfer.");
+                return;
+              }
+              setTransferSourceUuid(tanks[0].uuid);
+              setTransferDestUuid(tanks[1]?.uuid || "");
+              setTransferDialogOpen(true);
+            }}
+            variant="outline"
+            className="border-hairline text-ink hover:bg-surface-2 cursor-pointer font-medium text-xs h-9"
+          >
+            <ArrowRightLeft size={15} className="mr-2 text-fuel-amber" /> Inter-Tank Transfer
+          </Button>
           <Button
             onClick={() => setTankDialogOpen(true)}
-            className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15 cursor-pointer"
+            className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15 cursor-pointer text-xs h-9"
           >
             <Plus size={16} className="mr-2" /> Add Fuel Tank
           </Button>
         </div>
       )}
+
 
       {/* Negative Stock Warning Banner */}
       {negativeTanks.length > 0 && (
@@ -712,13 +777,279 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                   No physical dip readings reconciliation logs recorded yet.
                 </div>
               )}
+          {/* Inter-Tank Transfers & Decanting Log Card */}
+          <Card className="glass border-hairline overflow-hidden">
+            <CardHeader className="bg-surface-2/60 border-b border-hairline py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold text-ink flex items-center gap-2">
+                    <ArrowRightLeft size={16} className="text-fuel-amber" /> Inter-Tank Transfers & Decanting Log
+                  </CardTitle>
+                  <CardDescription className="text-xs text-ink-subtle mt-0.5">
+                    History of internal fuel stock transfers between underground storage tanks
+                  </CardDescription>
+                </div>
+                {isAdminOrManager && (
+                  <Button
+                    onClick={() => {
+                      if (!tanks || tanks.length < 2) {
+                        toast.error("At least 2 fuel tanks are required to perform an inter-tank transfer.");
+                        return;
+                      }
+                      setTransferSourceUuid(tanks[0].uuid);
+                      setTransferDestUuid(tanks[1]?.uuid || "");
+                      setTransferDialogOpen(true);
+                    }}
+                    size="sm"
+                    variant="outline"
+                    className="border-hairline text-xs font-bold text-ink hover:bg-surface-3 cursor-pointer"
+                  >
+                    <Plus size={14} className="mr-1" /> New Transfer
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {transfers && transfers.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-hairline hover:bg-transparent">
+                        <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Date</TableHead>
+                        <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Source Tank</TableHead>
+                        <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Destination Tank</TableHead>
+                        <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Volume (L)</TableHead>
+                        <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Reason / Category</TableHead>
+                        <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transfers.map((tr) => (
+                        <TableRow key={tr.uuid} className="border-b border-hairline hover:bg-surface-3/35">
+                          <TableCell className="px-5 text-xs text-ink-muted">
+                            {new Date(tr.transfer_date).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                          </TableCell>
+                          <TableCell className="text-xs font-bold text-ink">
+                            {tr.source_tank_name}
+                          </TableCell>
+                          <TableCell className="text-xs font-bold text-ink">
+                            {tr.destination_tank_name}
+                          </TableCell>
+                          <TableCell className="text-xs font-bold text-fuel-amber text-right pl-numeric">
+                            {tr.quantity_liters.toLocaleString(undefined, { minimumFractionDigits: 1 })} L
+                          </TableCell>
+                          <TableCell className="text-xs text-ink-muted">
+                            <Badge className="text-[9px] bg-surface-2 text-ink-muted border-hairline">
+                              {tr.reason}
+                            </Badge>
+                            {tr.remarks && <span className="block text-[10px] text-ink-subtle mt-0.5">{tr.remarks}</span>}
+                          </TableCell>
+                          <TableCell className="px-5 text-right">
+                            {isAdminOrManager && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm(`Revert transfer of ${tr.quantity_liters}L from ${tr.source_tank_name} to ${tr.destination_tank_name}?`)) {
+                                    deleteTransferMutation.mutate(tr.uuid);
+                                  }
+                                }}
+                                disabled={deleteTransferMutation.isPending}
+                                className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                                title="Revert transfer and restore original stock levels"
+                              >
+                                Revert
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="p-8 text-center text-xs text-ink-subtle italic">
+                  No internal fuel transfers or decanting logs recorded yet.
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
+      {/* Inter-Tank Transfer Dialog */}
+      <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">
+              <ArrowRightLeft size={18} className="text-fuel-amber" /> Inter-Tank Fuel Transfer
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ink-subtle">
+              Transfer fuel between underground tanks for decanting, cleaning, or stock balancing without revenue impact.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!transferSourceUuid || !transferDestUuid) {
+                toast.error("Please select both source and destination tanks.");
+                return;
+              }
+              if (transferSourceUuid === transferDestUuid) {
+                toast.error("Source and destination tanks cannot be the same.");
+                return;
+              }
+              const qty = parseFloat(transferQty);
+              if (isNaN(qty) || qty <= 0) {
+                toast.error("Please enter a valid transfer volume.");
+                return;
+              }
+              createTransferMutation.mutate({
+                source_tank_uuid: transferSourceUuid,
+                destination_tank_uuid: transferDestUuid,
+                transfer_date: transferDate,
+                quantity_liters: qty,
+                reason: transferReason,
+                remarks: transferRemarks.trim() || undefined,
+                ignore_capacity: transferIgnoreCapacity,
+              });
+            }}
+            className="space-y-4 py-2"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-ink-muted">Source Tank (From)</Label>
+                <select
+                  value={transferSourceUuid}
+                  onChange={(e) => setTransferSourceUuid(e.target.value)}
+                  className="w-full bg-surface-2 border border-hairline rounded-md px-3 py-2 text-xs text-ink outline-none"
+                  required
+                >
+                  {tanks?.map((t) => (
+                    <option key={t.uuid} value={t.uuid}>
+                      {t.name} ({t.fuel_type}) — {t.current_stock_liters.toFixed(0)}L available
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-ink-muted">Destination Tank (To)</Label>
+                <select
+                  value={transferDestUuid}
+                  onChange={(e) => setTransferDestUuid(e.target.value)}
+                  className="w-full bg-surface-2 border border-hairline rounded-md px-3 py-2 text-xs text-ink outline-none"
+                  required
+                >
+                  {tanks?.map((t) => (
+                    <option key={t.uuid} value={t.uuid}>
+                      {t.name} ({t.fuel_type}) — Cap: {t.capacity_liters.toFixed(0)}L
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-ink-muted">Transfer Date</Label>
+                <Input
+                  type="date"
+                  value={transferDate}
+                  onChange={(e) => setTransferDate(e.target.value)}
+                  className="bg-surface-2 border-hairline text-xs text-ink"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-ink-muted">Volume (Liters)</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="e.g. 1000.0"
+                  value={transferQty}
+                  onChange={(e) => setTransferQty(e.target.value)}
+                  className="bg-surface-2 border-hairline text-xs text-ink font-semibold"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-ink-muted">Transfer Reason / Category</Label>
+              <select
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+                className="w-full bg-surface-2 border border-hairline rounded-md px-3 py-2 text-xs text-ink outline-none"
+              >
+                <option value="Tank Cleaning & Decanting">Tank Cleaning & Decanting</option>
+                <option value="Bay Stock Balancing">Bay Stock Balancing</option>
+                <option value="Suction Pump Maintenance">Suction Pump Maintenance</option>
+                <option value="Delivery Pre-Decanting">Delivery Pre-Decanting</option>
+                <option value="General Internal Transfer">General Internal Transfer</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-ink-muted">Remarks <span className="font-normal text-ink-subtle">(optional)</span></Label>
+              <Input
+                placeholder="e.g. Cleared bottom sludge before new tanker drop"
+                value={transferRemarks}
+                onChange={(e) => setTransferRemarks(e.target.value)}
+                className="bg-surface-2 border-hairline text-xs text-ink"
+              />
+            </div>
+
+            {/* Live Transfer Stock Impact Preview */}
+            {transferSourceUuid && transferDestUuid && parseFloat(transferQty) > 0 && (
+              <div className="bg-surface-2/80 border border-hairline p-3 rounded-lg text-xs space-y-1 font-mono">
+                <p className="font-bold text-ink text-[11px] uppercase tracking-wider mb-1">Stock Movement Preview:</p>
+                {(() => {
+                  const srcTank = tanks?.find((t) => t.uuid === transferSourceUuid);
+                  const dstTank = tanks?.find((t) => t.uuid === transferDestUuid);
+                  const qty = parseFloat(transferQty) || 0;
+                  if (!srcTank || !dstTank) return null;
+                  const newSrc = srcTank.current_stock_liters - qty;
+                  const newDst = dstTank.current_stock_liters + qty;
+                  return (
+                    <>
+                      <div className="flex justify-between text-ink-muted">
+                        <span>{srcTank.name}:</span>
+                        <span>{srcTank.current_stock_liters.toFixed(1)}L → <strong className={newSrc < 0 ? "text-red-500" : "text-ink"}>{newSrc.toFixed(1)}L</strong></span>
+                      </div>
+                      <div className="flex justify-between text-ink-muted">
+                        <span>{dstTank.name}:</span>
+                        <span>{dstTank.current_stock_liters.toFixed(1)}L → <strong className={newDst > dstTank.capacity_liters ? "text-amber-500" : "text-fuel-amber"}>{newDst.toFixed(1)}L</strong></span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            <DialogFooter className="pt-3 border-t border-hairline">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setTransferDialogOpen(false)}
+                className="text-xs h-9 cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createTransferMutation.isPending}
+                className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-bold text-xs h-9 cursor-pointer"
+              >
+                {createTransferMutation.isPending ? "Recording..." : "Record Transfer"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Create Fuel Tank Dialog */}
       <Dialog open={tankDialogOpen} onOpenChange={setTankDialogOpen}>
+
         <DialogContent className="glass border border-hairline sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold tracking-tight text-ink flex items-center gap-2">

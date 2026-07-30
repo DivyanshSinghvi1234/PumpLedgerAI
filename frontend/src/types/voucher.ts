@@ -8,7 +8,8 @@ export type PaymentMode =
   | "CASH"
   | "CARD"
   | "UPI"
-  | "CREDIT";
+  | "CREDIT"
+  | "SPLIT";
 
 export type VerificationStatus =
   | "PENDING"
@@ -52,6 +53,14 @@ export interface Voucher {
   total_amount: number;
 
   payment_mode: PaymentMode;
+
+  cash_amount?: number | null;
+
+  upi_amount?: number | null;
+
+  card_amount?: number | null;
+
+  credit_amount?: number | null;
 
   verification_status: VerificationStatus;
 
@@ -124,9 +133,18 @@ export interface CreateVoucherRequest {
 
   payment_mode: PaymentMode;
 
+  cash_amount?: number | null;
+
+  upi_amount?: number | null;
+
+  card_amount?: number | null;
+
+  credit_amount?: number | null;
+
   remarks?: string | null;
 
   image_path?: string | null;
+
 
   items?: {
     fuel_type: FuelType;

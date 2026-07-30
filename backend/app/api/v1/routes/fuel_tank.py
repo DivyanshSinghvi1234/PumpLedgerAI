@@ -13,11 +13,48 @@ from app.schemas.fuel_tank import (
     DipReadingResponse,
     TankerDeliveryCreate,
     TankerDeliveryResponse,
+    TankTransferCreate,
+    TankTransferResponse,
 )
 from app.services.fuel_tank_service import FuelTankService
 
 router = APIRouter(prefix="/tanks", tags=["Fuel Tanks"])
 service = FuelTankService()
+
+
+@router.post(
+    "/transfers",
+    response_model=TankTransferResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def create_tank_transfer(data: TankTransferCreate, db: Session = Depends(get_db)):
+    try:
+        return service.create_tank_transfer(db, **data.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.get(
+    "/transfers",
+    response_model=list[TankTransferResponse],
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def list_tank_transfers(db: Session = Depends(get_db)):
+    return service.list_tank_transfers(db)
+
+
+@router.delete(
+    "/transfers/{uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def delete_tank_transfer(uuid: str, db: Session = Depends(get_db)):
+    try:
+        service.delete_tank_transfer(db, transfer_uuid=uuid)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
 
 
 @router.post(

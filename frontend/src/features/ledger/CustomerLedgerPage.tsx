@@ -15,7 +15,8 @@ import LedgerTable from "./components/LedgerTable";
 import AdjustmentDialog from "./components/AdjustmentDialog";
 import ReconciliationDialog from "./components/ReconciliationDialog";
 
-import { useCustomerLedger } from "./hooks/useCustomerLedger";
+import AuditTimelineDialog from "@/components/common/AuditTimelineDialog";
+import { History } from "lucide-react";
 
 export default function CustomerLedgerPage() {
   const { customerUuid = "" } = useParams();
@@ -26,6 +27,7 @@ export default function CustomerLedgerPage() {
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const {
     data,
@@ -61,11 +63,20 @@ export default function CustomerLedgerPage() {
             </Link>
 
             <button
+              onClick={() => setAuditOpen(true)}
+              className="rounded-md border px-3 py-2 hover:bg-muted/10 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold text-ink"
+              title="View change history timeline"
+            >
+              <History size={15} className="text-fuel-amber" /> Audit History
+            </button>
+
+            <button
               onClick={() => window.open(`/statement/${customerUuid}`, "_blank")}
               className="rounded-md border px-4 py-2 hover:bg-muted/10 transition-colors cursor-pointer"
             >
               Generate Statement
             </button>
+
 
             <button
               onClick={() => {
@@ -145,9 +156,14 @@ export default function CustomerLedgerPage() {
             customerUuid={customerUuid}
             customerName={data.customer_name}
             onOpenChange={setReconcileOpen}
-          />
-        </>
-      )}
+      <AuditTimelineDialog
+        open={auditOpen}
+        onOpenChange={setAuditOpen}
+        title={`Audit History — ${data.customer_name}`}
+        targetTable="customers"
+        targetId={customerUuid}
+      />
     </div>
   );
 }
+

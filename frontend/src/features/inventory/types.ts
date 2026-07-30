@@ -128,6 +128,8 @@ export interface NozzleReading {
   closing_reading: number;
   testing_liters: number;
   return_testing_to_storage: boolean;
+  is_rollover?: boolean;
+  is_meter_replaced?: boolean;
   sales: number;
   total_sales: number;
   created_at: string;
@@ -142,6 +144,8 @@ export interface NozzleReadingCreate {
   interim_6am_reading?: number | null; // Optional 6:00 AM meter reading
   testing_liters?: number;
   return_testing_to_storage?: boolean;
+  is_rollover?: boolean;
+  is_meter_replaced?: boolean;
 }
 
 export interface BulkNozzleReadingCreate {
@@ -163,7 +167,10 @@ export interface BulkFormNozzleItem {
   testing: number | null;
   return_testing_to_storage: boolean | null;
   meter_capacity?: number;
+  is_rollover?: boolean;
+  is_meter_replaced?: boolean;
 }
+
 
 export interface BulkFormResponse {
   reading_date: string;
@@ -180,3 +187,76 @@ export interface FuelTankForecast {
   avg_daily_sales: number;
   days_until_empty: number | null;
 }
+
+export interface TankTransfer {
+  id: number;
+  uuid: string;
+  transfer_date: string;
+  source_tank_id: number;
+  destination_tank_id: number;
+  source_tank_name?: string;
+  destination_tank_name?: string;
+  quantity_liters: number;
+  reason: string;
+  remarks?: string | null;
+  created_at: string;
+}
+
+export interface TankTransferCreate {
+  source_tank_uuid: string;
+  destination_tank_uuid: string;
+  transfer_date: string;
+  quantity_liters: number;
+  reason: string;
+  remarks?: string | null;
+  ignore_capacity?: boolean;
+}
+
+export type OMCCompany = "IOCL" | "BPCL" | "HPCL" | "RELIANCE" | "SHELL" | "NAYARA";
+export type IndentStatus = "INDENTED" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
+
+export interface PurchaseIndent {
+  id: number;
+  uuid: string;
+  indent_number: string;
+  omc_company: OMCCompany;
+  terminal_name: string;
+  fuel_type: FuelType;
+  ordered_liters: number;
+  tank_truck_number?: string | null;
+  expected_delivery_date: string;
+  actual_delivery_date?: string | null;
+  status: IndentStatus;
+  decanted_tank_id?: number | null;
+  decanted_tank_name?: string | null;
+  density_at_15c?: number | null;
+  procurement_cost_per_liter?: number | null;
+  total_invoice_amount?: number | null;
+  invoice_number?: string | null;
+  remarks?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseIndentCreate {
+  omc_company: OMCCompany;
+  terminal_name: string;
+  fuel_type: FuelType;
+  ordered_liters: number;
+  expected_delivery_date: string;
+  procurement_cost_per_liter?: number | null;
+  remarks?: string | null;
+}
+
+export interface PurchaseIndentStatusUpdate {
+  status: IndentStatus;
+  tank_truck_number?: string | null;
+  actual_delivery_date?: string | null;
+  decanted_tank_uuid?: string | null;
+  density_at_15c?: number | null;
+  invoice_number?: string | null;
+  total_invoice_amount?: number | null;
+  remarks?: string | null;
+}
+
+

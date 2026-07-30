@@ -199,3 +199,19 @@ def delete_customer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/whatsapp-digest",
+    dependencies=manager,
+)
+def generate_whatsapp_digest(
+    min_balance: float = 1.0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.services.whatsapp_digest_service import WhatsAppDigestService
+    digest_service = WhatsAppDigestService()
+    return digest_service.get_customer_monthly_digest(
+        db, min_balance=min_balance, actor_id=current_user.id
+    )

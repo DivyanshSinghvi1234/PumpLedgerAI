@@ -42,6 +42,8 @@ from app.api.v1.routes.margins import router as margins_router
 from app.api.v1.routes.churn import router as churn_router
 from app.api.v1.routes.nps import router as nps_router
 from app.api.v1.routes.setting import router as setting_router
+from app.api.v1.routes.purchase_indent import router as purchase_indent_router
+
 
 # Configure logging
 setup_logging()
@@ -264,6 +266,12 @@ app.include_router(
     prefix="/api/v1",
     dependencies=protected,
 )
+app.include_router(
+    purchase_indent_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
+
 app.include_router(
     nps_router,
     prefix="/api/v1",

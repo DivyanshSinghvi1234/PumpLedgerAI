@@ -17,7 +17,15 @@ import type {
   TankerDelivery,
   TankerDeliveryCreate,
   FuelTankForecast,
+  TankTransfer,
+  TankTransferCreate,
+  PurchaseIndent,
+  PurchaseIndentCreate,
+  PurchaseIndentStatusUpdate,
+  IndentStatus,
 } from "../types";
+
+
 
 class InventoryService {
   async getTanks(): Promise<FuelTank[]> {
@@ -142,10 +150,43 @@ class InventoryService {
     return response.data;
   }
 
-  async deleteTank(tankUuid: string): Promise<void> {
-    await api.delete(`/v1/tanks/${tankUuid}`);
+  async getTransfers(): Promise<TankTransfer[]> {
+    const response = await api.get<TankTransfer[]>("/v1/tanks/transfers");
+    return response.data;
+  }
+
+  async createTankTransfer(data: TankTransferCreate): Promise<TankTransfer> {
+    const response = await api.post<TankTransfer>("/v1/tanks/transfers", data);
+    return response.data;
+  }
+
+  async deleteTankTransfer(transferUuid: string): Promise<void> {
+    await api.delete(`/v1/tanks/transfers/${transferUuid}`);
+  }
+
+  async getPurchaseIndents(status?: IndentStatus): Promise<PurchaseIndent[]> {
+    const response = await api.get<PurchaseIndent[]>("/v1/purchase-indents", {
+      params: { indent_status: status },
+    });
+    return response.data;
+  }
+
+  async createPurchaseIndent(data: PurchaseIndentCreate): Promise<PurchaseIndent> {
+    const response = await api.post<PurchaseIndent>("/v1/purchase-indents", data);
+    return response.data;
+  }
+
+  async updatePurchaseIndentStatus(uuid: string, data: PurchaseIndentStatusUpdate): Promise<PurchaseIndent> {
+    const response = await api.put<PurchaseIndent>(`/v1/purchase-indents/${uuid}/status`, data);
+    return response.data;
+  }
+
+  async deletePurchaseIndent(uuid: string): Promise<void> {
+    await api.delete(`/v1/purchase-indents/${uuid}`);
   }
 }
 
 const inventoryService = new InventoryService();
 export default inventoryService;
+
+

@@ -189,7 +189,9 @@ class VoucherService:
             customer_id=customer.id if customer else None,
             vehicle_id=vehicle.id if vehicle else None,
             verification_status=VerificationStatus.VERIFIED,
+            pump_id=getattr(customer, "pump_id", None) if customer else 1,
         )
+
 
         voucher.items = [
             VoucherItem(
@@ -207,10 +209,24 @@ class VoucherService:
             voucher.rate_per_liter = data.items[0].rate_per_liter
 
         # Seed settlement state: cash/UPI/card sales are paid on the spot;
-        # a CREDIT sale starts fully unpaid and is settled via payments.
+        # a CREDIT sale starts fully unpaid; a SPLIT sale allocates cash/UPI/card/credit.
         if voucher.payment_mode == PaymentMode.CREDIT:
             voucher.amount_paid = Decimal("0.00")
             voucher.payment_status = PaymentStatus.UNPAID
+        elif voucher.payment_mode == PaymentMode.SPLIT:
+            paid_portion = (
+                (voucher.cash_amount or Decimal("0.00"))
+                + (voucher.upi_amount or Decimal("0.00"))
+                + (voucher.card_amount or Decimal("0.00"))
+            )
+            credit_portion = voucher.credit_amount or Decimal("0.00")
+            voucher.amount_paid = paid_portion
+            if credit_portion <= Decimal("0.00"):
+                voucher.payment_status = PaymentStatus.PAID
+            elif paid_portion <= Decimal("0.00"):
+                voucher.payment_status = PaymentStatus.UNPAID
+            else:
+                voucher.payment_status = PaymentStatus.PARTIAL
         else:
             voucher.amount_paid = data.total_amount
             voucher.payment_status = PaymentStatus.PAID
@@ -233,6 +249,57 @@ class VoucherService:
                     extra_objects=[voucher],
                     actor_id=actor_id,
                 )
+            elif voucher.payment_mode == PaymentMode.SPLIT:
+                # Post full debit for the split sale
+                self.ledger_service.post(
+                    db,
+                    customer,
+                    LedgerEntryType.VOUCHER,
+                    total,
+                    entry_date=voucher.invoice_date,
+                    reference_type="VOUCHER",
+                    reference_id=voucher.id,
+                    remarks=f"Split sale — invoice {voucher.invoice_number}",
+                    extra_objects=[voucher],
+                    actor_id=actor_id,
+                )
+                # Post offsetting immediate payment credits for non-credit portions
+                if voucher.cash_amount and voucher.cash_amount > Decimal("0.00"):
+                    self.ledger_service.post(
+                        db,
+                        customer,
+                        LedgerEntryType.PAYMENT,
+                        voucher.cash_amount,
+                        entry_date=voucher.invoice_date,
+                        reference_type="VOUCHER",
+                        reference_id=voucher.id,
+                        remarks=f"Immediate payment (Cash) — invoice {voucher.invoice_number}",
+                        actor_id=actor_id,
+                    )
+                if voucher.upi_amount and voucher.upi_amount > Decimal("0.00"):
+                    self.ledger_service.post(
+                        db,
+                        customer,
+                        LedgerEntryType.PAYMENT,
+                        voucher.upi_amount,
+                        entry_date=voucher.invoice_date,
+                        reference_type="VOUCHER",
+                        reference_id=voucher.id,
+                        remarks=f"Immediate payment (UPI) — invoice {voucher.invoice_number}",
+                        actor_id=actor_id,
+                    )
+                if voucher.card_amount and voucher.card_amount > Decimal("0.00"):
+                    self.ledger_service.post(
+                        db,
+                        customer,
+                        LedgerEntryType.PAYMENT,
+                        voucher.card_amount,
+                        entry_date=voucher.invoice_date,
+                        reference_type="VOUCHER",
+                        reference_id=voucher.id,
+                        remarks=f"Immediate payment (Card) — invoice {voucher.invoice_number}",
+                        actor_id=actor_id,
+                    )
             else:
                 # For non-credit (CASH, CARD, UPI) vouchers linked to a customer,
                 # post both the sale debit and the offsetting immediate payment credit
@@ -260,6 +327,7 @@ class VoucherService:
                     remarks=f"Immediate payment ({voucher.payment_mode.value}) — invoice {voucher.invoice_number}",
                     actor_id=actor_id,
                 )
+
 
             for item in voucher.items:
                 self.tank_service.deduct_stock(db, item.fuel_type, item.quantity_liters)

@@ -286,3 +286,77 @@ def test_return_testing_to_storage_deductions(db_session):
     
     # 400 - 100 = 300 L
     assert tank.current_stock_liters == current_stock2 - 100.0
+
+
+def test_nozzle_meter_rollover_and_replacement(db_session):
+    from app.models.fuel_tank import FuelTank
+    from app.schemas.nozzle import BulkNozzleReadingCreate, NozzleReadingCreate
+
+    pump = db_session.query(Pump).first()
+    if not pump:
+        pump = Pump(name="Test Pump Rollover", code="TST-ROLL", address="Test Address")
+        db_session.add(pump)
+        db_session.flush()
+
+    tank = FuelTank(name="Tank Rollover", fuel_type=FuelType.PETROL, capacity_liters=5000.0, current_stock_liters=4000.0, pump_id=pump.id)
+    db_session.add(tank)
+    db_session.flush()
+
+    dispenser = FuelDispenser(name="Dispenser Rollover", status=NozzleStatus.ACTIVE, pump_id=pump.id)
+    db_session.add(dispenser)
+    db_session.flush()
+
+    nozzle = Nozzle(
+        dispenser_id=dispenser.id,
+        name="Nozzle Rollover",
+        fuel_type=FuelType.PETROL,
+        last_reading=999980.0,
+        meter_capacity=1000000.0,
+        tank_id=tank.id,
+        pump_id=pump.id,
+    )
+    db_session.add(nozzle)
+    db_session.flush()
+
+    service = NozzleService()
+    test_date = date(2026, 7, 25)
+
+    # 1. Mechanical Rollover: Opening = 999980.0, Closing = 20.0 => Gross sales = (1000000 - 999980) + 20 = 40.0 L
+    payload_rollover = BulkNozzleReadingCreate(
+        reading_date=test_date,
+        readings=[
+            NozzleReadingCreate(
+                nozzle_uuid=nozzle.uuid,
+                opening_reading=999980.0,
+                closing_reading=20.0,
+                is_rollover=True,
+                testing_liters=5.0,
+            )
+        ]
+    )
+
+    readings = service.post_bulk_readings(db_session, payload_rollover)
+    assert len(readings) == 1
+    assert readings[0].is_rollover is True
+    assert readings[0].sales == 35.0  # 40 gross - 5 testing
+
+    # 2. Meter Replaced: Old meter was 45320.0, new meter closing = 50.0 => Gross sales = 50.0 L
+    next_date = date(2026, 7, 26)
+    payload_replaced = BulkNozzleReadingCreate(
+        reading_date=next_date,
+        readings=[
+            NozzleReadingCreate(
+                nozzle_uuid=nozzle.uuid,
+                opening_reading=45320.0,
+                closing_reading=50.0,
+                is_meter_replaced=True,
+                testing_liters=0.0,
+            )
+        ]
+    )
+
+    readings2 = service.post_bulk_readings(db_session, payload_replaced)
+    assert len(readings2) == 1
+    assert readings2[0].is_meter_replaced is True
+    assert readings2[0].sales == 50.0
+

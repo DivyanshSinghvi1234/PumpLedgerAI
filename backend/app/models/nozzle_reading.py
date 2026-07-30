@@ -84,6 +84,19 @@ class NozzleReading(
         nullable=False,
     )
 
+    is_rollover: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    is_meter_replaced: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+
     # Aggregates
     total_sales: Mapped[float] = mapped_column(
         Float,

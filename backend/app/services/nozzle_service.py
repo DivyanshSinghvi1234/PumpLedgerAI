@@ -381,7 +381,6 @@ class NozzleService:
             # upgrade to filtering on `status == ACTIVE` if that's ever wanted.
             for nozzle in dispenser.nozzles:
                 reading = readings_on_date.get(nozzle.id)
-
                 if reading:
                     opening_reading = reading.opening_reading if reading.opening_reading is not None else 0.0
                     closing_reading = reading.closing_reading
@@ -391,6 +390,8 @@ class NozzleService:
                     interim_6am_reading = reading.interim_6am_reading
                     testing = reading.testing_liters if reading.testing_liters is not None else 0.0
                     return_testing_to_storage = reading.return_testing_to_storage
+                    is_rollover = getattr(reading, "is_rollover", False) or False
+                    is_meter_replaced = getattr(reading, "is_meter_replaced", False) or False
                 else:
                     # Auto-rollover: load previous final reading as opening
                     prev = prev_readings_map.get(nozzle.id)
@@ -406,6 +407,8 @@ class NozzleService:
                     interim_6am_reading = None
                     testing = 0.0
                     return_testing_to_storage = True
+                    is_rollover = False
+                    is_meter_replaced = False
 
                 # Ensure fuel type has fallback
                 fuel_type_val = nozzle.fuel_type if nozzle.fuel_type else FuelType.PETROL
@@ -425,6 +428,8 @@ class NozzleService:
                         testing=testing,
                         return_testing_to_storage=return_testing_to_storage,
                         meter_capacity=nozzle.meter_capacity,
+                        is_rollover=is_rollover,
+                        is_meter_replaced=is_meter_replaced,
                     )
                 )
 
@@ -463,11 +468,22 @@ class NozzleService:
 
             opening = item.opening_reading if item.opening_reading is not None else self.get_opening_readings(db, nozzle.uuid, r_date)
 
-            gross_sales = item.closing_reading - opening
-            if gross_sales < 0:
+            is_meter_replaced = bool(item.is_meter_replaced)
+            is_rollover = bool(item.is_rollover)
+
+            if is_meter_replaced:
+                gross_sales = item.closing_reading
+            elif is_rollover or item.closing_reading < opening:
                 gross_sales = (nozzle.meter_capacity - opening) + item.closing_reading
-            if gross_sales > nozzle.meter_capacity * 0.1:
-                raise ValueError(f"Meter sales for nozzle '{nozzle.name}' are implausibly high; review the reading.")
+                is_rollover = True
+            else:
+                gross_sales = item.closing_reading - opening
+
+            if gross_sales < 0:
+                gross_sales = 0.0
+
+            if not is_meter_replaced and gross_sales > nozzle.meter_capacity * 0.1:
+                raise ValueError(f"Meter sales for nozzle '{nozzle.name}' are implausibly high; review the reading or flag as Meter Replaced.")
 
             testing_liters = item.testing_liters or 0.0
             sales = max(0.0, gross_sales - testing_liters)
@@ -507,6 +523,7 @@ class NozzleService:
                 "opening": opening, "sales": sales, "testing_liters": testing_liters,
                 "return_testing_to_storage": return_to_storage, "tank_drawdown": tank_drawdown,
                 "old_tank_id": old_tank_id, "old_drawdown": old_drawdown,
+                "is_rollover": is_rollover, "is_meter_replaced": is_meter_replaced,
             })
 
         for tank_id, removed in net_deduction.items():
@@ -525,6 +542,8 @@ class NozzleService:
             return_to_storage, tank_drawdown = p["return_testing_to_storage"], p["tank_drawdown"]
             opening_time = parse_time(item.opening_time)
             closing_time = parse_time(item.closing_time)
+            is_rollover = p["is_rollover"]
+            is_meter_replaced = p["is_meter_replaced"]
 
             if existing:
                 old_drawdown = p["old_drawdown"]
@@ -532,6 +551,8 @@ class NozzleService:
                 existing.closing_reading = item.closing_reading
                 existing.testing_liters = testing_liters
                 existing.return_testing_to_storage = return_to_storage
+                existing.is_rollover = is_rollover
+                existing.is_meter_replaced = is_meter_replaced
                 existing.sales = sales
                 existing.total_sales = sales
                 existing.opening_time = opening_time
@@ -556,6 +577,8 @@ class NozzleService:
                     closing_reading=item.closing_reading,
                     testing_liters=testing_liters,
                     return_testing_to_storage=return_to_storage,
+                    is_rollover=is_rollover,
+                    is_meter_replaced=is_meter_replaced,
                     sales=sales,
                     total_sales=sales,
                     opening_time=opening_time,

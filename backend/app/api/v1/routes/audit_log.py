@@ -19,14 +19,21 @@ router = APIRouter(prefix="/audit-logs", tags=["Audit Trails"])
     dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
 )
 def list_audit_logs(
+    target_table: str | None = None,
+    target_id: str | None = None,
     db: Session = Depends(get_db),
 ):
     # Join with users to resolve actor username
     stmt = (
         select(AuditLog, User.username)
         .outerjoin(User, AuditLog.actor_id == User.id)
-        .order_by(AuditLog.created_at.desc())
     )
+    if target_table:
+        stmt = stmt.where(AuditLog.target_table == target_table)
+    if target_id:
+        stmt = stmt.where(AuditLog.target_id == str(target_id))
+
+    stmt = stmt.order_by(AuditLog.created_at.desc())
     rows = db.execute(stmt).all()
 
     results = []
@@ -35,3 +42,4 @@ def list_audit_logs(
         resp.actor_name = username
         results.append(resp)
     return results
+

@@ -174,6 +174,31 @@ class Voucher(
         nullable=False,
     )
 
+    # For SPLIT payment mode allocations
+    cash_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=True,
+    )
+
+    upi_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=True,
+    )
+
+    card_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=True,
+    )
+
+    credit_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=True,
+    )
+
     # How much of total_amount has been settled. Cash/UPI/card sales are
     # fully paid on creation; CREDIT sales accrue payments over time.
     amount_paid: Mapped[Decimal] = mapped_column(
@@ -187,6 +212,7 @@ class Voucher(
         default=PaymentStatus.UNPAID,
         nullable=False,
     )
+
 
     # ======================================================
     # AI Information

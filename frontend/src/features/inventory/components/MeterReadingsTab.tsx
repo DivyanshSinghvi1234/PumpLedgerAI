@@ -27,6 +27,8 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
         interim6am: string | number;
         testing: string | number;
         sales: string;
+        isRollover?: boolean;
+        isMeterReplaced?: boolean;
       }
     >
   >({});
@@ -55,6 +57,25 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
       return [];
     }
   });
+
+  // Helper for computing sales with rollover & meter replacement support
+  const computeNozzleSales = (
+    openVal: number,
+    closeVal: number,
+    meterCapacity: number = 1000000.0,
+    isRollover: boolean = false,
+    isMeterReplaced: boolean = false
+  ): string => {
+    if (isNaN(closeVal) || isNaN(openVal)) return "";
+    if (isMeterReplaced) {
+      return Math.max(0, closeVal).toFixed(3);
+    }
+    if (isRollover || closeVal < openVal) {
+      const rolledSales = (meterCapacity - openVal) + closeVal;
+      return Math.max(0, rolledSales).toFixed(3);
+    }
+    return Math.max(0, closeVal - openVal).toFixed(3);
+  };
 
   // Query: bulk form readings for the selected date
   const {
@@ -260,19 +281,27 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           interim6am: string | number;
           testing: string | number;
           sales: string;
+          isRollover?: boolean;
+          isMeterReplaced?: boolean;
         }
       > = {};
       bulkForm.items.forEach((item) => {
         const openVal = item.opening_reading;
         const closeVal = item.closing_reading;
         const testingL = item.testing !== null ? item.testing : 0.0;
-        const salesVal = closeVal !== null ? Math.max(0, closeVal - openVal).toFixed(3) : "";
+        const isRollover = Boolean(item.is_rollover);
+        const isMeterReplaced = Boolean(item.is_meter_replaced);
+        const salesVal = closeVal !== null 
+          ? computeNozzleSales(openVal, closeVal, item.meter_capacity || 1000000.0, isRollover, isMeterReplaced)
+          : "";
         initialMap[item.nozzle_uuid] = {
           opening: openVal,
           closing: closeVal !== null ? closeVal : "",
           interim6am: item.interim_6am_reading !== null ? item.interim_6am_reading : "",
           testing: testingL,
           sales: salesVal,
+          isRollover,
+          isMeterReplaced,
         };
       });
       setFormItems(initialMap);
@@ -359,14 +388,19 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
           if (isNaN(opening) || isNaN(closing)) {
             throw new Error(`Reading values for nozzle ${item.nozzle_name} must be numeric.`);
           }
+          const isMeterReplaced = Boolean(vals.isMeterReplaced);
+          let isRollover = Boolean(vals.isRollover);
           const meterCapacity = item.meter_capacity ?? 1000000.0;
-          if (closing < opening) {
+
+          if (closing < opening && !isMeterReplaced) {
+            isRollover = true;
             const grossSales = (meterCapacity - opening) + closing;
             if (grossSales > meterCapacity * 0.1) {
-              throw new Error(`Final meter reading for nozzle ${item.nozzle_name} cannot be less than initial reading (or exceeds safety rollover limits).`);
+              throw new Error(`Final meter reading for nozzle ${item.nozzle_name} cannot be less than initial reading (or exceeds safety rollover limits). Click 'Meter Replaced' if the dispenser meter was replaced.`);
             }
           }
-          if (interim !== null && (interim < opening || interim > closing)) {
+
+          if (interim !== null && (interim < opening || interim > closing) && !isRollover && !isMeterReplaced) {
             throw new Error(`6 AM reading for nozzle ${item.nozzle_name} must be between the opening and closing readings.`);
           }
           if (isNaN(testing) || testing < 0) {
@@ -382,8 +416,11 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
             interim_6am_reading: interim,
             testing_liters: testing,
             return_testing_to_storage: globalReturnTestingToStorage,
+            is_rollover: isRollover,
+            is_meter_replaced: isMeterReplaced,
           };
         });
+
 
       if (readings.length === 0) {
         toast.error("Please enter a closing reading for at least one nozzle.");
@@ -772,7 +809,9 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                   const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
                                   const openVal = parseFloat(prevItem.opening?.toString() || "0");
                                   const closeVal = parseFloat(raw || "0");
-                                  const salesVal = raw === "" ? "" : Math.max(0, closeVal - openVal).toFixed(3);
+                                  const salesVal = raw === "" 
+                                    ? "" 
+                                    : computeNozzleSales(openVal, closeVal, item.meter_capacity || 1000000.0, Boolean(prevItem.isRollover), Boolean(prevItem.isMeterReplaced));
                                   return {
                                     ...prev,
                                     [item.nozzle_uuid]: {
@@ -800,7 +839,48 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               disabled={isDisabled || isMaintenance}
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
+                            {closingEntered && (
+                              <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                                {isNegative && !stateVals.isMeterReplaced && (
+                                  <span className="text-amber-500 font-semibold flex items-center gap-0.5" title="Mechanical meter zeroing detected">
+                                    🔄 Rollover
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormItems((prev) => {
+                                      const prevItem = prev[item.nozzle_uuid] || { opening: "", closing: "", interim6am: "", testing: 0.0, sales: "" };
+                                      const isReplaced = !prevItem.isMeterReplaced;
+                                      const openV = parseFloat(prevItem.opening?.toString() || "0");
+                                      const closeV = parseFloat(prevItem.closing?.toString() || "0");
+                                      const newSales = prevItem.closing === "" 
+                                        ? "" 
+                                        : computeNozzleSales(openV, closeV, item.meter_capacity || 1000000.0, Boolean(prevItem.isRollover), isReplaced);
+                                      return {
+                                        ...prev,
+                                        [item.nozzle_uuid]: {
+                                          ...prevItem,
+                                          isMeterReplaced: isReplaced,
+                                          sales: newSales,
+                                        },
+                                      };
+                                    });
+                                  }}
+                                  disabled={isDisabled}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-medium border transition-colors cursor-pointer ${
+                                    stateVals.isMeterReplaced
+                                      ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40"
+                                      : "bg-surface-2 text-ink-subtle hover:text-ink border-hairline"
+                                  }`}
+                                  title="Flag if dispenser nozzle meter unit was replaced or reset during servicing"
+                                >
+                                  🔧 {stateVals.isMeterReplaced ? "Replaced" : "Replaced?"}
+                                </button>
+                              </div>
+                            )}
                           </TableCell>
+
                           <TableCell className="py-2.5">
                             <Input
                               type="number"

@@ -15,6 +15,9 @@ import { useDeleteCustomer } from "./hooks/useDeleteCustomer";
 
 import type { Customer } from "./types/customer";
 
+import { MessageCircle } from "lucide-react";
+import WhatsAppDigestDialog from "./components/WhatsAppDigestDialog";
+
 export default function CustomerListPage() {
   const navigate = useNavigate();
 
@@ -23,9 +26,9 @@ export default function CustomerListPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [digestOpen, setDigestOpen] = useState(false);
 
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<Customer>();
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer>();
 
   const deleteMutation = useDeleteCustomer();
 
@@ -80,7 +83,17 @@ export default function CustomerListPage() {
       <PageHeader
         title="Customers"
         description="Manage petrol pump customers."
+        action={
+          <button
+            onClick={() => setDigestOpen(true)}
+            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3.5 py-2 cursor-pointer transition-colors flex items-center gap-2 text-xs font-bold"
+          >
+            <MessageCircle size={16} />
+            Monthly WhatsApp Digest
+          </button>
+        }
       />
+
 
       <CustomerToolbar
         onSearch={(value) => {
@@ -140,6 +153,11 @@ export default function CustomerListPage() {
         customer={selectedCustomer}
         onConfirm={confirmDelete}
       />
+
+      <WhatsAppDigestDialog
+        open={digestOpen}
+        onOpenChange={setDigestOpen}
+      />
     </div>
   );
-}
+}

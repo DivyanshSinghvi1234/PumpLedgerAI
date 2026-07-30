@@ -65,7 +65,9 @@ class LedgerService:
             reference_type=reference_type,
             reference_id=reference_id,
             remarks=remarks,
+            pump_id=customer.pump_id or 1,
         )
+
 
         res = self.repository.post(
             db,

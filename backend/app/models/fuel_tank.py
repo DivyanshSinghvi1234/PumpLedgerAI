@@ -134,3 +134,18 @@ class TankerDelivery(Base, IDMixin, UUIDMixin, TimestampMixin, ActiveMixin, Pump
     payment_mode: Mapped[PaymentMode] = mapped_column(Enum(PaymentMode), default=PaymentMode.CREDIT, server_default="CREDIT", nullable=False)
 
     fuel_tank = relationship("FuelTank", back_populates="deliveries")
+
+
+class TankTransfer(Base, IDMixin, UUIDMixin, TimestampMixin, ActiveMixin, PumpScopedMixin):
+    __tablename__ = "tank_transfers"
+
+    transfer_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    source_tank_id: Mapped[int] = mapped_column(ForeignKey("fuel_tanks.id", ondelete="CASCADE"), nullable=False, index=True)
+    destination_tank_id: Mapped[int] = mapped_column(ForeignKey("fuel_tanks.id", ondelete="CASCADE"), nullable=False, index=True)
+    quantity_liters: Mapped[float] = mapped_column(Float, nullable=False)
+    reason: Mapped[str] = mapped_column(String(150), nullable=False)
+    remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    source_tank = relationship("FuelTank", foreign_keys=[source_tank_id])
+    destination_tank = relationship("FuelTank", foreign_keys=[destination_tank_id])
+
