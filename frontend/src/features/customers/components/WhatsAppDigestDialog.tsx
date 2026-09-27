@@ -94,7 +94,7 @@ export default function WhatsAppDigestDialog({ open, onOpenChange }: WhatsAppDig
                         const url = getWhatsAppShareUrl(item.phone, item.message);
                         window.open(url, "_blank");
                       }}
-                      disabled={!item.phone}
+                      title={!item.phone ? "Opens WhatsApp so you can choose contact" : "Send WhatsApp message"}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 cursor-pointer flex items-center gap-1.5"
                     >
                       <Send size={12} /> Send

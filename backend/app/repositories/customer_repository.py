@@ -151,6 +151,10 @@ class CustomerRepository(
         db: Session,
         *,
         search: str | None = None,
+        balance_filter: str | None = None,
+        sort_by: str | None = "name",
+        from_date: Any | None = None,
+        to_date: Any | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Customer], int]:
@@ -160,9 +164,7 @@ class CustomerRepository(
         )
 
         if search:
-
             pattern = f"%{search}%"
-
             query = query.where(
                 or_(
                     Customer.name.ilike(pattern),
@@ -172,15 +174,35 @@ class CustomerRepository(
                 )
             )
 
+        if balance_filter == "has_outstanding":
+            query = query.where(or_(Customer.outstanding_balance > 0, Customer.opening_balance > 0))
+        elif balance_filter == "zero":
+            query = query.where(Customer.outstanding_balance == 0)
+        elif balance_filter == "credit":
+            query = query.where(Customer.outstanding_balance < 0)
+
+        if from_date:
+            query = query.where(Customer.created_at >= from_date)
+        if to_date:
+            query = query.where(Customer.created_at <= to_date)
+
         total = db.scalar(
             select(func.count()).select_from(
                 query.subquery()
             )
         )
 
+        if sort_by == "outstanding_desc":
+            query = query.order_by(Customer.outstanding_balance.desc(), Customer.name.asc())
+        elif sort_by == "outstanding_asc":
+            query = query.order_by(Customer.outstanding_balance.asc(), Customer.name.asc())
+        elif sort_by == "latest":
+            query = query.order_by(Customer.updated_at.desc(), Customer.id.desc())
+        else:
+            query = query.order_by(Customer.name.asc())
+
         query = (
             query
-            .order_by(Customer.name)
             .offset((page - 1) * page_size)
             .limit(page_size)
         )

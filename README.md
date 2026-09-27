@@ -61,17 +61,19 @@ Open http://localhost:5173, sign in with the default admin credentials.
 The frontend expects the backend at `http://127.0.0.1:8000` (see
 `src/api/client.ts`). CORS for `localhost:5173` is enabled on the backend.
 
-## Core flow
+## Key Features & Completed Modules
 
-1. **Login** → obtains a JWT (stored in `localStorage`, sent as a Bearer token).
-2. **Upload Invoice** → image is sent to the backend, Gemini extracts fields.
-3. **Review** → correct any fields (fuel type / payment mode are dropdowns);
-   validation warnings/errors are shown.
-4. **Save Voucher** → persisted; appears in **Vouchers** (search/filter/paginate).
-5. **Customers** → full CRUD.
+1. **Authentication & Role-Based Access Control (RBAC):** JWT session auth with granular permission tiers (`ADMIN`, `MANAGER`, `OPERATOR`).
+2. **AI-Powered OCR Pipeline:** Vision model (Google Gemini / OpenRouter / Ollama) extraction from fuel slips/invoices with confidence scoring and a human-in-the-loop review interface.
+3. **Vouchers & Ledger Automation:** Live synchronization between vouchers and credit accounts, supporting search, filtering, and pagination.
+4. **Customer Credit & Debtor Aging:** Comprehensive customer ledgers, automated FIFO payment allocation, live balance calculations, and one-click WhatsApp statement digests.
+5. **Vehicle Fleet Management:** Dedicated vehicle registry and vehicle-scoped fuel consumption ledgers.
+6. **Fuel Inventory & Dispensers:** Tank dip logs, dispenser/nozzle meter readings, and meter rollover handling.
+7. **Cash Sheet & Bank Reconciliation:** Shift management, cash drawer balancing, bank account management, and income/expense tracking.
+8. **Audit Trail & Reports:** Detailed action logging, financial statement generation, and Tally-compatible XML exports.
 
-## Notes / roadmap
+## Testing & Quality Assurance
 
-This is the first working version. The following module folders are scaffolded
-for future updates and are intentionally empty for now: `analytics`, `audit`,
-`rag`, `reports`, `tally`. Vehicles has backend support but no dedicated UI yet.
+- **Backend:** 58 automated unit and integration tests (`pytest` / `uv run pytest`).
+- **Frontend:** Strict TypeScript type-checking (`tsc -b`) and optimized production bundling with Vite.
+

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -29,7 +30,6 @@ class CustomerService:
         self.repository = CustomerRepository()
         self.ledger_service = LedgerService()
         self.balance_service = BalanceService()
-        self.audit_service = AuditLogService()
         self.audit_service = AuditLogService()
 
     def _apply_live_balance(
@@ -144,73 +144,11 @@ class CustomerService:
 
         return customer
 
-    # -----------------------------------
-    # Get All
-    # -----------------------------------
-
-    def get_all(
-        self,
-        db: Session,
-    ) -> list[Customer]:
-
-        return self.repository.get_all(db)
-
-    # -----------------------------------
-    # Search
-    # -----------------------------------
-
-    def search(
-        self,
-        db: Session,
-        *,
-        search: str | None = None,
-        page: int = 1,
-        page_size: int = 20,
-    ) -> tuple[list[Customer], int]:
-
-        customers, total = self.repository.search(
-            db,
-            search=search,
-            page=page,
-            page_size=page_size,
-        )
-
-        balances = self.balance_service.customer_outstanding_bulk(
-            db,
-            [c.id for c in customers],
-        )
-        for c in customers:
-            c.outstanding_balance = balances[c.id]
-
-        return customers, total
-
-    def search_autocomplete(
-        self,
-        db: Session,
-        *,
-        search: str,
-        limit: int = 10,
-    ) -> list[Customer]:
-        """Lightweight search for autocomplete dropdown."""
-        customers = self.repository.search_autocomplete(
-            db,
-            search=search,
-            limit=limit,
-        )
-        for c in customers:
-            self._apply_live_balance(db, c)
-        return customers
-
-    # -----------------------------------
-    # Get By UUID
-    # -----------------------------------
-
     def get_by_uuid(
         self,
         db: Session,
         customer_uuid: str,
     ) -> Customer:
-
         customer = self.repository.get_by_uuid(
             db,
             customer_uuid,
@@ -222,6 +160,44 @@ class CustomerService:
             )
 
         return self._apply_live_balance(db, customer)
+
+    def search(
+        self,
+        db: Session,
+        *,
+        search: str | None = None,
+        balance_filter: str | None = None,
+        sort_by: str | None = "name",
+        from_date: Any | None = None,
+        to_date: Any | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[Customer], int]:
+        customers, total = self.repository.search(
+            db,
+            search=search,
+            balance_filter=balance_filter,
+            sort_by=sort_by,
+            from_date=from_date,
+            to_date=to_date,
+            page=page,
+            page_size=page_size,
+        )
+        return [self._apply_live_balance(db, c) for c in customers], total
+
+    def search_autocomplete(
+        self,
+        db: Session,
+        *,
+        search: str,
+        limit: int = 10,
+    ) -> list[Customer]:
+        customers = self.repository.search_autocomplete(
+            db,
+            search=search,
+            limit=limit,
+        )
+        return [self._apply_live_balance(db, c) for c in customers]
 
     # -----------------------------------
     # Update
