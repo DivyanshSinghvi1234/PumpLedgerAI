@@ -73,6 +73,8 @@ class DayClosingCreate(BaseModel):
     coins: Decimal = Field(default=Decimal("0.00"), ge=0)
     tank_dips: dict[str, float] = Field(default_factory=dict)
     settlement_bank_account_uuid: str | None = None
+    upi_bank_account_uuid: str | None = None
+    card_bank_account_uuid: str | None = None
     cash_deposited_to_bank: Decimal = Field(default=Decimal("0.00"), ge=0)
     notes: str | None = Field(default=None, max_length=500)
 

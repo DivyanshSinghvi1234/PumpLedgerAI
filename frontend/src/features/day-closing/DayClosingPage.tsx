@@ -48,6 +48,8 @@ export default function DayClosingPage() {
   // Step 3: Notes & Bank Sync
   const [notes, setNotes] = useState("");
   const [settlementBankUuid, setSettlementBankUuid] = useState("");
+  const [upiBankUuid, setUpiBankUuid] = useState("");
+  const [cardBankUuid, setCardBankUuid] = useState("");
   const [cashDepositedToBank, setCashDepositedToBank] = useState("0");
 
   const { data: draft, isLoading } = useQuery({
@@ -115,6 +117,8 @@ export default function DayClosingPage() {
         coins: Number(coins) || 0,
         tank_dips: tankDipsPayload,
         settlement_bank_account_uuid: settlementBankUuid || null,
+        upi_bank_account_uuid: upiBankUuid || null,
+        card_bank_account_uuid: cardBankUuid || null,
         cash_deposited_to_bank: Number(cashDepositedToBank) || 0,
         notes: notes.trim() || null,
       }),
@@ -161,6 +165,8 @@ export default function DayClosingPage() {
     setCashToNextDay("0");
     setNotes("");
     setSettlementBankUuid("");
+    setUpiBankUuid("");
+    setCardBankUuid("");
     setCashDepositedToBank("0");
   };
 
@@ -608,7 +614,17 @@ export default function DayClosingPage() {
               <BankAccountSelect
                 value={settlementBankUuid}
                 onChange={setSettlementBankUuid}
-                label="Settlement Bank Account (Optional — defaults to primary)"
+                label="Default / Cash Deposit Bank (Optional)"
+              />
+              <BankAccountSelect
+                value={upiBankUuid}
+                onChange={setUpiBankUuid}
+                label="UPI Settlement Bank (e.g. SBI — Optional)"
+              />
+              <BankAccountSelect
+                value={cardBankUuid}
+                onChange={setCardBankUuid}
+                label="Card EDC Bank (e.g. HDFC — Optional)"
               />
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">

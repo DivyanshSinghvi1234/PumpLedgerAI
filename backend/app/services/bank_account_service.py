@@ -163,6 +163,63 @@ class BankAccountService:
         db.flush()
         return txn
 
+    def sync_from_entity(
+        self,
+        db: Session,
+        *,
+        bank_account_uuid: str | object | None,
+        amount: Decimal,
+        transaction_type: str,
+        transaction_date: date,
+        reference_number: str,
+        remarks: str,
+        pump_id: int | None = None,
+    ) -> BankAccount | None:
+        """Credit or debit a specific BankAccount (e.g. HDFC vs SBI) from a Payment,
+        Voucher, Income, or TankerDelivery and record a traceable BankTransaction."""
+        if not bank_account_uuid or amount <= Decimal("0.00"):
+            return None
+        acc = db.scalars(
+            select(BankAccount).where(
+                BankAccount.uuid == str(bank_account_uuid),
+                BankAccount.is_active.is_(True),
+            )
+        ).first()
+        if acc is None:
+            return None
+        self.adjust_bank_balance(
+            db,
+            bank_account_id=acc.id,
+            amount=amount,
+            transaction_type=transaction_type,
+            transaction_date=transaction_date,
+            reference_number=reference_number,
+            remarks=remarks,
+            pump_id=pump_id or acc.pump_id,
+        )
+        return acc
+
+    def reverse_by_reference(self, db: Session, reference_number: str) -> None:
+        """Reverse BankAccount balance and delete BankTransactions matching reference_number."""
+        if not reference_number:
+            return
+        txns = list(
+            db.scalars(
+                select(BankTransaction).where(
+                    BankTransaction.reference_number == reference_number
+                )
+            ).all()
+        )
+        for txn in txns:
+            if txn.bank_account_id:
+                acc = db.get(BankAccount, txn.bank_account_id)
+                if acc is not None:
+                    if txn.transaction_type in ("INCOME", "DEPOSIT"):
+                        acc.current_balance = acc.current_balance - txn.amount
+                    elif txn.transaction_type in ("EXPENSE", "WITHDRAWAL"):
+                        acc.current_balance = acc.current_balance + txn.amount
+            db.delete(txn)
+
     def get_liquid_funds_summary(self, db: Session, pump_id: int) -> dict:
         accounts = self.list_bank_accounts(db, pump_id)
         total_bank_balance = sum((a.current_balance for a in accounts), Decimal("0.00"))

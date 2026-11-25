@@ -75,6 +75,7 @@ def allocate_payment_fifo(
             amount=data.amount,
             payment_mode=data.payment_mode,
             payment_date=data.payment_date,
+            bank_account_uuid=str(data.bank_account_uuid) if data.bank_account_uuid else None,
             reference_number=data.reference_number,
             remarks=data.remarks,
             vehicle_uuid=(

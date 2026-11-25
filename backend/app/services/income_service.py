@@ -241,6 +241,29 @@ class IncomeService:
 
         DayClosingService.ensure_day_open(db, income.income_date)
 
+        # Reverse synced BankAccount balance if this entry touched a bank account
+        if income.bank_account_id is not None:
+            from app.models.bank_account import BankAccount, BankTransaction
+
+            ba = db.get(BankAccount, income.bank_account_id)
+            if ba is not None:
+                if income.kind == IncomeKind.INCOME:
+                    ba.current_balance = ba.current_balance - income.amount
+                else:
+                    ba.current_balance = ba.current_balance + income.amount
+                txn = db.scalars(
+                    select(BankTransaction)
+                    .where(
+                        BankTransaction.bank_account_id == ba.id,
+                        BankTransaction.amount == income.amount,
+                        BankTransaction.transaction_date == income.income_date,
+                    )
+                    .order_by(BankTransaction.id.desc())
+                    .limit(1)
+                ).first()
+                if txn is not None:
+                    db.delete(txn)
+
         old_values = {
             "kind": income.kind.value,
             "income_date": str(income.income_date),
@@ -295,6 +318,29 @@ class IncomeService:
         from app.services.day_closing_service import DayClosingService
 
         DayClosingService.ensure_day_open(db, income.income_date)
+
+        # Reverse synced BankAccount balance if this entry touched a bank account
+        if income.bank_account_id is not None:
+            from app.models.bank_account import BankAccount, BankTransaction
+
+            ba = db.get(BankAccount, income.bank_account_id)
+            if ba is not None:
+                if income.kind == IncomeKind.INCOME:
+                    ba.current_balance = ba.current_balance - income.amount
+                else:
+                    ba.current_balance = ba.current_balance + income.amount
+                txn = db.scalars(
+                    select(BankTransaction)
+                    .where(
+                        BankTransaction.bank_account_id == ba.id,
+                        BankTransaction.amount == income.amount,
+                        BankTransaction.transaction_date == income.income_date,
+                    )
+                    .order_by(BankTransaction.id.desc())
+                    .limit(1)
+                ).first()
+                if txn is not None:
+                    db.delete(txn)
 
         old_values = {
             "kind": income.kind.value,

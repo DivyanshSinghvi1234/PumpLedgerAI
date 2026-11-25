@@ -72,6 +72,7 @@ class TankerDeliveryCreate(BaseModel):
     remarks: str | None = None
     procurement_rate: float | None = None
     payment_mode: PaymentMode = PaymentMode.CREDIT
+    bank_account_uuid: str | None = None
     ignore_capacity: bool = False
 
 

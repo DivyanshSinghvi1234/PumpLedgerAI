@@ -280,6 +280,7 @@ class VoucherPaymentService:
         amount: Decimal,
         payment_mode: PaymentMode,
         payment_date: date,
+        bank_account_uuid: str | None = None,
         reference_number: str | None = None,
         remarks: str | None = None,
         vehicle_uuid: str | None = None,
@@ -353,6 +354,22 @@ class VoucherPaymentService:
         )
         db.add(payment)
         db.flush()
+
+        if bank_account_uuid:
+            from app.services.bank_account_service import BankAccountService
+
+            acc = BankAccountService().sync_from_entity(
+                db,
+                bank_account_uuid=bank_account_uuid,
+                amount=amount,
+                transaction_type="INCOME",
+                transaction_date=payment_date,
+                reference_number=f"PAY-{payment.id}",
+                remarks=f"FIFO Payment ({customer.name}) · {payment_mode.value}",
+                pump_id=payment.pump_id,
+            )
+            if acc is not None:
+                payment.bank_account_id = acc.id
 
         total_allocated = Decimal("0.00")
         touched = []

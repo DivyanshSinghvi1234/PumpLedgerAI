@@ -59,6 +59,23 @@ class PaymentService:
         db.add(payment)
         db.flush()
 
+        # Sync to selected BankAccount (e.g. HDFC, SBI) if provided
+        if data.bank_account_uuid:
+            from app.services.bank_account_service import BankAccountService
+
+            acc = BankAccountService().sync_from_entity(
+                db,
+                bank_account_uuid=data.bank_account_uuid,
+                amount=data.amount,
+                transaction_type="INCOME",
+                transaction_date=data.payment_date,
+                reference_number=f"PAY-{payment.id}",
+                remarks=f"Customer Payment ({customer.name}) · {data.payment_mode.value}",
+                pump_id=payment.pump_id,
+            )
+            if acc is not None:
+                payment.bank_account_id = acc.id
+
         # The ledger is the single balance writer: posting a PAYMENT entry
         # decrements outstanding_balance and commits the payment row in the
         # same transaction. Overpayment is allowed (balance may go negative).
@@ -187,6 +204,12 @@ class PaymentService:
                 else:
                     voucher.payment_status = PaymentStatus.PAID
                 db.add(voucher)
+
+        # Reverse any synced BankTransaction if this payment hit a bank account
+        if payment.bank_account_id is not None:
+            from app.services.bank_account_service import BankAccountService
+
+            BankAccountService().reverse_by_reference(db, f"PAY-{payment.id}")
 
         # Reversing the PAYMENT ledger entry restores the balance and
         # deletes the payment row in one transaction.

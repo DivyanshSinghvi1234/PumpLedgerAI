@@ -7,7 +7,7 @@ P = "/api/v1"
 def test_day_closing_bank_sync_and_reopen_reversal(client, auth_headers):
     """Closing a day auto-credits UPI+Card + cash deposit to the selected bank account,
     and reopening reverses those bank transactions cleanly."""
-    today = date.today()
+    today = date.today() - timedelta(days=9)
 
     # 1. Create a bank account with ₹10,000 opening balance
     ba_resp = client.post(

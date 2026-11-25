@@ -108,6 +108,20 @@ class FuelTankService:
             )
             self.tank_repo.update(db, tank)
 
+    @staticmethod
+    def update_weighted_avg_cost(tank: FuelTank, added_liters: float, rate: float | None) -> None:
+        """Update tank's weighted average landed cost/L before adding added_liters."""
+        if not rate or rate <= 0 or added_liters <= 0:
+            return
+        prev_stock = max(0.0, float(tank.current_stock_liters or 0.0))
+        prev_cost = float(tank.avg_cost_per_liter or rate)
+        new_total = prev_stock + float(added_liters)
+        if new_total > 0:
+            tank.avg_cost_per_liter = round(
+                ((prev_stock * prev_cost) + (float(added_liters) * float(rate))) / new_total,
+                4,
+            )
+
     def create_delivery(
         self,
         db: Session,
@@ -120,6 +134,7 @@ class FuelTankService:
         remarks: str | None = None,
         procurement_rate: float | None = None,
         payment_mode: PaymentMode = PaymentMode.CREDIT,
+        bank_account_uuid: str | None = None,
         ignore_capacity: bool = False,
     ) -> TankerDelivery:
         tank = self.tank_repo.get_by_uuid(db, tank_uuid)
@@ -148,22 +163,42 @@ class FuelTankService:
         db.add(delivery)
         db.flush()
 
-        # Automatically log a corresponding expense record if procurement rate is provided
+        # Automatically log a corresponding expense record & bank debit if procurement rate is provided
         if procurement_rate and procurement_rate > 0:
             from app.models.income import Income
             from app.core.enums import IncomeKind
 
+            expense_amt = Decimal(str(round(quantity_liters * procurement_rate, 2)))
+            bank_account_id = None
+            if bank_account_uuid and payment_mode in (PaymentMode.BANK, PaymentMode.UPI, PaymentMode.CARD):
+                from app.services.bank_account_service import BankAccountService
+
+                acc = BankAccountService().sync_from_entity(
+                    db,
+                    bank_account_uuid=bank_account_uuid,
+                    amount=expense_amt,
+                    transaction_type="EXPENSE",
+                    transaction_date=delivery_date,
+                    reference_number=f"DEL-{delivery.id}",
+                    remarks=f"Tanker Delivery ({quantity_liters}L {tank.fuel_type.value}, Inv: {invoice_number or 'N/A'})",
+                    pump_id=delivery.pump_id,
+                )
+                if acc is not None:
+                    bank_account_id = acc.id
+
             expense = Income(
                 kind=IncomeKind.EXPENSE,
                 income_date=delivery_date,
-                amount=Decimal(str(round(quantity_liters * procurement_rate, 2))),
+                amount=expense_amt,
                 category="Procurement",
                 description=f"Procurement of {quantity_liters}L {tank.fuel_type} for {tank.name} (Inv: {invoice_number or 'N/A'}, Supplier: {supplier_name or 'N/A'})",
                 payment_mode=payment_mode,
+                bank_account_id=bank_account_id,
                 pump_id=delivery.pump_id,
             )
             db.add(expense)
 
+        self.update_weighted_avg_cost(tank, quantity_liters, procurement_rate)
         tank.current_stock_liters += quantity_liters
         self.tank_repo.update(db, tank)
         db.commit()

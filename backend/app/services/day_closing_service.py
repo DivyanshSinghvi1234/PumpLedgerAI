@@ -421,11 +421,13 @@ class DayClosingService:
 
         db.flush()
 
-        # Auto-sync digital sales (UPI + Card) and optional cash deposit to BankAccount
+        # Auto-sync digital sales (UPI + Card) and optional cash deposit to BankAccount(s)
         synced_txn_ids = self._sync_closing_to_bank(
             db,
             closing=closing,
             bank_account_uuid=payload.settlement_bank_account_uuid,
+            upi_bank_account_uuid=payload.upi_bank_account_uuid,
+            card_bank_account_uuid=payload.card_bank_account_uuid,
             cash_deposited=payload.cash_deposited_to_bank,
             actor_id=actor_id,
         )
@@ -461,10 +463,13 @@ class DayClosingService:
         *,
         closing: DayClosing,
         bank_account_uuid: str | None,
+        upi_bank_account_uuid: str | None = None,
+        card_bank_account_uuid: str | None = None,
         cash_deposited: Decimal,
         actor_id: int | None,
     ) -> list[int]:
-        """Credit UPI + Card collections and optional cash deposit to the selected (or primary) bank account."""
+        """Credit UPI + Card collections (to separate or shared bank accounts like SBI/HDFC)
+        and optional cash deposit."""
         from app.models.bank_account import BankAccount
         from app.schemas.bank_account import CashDepositRequest
         from app.services.bank_account_service import BankAccountService
@@ -474,17 +479,20 @@ class DayClosingService:
             return []
 
         bank_service = BankAccountService()
-        target_account = None
-        if bank_account_uuid:
-            target_account = db.scalars(
-                select(BankAccount).where(
-                    BankAccount.uuid == bank_account_uuid,
-                    BankAccount.is_active.is_(True),
-                )
-            ).first()
-        elif digital_total > Decimal("0.00"):
-            # Auto-pick the pump's first active bank account if one exists
-            target_account = db.scalars(
+
+        def _resolve(acc_uuid: str | None) -> BankAccount | None:
+            if acc_uuid:
+                return db.scalars(
+                    select(BankAccount).where(
+                        BankAccount.uuid == acc_uuid,
+                        BankAccount.is_active.is_(True),
+                    )
+                ).first()
+            return None
+
+        default_account = _resolve(bank_account_uuid)
+        if default_account is None:
+            default_account = db.scalars(
                 select(BankAccount)
                 .where(
                     BankAccount.pump_id == closing.pump_id,
@@ -494,33 +502,61 @@ class DayClosingService:
                 .limit(1)
             ).first()
 
-        if target_account is None:
-            return []
+        upi_acc = _resolve(upi_bank_account_uuid) or default_account
+        card_acc = _resolve(card_bank_account_uuid) or default_account
 
-        closing.settlement_bank_account_uuid = str(target_account.uuid)
+        if default_account is not None:
+            closing.settlement_bank_account_uuid = str(default_account.uuid)
+
         txn_ids: list[int] = []
 
-        if digital_total > Decimal("0.00"):
-            txn = bank_service.adjust_bank_balance(
-                db,
-                bank_account_id=target_account.id,
-                amount=digital_total,
-                transaction_type="INCOME",
-                transaction_date=closing.closing_date,
-                reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-DIGITAL",
-                remarks=(
-                    f"Auto-synced UPI (₹{closing.upi_sales:,.2f}) + "
-                    f"Card (₹{closing.card_sales:,.2f}) from Day Closing"
-                ),
-                pump_id=closing.pump_id,
-            )
-            txn_ids.append(txn.id)
+        if upi_acc and card_acc and upi_acc.id == card_acc.id:
+            if digital_total > Decimal("0.00"):
+                txn = bank_service.adjust_bank_balance(
+                    db,
+                    bank_account_id=upi_acc.id,
+                    amount=digital_total,
+                    transaction_type="INCOME",
+                    transaction_date=closing.closing_date,
+                    reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-DIGITAL",
+                    remarks=(
+                        f"Auto-synced UPI (₹{closing.upi_sales:,.2f}) + "
+                        f"Card (₹{closing.card_sales:,.2f}) from Day Closing"
+                    ),
+                    pump_id=closing.pump_id,
+                )
+                txn_ids.append(txn.id)
+        else:
+            if upi_acc and closing.upi_sales > Decimal("0.00"):
+                txn = bank_service.adjust_bank_balance(
+                    db,
+                    bank_account_id=upi_acc.id,
+                    amount=closing.upi_sales,
+                    transaction_type="INCOME",
+                    transaction_date=closing.closing_date,
+                    reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-UPI",
+                    remarks=f"Auto-synced UPI (₹{closing.upi_sales:,.2f}) from Day Closing",
+                    pump_id=closing.pump_id,
+                )
+                txn_ids.append(txn.id)
+            if card_acc and closing.card_sales > Decimal("0.00"):
+                txn = bank_service.adjust_bank_balance(
+                    db,
+                    bank_account_id=card_acc.id,
+                    amount=closing.card_sales,
+                    transaction_type="INCOME",
+                    transaction_date=closing.closing_date,
+                    reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-CARD",
+                    remarks=f"Auto-synced Card EDC (₹{closing.card_sales:,.2f}) from Day Closing",
+                    pump_id=closing.pump_id,
+                )
+                txn_ids.append(txn.id)
 
-        if cash_deposited > Decimal("0.00"):
+        if default_account and cash_deposited > Decimal("0.00"):
             dep_txn = bank_service.deposit_cash_to_bank(
                 db,
                 CashDepositRequest(
-                    bank_account_uuid=str(target_account.uuid),
+                    bank_account_uuid=str(default_account.uuid),
                     amount=cash_deposited,
                     deposit_date=closing.closing_date,
                     reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-CASH",

@@ -193,6 +193,7 @@ class PaymentFifoAllocateRequest(BaseModel):
     customer_uuid: UUID
     amount: Decimal = Field(..., gt=0)
     payment_mode: PaymentMode
+    bank_account_uuid: UUID | None = None
     payment_date: date
     reference_number: str | None = Field(default=None, max_length=50)
     remarks: str | None = Field(default=None, max_length=500)

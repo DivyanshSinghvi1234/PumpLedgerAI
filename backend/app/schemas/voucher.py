@@ -79,6 +79,7 @@ class VoucherCreate(VoucherBase):
     # Path to the stored invoice image, set when the voucher is created from
     # the OCR upload flow. Absent for manually-entered vouchers.
     image_path: str | None = None
+    bank_account_uuid: UUID | None = None
     items: list[VoucherItemCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")

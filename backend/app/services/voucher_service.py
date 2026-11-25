@@ -188,7 +188,7 @@ class VoucherService:
 
         voucher = Voucher(
             **data.model_dump(
-                exclude={"customer_uuid", "items"},
+                exclude={"customer_uuid", "items", "bank_account_uuid"},
             ),
             customer_id=customer.id if customer else None,
             vehicle_id=vehicle.id if vehicle else None,
@@ -336,6 +336,21 @@ class VoucherService:
             for item in voucher.items:
                 self.tank_service.deduct_stock(db, item.fuel_type, item.quantity_liters)
             
+            if data.bank_account_uuid and voucher.payment_mode == PaymentMode.BANK:
+                from app.services.bank_account_service import BankAccountService
+
+                BankAccountService().sync_from_entity(
+                    db,
+                    bank_account_uuid=data.bank_account_uuid,
+                    amount=total,
+                    transaction_type="INCOME",
+                    transaction_date=voucher.invoice_date,
+                    reference_number=f"VCH-{voucher.id}",
+                    remarks=f"Direct Bank Sale — Invoice {voucher.invoice_number}",
+                    pump_id=voucher.pump_id,
+                )
+                db.commit()
+
             # Log audit log
             self.audit_service.log_action(
                 db,
@@ -356,6 +371,21 @@ class VoucherService:
             db,
             voucher,
         )
+        if data.bank_account_uuid and voucher.payment_mode == PaymentMode.BANK:
+            from app.services.bank_account_service import BankAccountService
+
+            BankAccountService().sync_from_entity(
+                db,
+                bank_account_uuid=data.bank_account_uuid,
+                amount=total,
+                transaction_type="INCOME",
+                transaction_date=voucher.invoice_date,
+                reference_number=f"VCH-{voucher.id}",
+                remarks=f"Direct Bank Sale — Invoice {voucher.invoice_number}",
+                pump_id=voucher.pump_id,
+            )
+            db.commit()
+
         for item in voucher.items:
             self.tank_service.deduct_stock(db, item.fuel_type, item.quantity_liters)
         
@@ -764,6 +794,9 @@ class VoucherService:
 
         DayClosingService.ensure_day_open(db, voucher.invoice_date)
 
+        from app.services.bank_account_service import BankAccountService
+        BankAccountService().reverse_by_reference(db, f"VCH-{voucher.id}")
+
         # If it posted to the ledger, reverse the entry and delete the
         # voucher in one transaction; otherwise a plain delete.
         if self._affects_ledger(voucher):
@@ -778,6 +811,21 @@ class VoucherService:
             for item in voucher.items:
                 self.tank_service.restore_stock(db, item.fuel_type, item.quantity_liters)
             
+            if data.bank_account_uuid and voucher.payment_mode == PaymentMode.BANK:
+                from app.services.bank_account_service import BankAccountService
+
+                BankAccountService().sync_from_entity(
+                    db,
+                    bank_account_uuid=data.bank_account_uuid,
+                    amount=total,
+                    transaction_type="INCOME",
+                    transaction_date=voucher.invoice_date,
+                    reference_number=f"VCH-{voucher.id}",
+                    remarks=f"Direct Bank Sale — Invoice {voucher.invoice_number}",
+                    pump_id=voucher.pump_id,
+                )
+                db.commit()
+
             # Log audit log
             self.audit_service.log_action(
                 db,
