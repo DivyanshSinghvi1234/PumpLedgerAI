@@ -1313,7 +1313,13 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
               <select
                 id="stockPaymentModeInput"
                 value={stockPaymentMode}
-                onChange={(e) => setStockPaymentMode(e.target.value)}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setStockPaymentMode(mode);
+                  if (mode === "CREDIT" || mode === "CASH") {
+                    setStockBankUuid("");
+                  }
+                }}
                 className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-xs text-ink h-9 focus:outline-none transition cursor-pointer"
               >
                 <option value="CREDIT">CREDIT (Pay Later / Due)</option>
@@ -1324,13 +1330,16 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
               </select>
             </div>
 
-            {(stockPaymentMode === "BANK" || stockPaymentMode === "UPI" || stockPaymentMode === "CARD") && (
-              <BankAccountSelect
-                value={stockBankUuid}
-                onChange={setStockBankUuid}
-                label="Deduct From Bank Account (e.g. HDFC / SBI)"
-              />
-            )}
+            <BankAccountSelect
+              value={stockBankUuid}
+              onChange={(uuid) => {
+                setStockBankUuid(uuid);
+                if (uuid && (stockPaymentMode === "CREDIT" || stockPaymentMode === "CASH")) {
+                  setStockPaymentMode("BANK");
+                }
+              }}
+              label="Deduct From Bank Account (e.g. HDFC / SBI)"
+            />
 
             <label className="flex items-center gap-2 text-[11px] text-ink-muted cursor-pointer">
               <input

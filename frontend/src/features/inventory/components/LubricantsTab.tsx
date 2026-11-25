@@ -243,9 +243,11 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
                 const isLowStock = item.stock_qty <= item.min_threshold;
                 return (
                   <TableRow key={item.id} className="border-b border-hairline hover:bg-surface-2/30">
-                    <TableCell className="font-semibold text-ink flex items-center gap-2">
-                      <Package size={16} className="text-fuel-amber shrink-0" />
-                      {item.name}
+                    <TableCell className="font-semibold text-ink">
+                      <div className="flex items-center gap-2">
+                        <Package size={16} className="text-fuel-amber shrink-0" />
+                        <span>{item.name}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-hairline text-ink-muted font-normal">

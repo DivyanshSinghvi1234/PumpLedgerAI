@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Fuel, Truck, Gauge, Package, Tag, Wrench, History } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import DispenserTab from "./components/DispenserTab";
@@ -28,72 +29,79 @@ export default function InventoryPage() {
       <div className="flex border-b border-hairline gap-4 overflow-x-auto">
         <button
           onClick={() => setActiveTab("dips")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "dips"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <Fuel className="h-4 w-4 shrink-0" />
           Fuel Storage
         </button>
         <button
           onClick={() => setActiveTab("indents")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "indents"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <Truck className="h-4 w-4 shrink-0" />
           OMC Indents & TTs
         </button>
         <button
           onClick={() => setActiveTab("readings")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "readings"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <Gauge className="h-4 w-4 shrink-0" />
           Meter Readings
         </button>
         <button
           onClick={() => setActiveTab("lubricants")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "lubricants"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <Package className="h-4 w-4 shrink-0" />
           Lube & DEF Stock
         </button>
         <button
           onClick={() => setActiveTab("prices")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "prices"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <Tag className="h-4 w-4 shrink-0" />
           Price Schedules
         </button>
         <button
           onClick={() => setActiveTab("dispensers")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "dispensers"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <Wrench className="h-4 w-4 shrink-0" />
           Fuel Dispensers
         </button>
         <button
           onClick={() => setActiveTab("history")}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
             activeTab === "history"
               ? "border-fuel-amber text-ink font-bold"
               : "border-transparent text-ink-muted hover:text-ink"
           }`}
         >
+          <History className="h-4 w-4 shrink-0" />
           Meter Logs
         </button>
       </div>

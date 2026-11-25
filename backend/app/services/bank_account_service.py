@@ -471,6 +471,37 @@ class BankAccountService:
             "unmatched_debits": unmatched_debits,
         }
 
+    def reverse_transaction_by_uuid(
+        self,
+        db: Session,
+        txn_uuid: str,
+        actor_id: int | None = None,
+    ) -> None:
+        txn = db.scalar(select(BankTransaction).where(BankTransaction.uuid == txn_uuid))
+        if txn is None:
+            raise BankAccountNotFoundError(f"Bank transaction '{txn_uuid}' not found.")
+        if txn.bank_account_id:
+            acc = db.get(BankAccount, txn.bank_account_id)
+            if acc is not None:
+                if txn.transaction_type in ("INCOME", "DEPOSIT", "TRANSFER_IN"):
+                    acc.current_balance = acc.current_balance - txn.amount
+                elif txn.transaction_type in ("EXPENSE", "WITHDRAWAL", "TRANSFER_OUT", "CASH_WITHDRAWAL"):
+                    acc.current_balance = acc.current_balance + txn.amount
+        db.delete(txn)
+        db.commit()
+        self.audit_service.log_action(
+            db,
+            action="Reversed Bank Transaction",
+            target_table="bank_transactions",
+            target_id=txn_uuid,
+            actor_id=actor_id,
+            old_values={
+                "transaction_type": txn.transaction_type,
+                "amount": str(txn.amount),
+                "remarks": txn.remarks,
+            },
+        )
+
     def get_liquid_funds_summary(self, db: Session, pump_id: int) -> dict:
         accounts = self.list_bank_accounts(db, pump_id)
         total_bank_balance = sum((a.current_balance for a in accounts), Decimal("0.00"))

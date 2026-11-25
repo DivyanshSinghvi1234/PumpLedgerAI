@@ -92,6 +92,10 @@ class BankAccountService {
   async deleteBankAccount(uuid: string): Promise<void> {
     await api.delete(`/v1/bank-accounts/${uuid}`);
   }
+
+  async reverseTransaction(txnUuid: string): Promise<void> {
+    await api.delete(`/v1/bank-accounts/transactions/${txnUuid}`);
+  }
 }
 
 const bankAccountService = new BankAccountService();

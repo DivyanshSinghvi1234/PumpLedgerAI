@@ -400,6 +400,24 @@ class IncomeService:
         income.items = items_dict
         income.customer_id = new_customer.id if new_customer else None
 
+        # Re-sync BankAccount if bank_account_uuid is provided
+        income.bank_account_id = None
+        if getattr(data, "bank_account_uuid", None):
+            from app.services.bank_account_service import BankAccountService
+
+            acc = BankAccountService().sync_from_entity(
+                db,
+                bank_account_uuid=data.bank_account_uuid,
+                amount=data.amount,
+                transaction_type="INCOME" if data.kind == IncomeKind.INCOME else "EXPENSE",
+                transaction_date=data.income_date,
+                reference_number=f"INC-{income.id}",
+                remarks=f"{data.kind.value}: {data.description}",
+                pump_id=income.pump_id,
+            )
+            if acc is not None:
+                income.bank_account_id = acc.id
+
         # Manage ledger entry sync when customer links or loan amounts change.
         if old_customer is not None and (
             new_customer is None or old_customer.id != new_customer.id

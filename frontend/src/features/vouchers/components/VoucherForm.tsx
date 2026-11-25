@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
+import settingService from "@/features/settings/services/settingService";
+import type { LubricantItem } from "@/features/inventory/components/LubricantsTab";
 
 import FormActions from "@/components/forms/FormActions";
 import FormInput from "@/components/forms/FormInput";
@@ -141,6 +145,9 @@ export default function VoucherForm({
   onSubmit,
 }: Props) {
 
+  const queryClient = useQueryClient();
+  const [selectedLubeId, setSelectedLubeId] = useState("");
+
   const {
     register,
     handleSubmit,
@@ -179,6 +186,13 @@ export default function VoucherForm({
   const qty = watch("quantity_liters") ?? 0;
   const rate = watch("rate_per_liter") ?? 0;
   const totalAmount = watch("total_amount") ?? 0;
+
+  const { data: lubeItemsRaw } = useQuery({
+    queryKey: ["settings", "lubricant_inventory"],
+    queryFn: () => settingService.getSetting<LubricantItem[]>("lubricant_inventory"),
+    enabled: fuelType === "LUBRICANT",
+  });
+  const lubeItems = lubeItemsRaw ?? [];
 
   const isEditMode = Boolean(defaultValues && defaultValues.invoice_number);
   const [autoNotes, setAutoNotes] = useState<string[]>([]);
@@ -311,6 +325,16 @@ export default function VoucherForm({
       return;
     }
 
+    if (fuelType === "LUBRICANT" && selectedLubeId && lubeItems.length > 0) {
+      const updatedLubes = lubeItems.map((item) =>
+        item.id === selectedLubeId
+          ? { ...item, stock_qty: Math.max(0, item.stock_qty - Number(data.quantity_liters || 0)) }
+          : item
+      );
+      settingService.saveSetting("lubricant_inventory", updatedLubes).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["settings", "lubricant_inventory"] });
+      }).catch(() => {});
+    }
 
     return onSubmit(payload);
   }
@@ -415,6 +439,43 @@ export default function VoucherForm({
           error={errors.fuel_type?.message}
           {...register("fuel_type")}
         />
+
+        {fuelType === "LUBRICANT" && lubeItems.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-ink mb-1">
+              Lubricant / DEF SKU (Auto-Deduct Stock)
+            </label>
+            <select
+              value={selectedLubeId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setSelectedLubeId(id);
+                const sku = lubeItems.find((i) => i.id === id);
+                if (sku) {
+                  setValue("rate_per_liter", sku.unit_price, { shouldValidate: true, shouldDirty: true });
+                  const currentQty = Number(qty || 1);
+                  if (currentQty > 0) {
+                    setValue("total_amount", Number((currentQty * sku.unit_price).toFixed(2)), {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    });
+                  }
+                  if (!watch("remarks")) {
+                    setValue("remarks", `Lube SKU: ${sku.name}`);
+                  }
+                }
+              }}
+              className="w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink"
+            >
+              <option value="">-- Optional: Pick Lube/DEF SKU --</option>
+              {lubeItems.map((sku) => (
+                <option key={sku.id} value={sku.id}>
+                  {sku.name} (Stock: {sku.stock_qty} · ₹{sku.unit_price})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <FormSelect
           label="Payment Mode"

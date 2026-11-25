@@ -234,6 +234,22 @@ def list_transactions(
     return service.list_transactions(db, pump_id, limit=limit)
 
 
+@router.delete(
+    "/transactions/{txn_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=manager_required,
+)
+def reverse_bank_transaction(
+    txn_uuid: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        service.reverse_transaction_by_uuid(db, txn_uuid, actor_id=current_user.id)
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 
 @router.delete(
     "/{uuid}",

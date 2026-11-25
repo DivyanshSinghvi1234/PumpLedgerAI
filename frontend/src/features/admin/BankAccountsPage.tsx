@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
+import api from "@/api/client";
 
 import PageHeader from "@/components/common/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -61,6 +63,9 @@ export default function BankAccountsPage() {
   const [reconcileBankUuid, setReconcileBankUuid] = useState("");
   const [csvText, setCsvText] = useState("");
   const [reconcileResult, setReconcileResult] = useState<Awaited<ReturnType<typeof bankAccountService.reconcileCsv>> | null>(null);
+  const [reconcilePayRowIdx, setReconcilePayRowIdx] = useState<number | null>(null);
+  const [reconcileCustName, setReconcileCustName] = useState("");
+  const [reconcileCustUuid, setReconcileCustUuid] = useState("");
 
   // New Bank Form State
   const [accountName, setAccountName] = useState("Main Current Account");
@@ -205,6 +210,54 @@ export default function BankAccountsPage() {
     onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to reconcile CSV."),
   });
 
+  const reverseTxnMutation = useMutation({
+    mutationFn: (txnUuid: string) => bankAccountService.reverseTransaction(txnUuid),
+    onSuccess: () => {
+      toast.success("Bank transaction reversed and balance updated.");
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to reverse transaction."),
+  });
+
+  const postReconcilePaymentMutation = useMutation({
+    mutationFn: async (row: { idx: number; amount: number; date: string; description: string; reference: string }) => {
+      await api.post("/v1/payments", {
+        customer_uuid: reconcileCustUuid,
+        amount: row.amount,
+        payment_mode: "BANK",
+        bank_account_uuid: reconcileBankUuid,
+        payment_date: row.date || new Date().toISOString().split("T")[0],
+        reference_number: row.reference || null,
+        remarks: `Reconciled CSV: ${row.description}`,
+        auto_allocate_fifo: true,
+      });
+      return row.idx;
+    },
+    onSuccess: (idx) => {
+      toast.success("Customer payment recorded (FIFO) & bank synced!");
+      setReconcilePayRowIdx(null);
+      setReconcileCustName("");
+      setReconcileCustUuid("");
+      setReconcileResult((prev) => {
+        if (!prev) return prev;
+        const nextCredits = prev.unmatched_credits.filter((_, i) => i !== idx);
+        return {
+          ...prev,
+          matched_count: prev.matched_count + 1,
+          unmatched_credits_count: nextCredits.length,
+          unmatched_credits: nextCredits,
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to post customer payment."),
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -330,35 +383,7 @@ export default function BankAccountsPage() {
                       {acc.bank_name}
                     </Badge>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono text-ink-subtle uppercase mr-1">{acc.account_type}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingBankUuid(acc.uuid);
-                          setEditAccName(acc.account_name);
-                          setEditBankName(acc.bank_name);
-                          setEditAccNum(acc.account_number || "");
-                          setEditIfsc(acc.ifsc_code || "");
-                          setEditAccType(acc.account_type);
-                          setEditBankOpen(true);
-                        }}
-                        className="p-1 rounded hover:bg-surface-3 text-ink-muted hover:text-ink cursor-pointer"
-                        title="Edit bank account"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`Delete bank account "${acc.account_name}"?`)) {
-                            deleteBankMutation.mutate(acc.uuid);
-                          }
-                        }}
-                        className="p-1 rounded hover:bg-rose-500/15 text-ink-muted hover:text-rose-500 cursor-pointer"
-                        title="Delete bank account"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      <span className="text-[10px] font-mono text-ink-subtle uppercase">{acc.account_type}</span>
                     </div>
                   </div>
                   <CardTitle className="text-sm font-bold text-ink mt-1.5">{acc.account_name}</CardTitle>
@@ -367,24 +392,54 @@ export default function BankAccountsPage() {
                   </CardDescription>
 
                 </CardHeader>
-                <CardContent className="pt-2 border-t border-hairline flex items-center justify-between">
+                <CardContent className="pt-2 border-t border-hairline flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="text-[10px] text-ink-subtle uppercase font-mono block">Current Balance</span>
                     <span className="text-lg font-bold text-emerald-400 font-mono">
                       {formatCurrency(acc.current_balance)}
                     </span>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setDepositBankUuid(acc.uuid);
-                      setDepositCashOpen(true);
-                    }}
-                    className="h-8 text-xs border-hairline text-blue-400 hover:bg-blue-500/10 cursor-pointer"
-                  >
-                    Deposit Cash
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingBankUuid(acc.uuid);
+                        setEditAccName(acc.account_name);
+                        setEditBankName(acc.bank_name);
+                        setEditAccNum(acc.account_number || "");
+                        setEditIfsc(acc.ifsc_code || "");
+                        setEditAccType(acc.account_type);
+                        setEditBankOpen(true);
+                      }}
+                      className="h-8 text-xs border-hairline text-ink hover:bg-surface-3 cursor-pointer"
+                    >
+                      <Pencil size={13} className="mr-1" /> Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (window.confirm(`Delete bank account "${acc.account_name}"?`)) {
+                          deleteBankMutation.mutate(acc.uuid);
+                        }
+                      }}
+                      className="h-8 text-xs border-hairline text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                    >
+                      <Trash2 size={13} className="mr-1" /> Delete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setDepositBankUuid(acc.uuid);
+                        setDepositCashOpen(true);
+                      }}
+                      className="h-8 text-xs border-hairline text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+                    >
+                      Deposit Cash
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -412,6 +467,7 @@ export default function BankAccountsPage() {
                     <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Type</TableHead>
                     <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Ref / Remarks</TableHead>
                     <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Amount</TableHead>
+                    <TableHead className="px-4 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -441,6 +497,20 @@ export default function BankAccountsPage() {
                       </TableCell>
                       <TableCell className="px-5 text-right text-xs font-mono font-bold text-ink">
                         {formatCurrency(t.amount)}
+                      </TableCell>
+                      <TableCell className="px-4 text-right">
+                        <button
+                          type="button"
+                          disabled={reverseTxnMutation.isPending}
+                          onClick={() => {
+                            if (window.confirm("Reverse this bank transaction and restore the account balance?")) {
+                              reverseTxnMutation.mutate(t.uuid);
+                            }
+                          }}
+                          className="text-[11px] font-semibold text-rose-500 hover:underline cursor-pointer"
+                        >
+                          Reverse
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -895,12 +965,50 @@ export default function BankAccountsPage() {
                   <span className="text-rose-500">Unmatched Debits: {reconcileResult.unmatched_debits_count}</span>
                 </div>
                 {reconcileResult.unmatched_credits.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="font-bold text-amber-500">Unmatched Credits (missing in app):</p>
+                  <div className="space-y-2">
+                    <p className="font-bold text-amber-500">Unmatched Credits (click to record as Customer Payment):</p>
                     {reconcileResult.unmatched_credits.map((u, i) => (
-                      <div key={i} className="flex justify-between rounded bg-amber-500/10 px-2.5 py-1.5">
-                        <span>{u.date} · {u.description}</span>
-                        <span className="font-mono font-bold">+{formatCurrency(u.amount)}</span>
+                      <div key={i} className="rounded bg-amber-500/10 px-2.5 py-2 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{u.date} · {u.description}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold">+{formatCurrency(u.amount)}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReconcilePayRowIdx(reconcilePayRowIdx === i ? null : i);
+                                setReconcileCustName("");
+                                setReconcileCustUuid("");
+                              }}
+                              className="rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-700 cursor-pointer"
+                            >
+                              Record as Payment →
+                            </button>
+                          </div>
+                        </div>
+                        {reconcilePayRowIdx === i && (
+                          <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-amber-500/20">
+                            <div className="flex-1 min-w-[200px]">
+                              <CustomerAutocomplete
+                                value={reconcileCustName}
+                                customerUuid={reconcileCustUuid || null}
+                                onChange={(name, uuid) => {
+                                  setReconcileCustName(name);
+                                  setReconcileCustUuid(uuid || "");
+                                }}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!reconcileCustUuid || postReconcilePaymentMutation.isPending}
+                              onClick={() => postReconcilePaymentMutation.mutate({ idx: i, ...u })}
+                              className="bg-emerald-600 text-white text-xs h-8"
+                            >
+                              {postReconcilePaymentMutation.isPending ? "Saving..." : "Confirm Payment"}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

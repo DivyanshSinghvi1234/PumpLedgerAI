@@ -630,7 +630,13 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
                 <Label className="text-xs font-bold text-ink-muted">Payment Mode</Label>
                 <select
                   value={deliverPaymentMode}
-                  onChange={(e) => setDeliverPaymentMode(e.target.value as "CREDIT" | "BANK" | "UPI")}
+                  onChange={(e) => {
+                    const mode = e.target.value as "CREDIT" | "BANK" | "UPI";
+                    setDeliverPaymentMode(mode);
+                    if (mode === "CREDIT") {
+                      setDeliverBankUuid("");
+                    }
+                  }}
                   className="w-full bg-surface-2 border border-hairline rounded-md px-3 py-2 text-xs text-ink outline-none"
                 >
                   <option value="CREDIT">OMC Credit</option>
@@ -638,13 +644,16 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
                   <option value="UPI">UPI (Deduct Bank)</option>
                 </select>
               </div>
-              {deliverPaymentMode !== "CREDIT" && (
-                <BankAccountSelect
-                  value={deliverBankUuid}
-                  onChange={setDeliverBankUuid}
-                  label="Deduct From Bank Account"
-                />
-              )}
+              <BankAccountSelect
+                value={deliverBankUuid}
+                onChange={(uuid) => {
+                  setDeliverBankUuid(uuid);
+                  if (uuid && deliverPaymentMode === "CREDIT") {
+                    setDeliverPaymentMode("BANK");
+                  }
+                }}
+                label="Deduct From Bank Account"
+              />
             </div>
 
             <div className="space-y-1.5">
