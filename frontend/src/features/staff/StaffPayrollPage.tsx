@@ -31,7 +31,7 @@ export default function StaffPayrollPage() {
   const [entryAmount, setEntryAmount] = useState("");
   const [entryRemarks, setEntryRemarks] = useState("");
 
-  const { data: payroll, isLoading } = useQuery({
+  const { data: payroll, isLoading, isError } = useQuery({
     queryKey: ["staff-payroll", billingMonth],
     queryFn: () => staffService.previewPayroll(billingMonth),
   });
@@ -61,6 +61,19 @@ export default function StaffPayrollPage() {
       queryClient.invalidateQueries({ queryKey: ["staff-payroll"] });
     },
     onError: () => toast.error("Failed to add staff member"),
+  });
+
+  const syncUsersMutation = useMutation({
+    mutationFn: () => staffService.syncFromUsers(),
+    onSuccess: (created) => {
+      toast.success(
+        created.length > 0
+          ? `Imported ${created.length} staff member(s) from Users`
+          : "All Operator/Manager users are already in Staff"
+      );
+      queryClient.invalidateQueries({ queryKey: ["staff-payroll"] });
+    },
+    onError: () => toast.error("Failed to sync from Users"),
   });
 
   const ledgerMutation = useMutation({
@@ -113,6 +126,14 @@ export default function StaffPayrollPage() {
               onChange={(e) => setBillingMonth(e.target.value)}
               className="rounded-md border border-border bg-card px-3 py-2 text-sm"
             />
+            <button
+              type="button"
+              disabled={syncUsersMutation.isPending}
+              onClick={() => syncUsersMutation.mutate()}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40 disabled:opacity-50"
+            >
+              Sync from Users
+            </button>
             <button
               type="button"
               onClick={() => setShowAdd((s) => !s)}
@@ -224,6 +245,12 @@ export default function StaffPayrollPage() {
               <tr>
                 <td colSpan={7} className="p-8 text-center text-muted-foreground">
                   Loading staff payroll…
+                </td>
+              </tr>
+            ) : isError ? (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-red-600">
+                  Failed to load staff payroll. Make sure your backend is running the latest update.
                 </td>
               </tr>
             ) : !payroll || payroll.rows.length === 0 ? (

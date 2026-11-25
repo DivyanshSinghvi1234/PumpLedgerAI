@@ -527,3 +527,43 @@ class EmployeeService:
             net_paid=net_paid,
             remaining_balance=remaining,
         )
+
+    def sync_from_users(self, db: Session) -> list[Employee]:
+        """Create Employee profiles for any active OPERATOR/MANAGER users who don't have one yet."""
+        from app.core.enums import UserRole
+        from app.database.scoping import active_pump_id
+        from app.models.user import User
+
+        pump_id = active_pump_id.get()
+        users = db.scalars(
+            select(User).where(
+                User.is_active.is_(True),
+                User.role.in_([UserRole.OPERATOR, UserRole.MANAGER]),
+            )
+        ).all()
+
+        existing_names = {
+            e.full_name.strip().lower()
+            for e in self.get_all_active(db)
+        }
+        created: list[Employee] = []
+        for u in users:
+            name = (u.full_name or u.username).strip()
+            if name.lower() in existing_names:
+                continue
+            emp = Employee(
+                full_name=name,
+                role=u.role.value if hasattr(u.role, "value") else str(u.role),
+                base_salary=Decimal("0.00"),
+                commission_rate_per_liter=Decimal("0.0000"),
+                pump_id=pump_id,
+            )
+            db.add(emp)
+            created.append(emp)
+            existing_names.add(name.lower())
+
+        if created:
+            db.commit()
+            for emp in created:
+                db.refresh(emp)
+        return created

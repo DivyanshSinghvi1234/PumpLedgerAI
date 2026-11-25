@@ -75,6 +75,11 @@ const staffService = {
     return res.data;
   },
 
+  async syncFromUsers(): Promise<EmployeeItem[]> {
+    const res = await api.post<EmployeeItem[]>("/v1/employees/sync-from-users");
+    return res.data;
+  },
+
   async getLedger(employeeUuid: string): Promise<StaffLedgerSummary> {
     const res = await api.get<StaffLedgerSummary>(`/v1/employees/${employeeUuid}/ledger`);
     return res.data;

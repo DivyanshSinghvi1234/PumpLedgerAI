@@ -73,6 +73,18 @@ def preview_payroll(
     return service.payroll_preview(db, billing_month)
 
 
+@router.post(
+    "/sync-from-users",
+    response_model=list[EmployeeResponse],
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def sync_employees_from_users(
+    db: Session = Depends(get_db),
+):
+    """Import active OPERATOR/MANAGER login accounts as Staff profiles."""
+    return service.sync_from_users(db)
+
+
 @router.put(
     "/{uuid}",
     response_model=EmployeeResponse,

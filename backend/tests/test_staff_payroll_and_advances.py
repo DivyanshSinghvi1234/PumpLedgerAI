@@ -137,3 +137,44 @@ def test_staff_payroll_preview_and_pay_salary_deducts_advances_and_shortages(db_
         assert salary_expense is not None
     finally:
         active_pump_id.reset(token)
+
+
+def test_employee_http_create_and_payroll_preview(client, db_session):
+    from app.core.dependencies import get_current_user
+    from app.core.enums import UserRole
+    from app.main import app
+    from app.models.user import User
+
+    pump = _ensure_pump(db_session)
+    fake_admin = User(
+        id=1,
+        username="staff_admin",
+        full_name="Staff Admin",
+        role=UserRole.ADMIN,
+        is_active=True,
+    )
+    app.dependency_overrides[get_current_user] = lambda: fake_admin
+    try:
+        headers = {"X-Pump-UUID": str(pump.uuid)}
+        create_res = client.post(
+            "/api/v1/employees",
+            headers=headers,
+            json={
+                "full_name": "HTTP Test Operator",
+                "role": "OPERATOR",
+                "base_salary": 14000,
+                "commission_rate_per_liter": 0.05,
+            },
+        )
+        assert create_res.status_code == 201, create_res.text
+
+        month_str = date.today().strftime("%Y-%m")
+        prev_res = client.get(
+            f"/api/v1/employees/payroll/preview?month={month_str}",
+            headers=headers,
+        )
+        assert prev_res.status_code == 200, prev_res.text
+        names = [r["full_name"] for r in prev_res.json()["rows"]]
+        assert "HTTP Test Operator" in names
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
