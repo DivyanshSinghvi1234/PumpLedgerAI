@@ -542,7 +542,12 @@ class VoucherService:
 
         update_data = data.model_dump(
             exclude_unset=True,
+            exclude={"bank_account_uuid"},
         )
+
+        # Reverse any synced BankTransaction for this voucher before mutating
+        from app.services.bank_account_service import BankAccountService
+        BankAccountService().reverse_by_reference(db, f"VCH-{voucher.id}")
 
         # Reverse any existing ledger effect before mutating the voucher;
         # we re-post from the new state afterwards. This keeps the balance
@@ -641,6 +646,19 @@ class VoucherService:
             db,
             voucher,
         )
+
+        if getattr(data, "bank_account_uuid", None) and voucher.payment_mode == PaymentMode.BANK:
+            BankAccountService().sync_from_entity(
+                db,
+                bank_account_uuid=data.bank_account_uuid,
+                amount=voucher.total_amount,
+                transaction_type="INCOME",
+                transaction_date=voucher.invoice_date,
+                reference_number=f"VCH-{voucher.id}",
+                remarks=f"Direct Bank Sale — Invoice {voucher.invoice_number}",
+                pump_id=voucher.pump_id,
+            )
+            db.commit()
 
         if not items_updated:
             self.tank_service.update_stock(
@@ -746,6 +764,19 @@ class VoucherService:
             db,
             voucher,
         )
+
+        if getattr(data, "bank_account_uuid", None) and voucher.payment_mode == PaymentMode.BANK:
+            BankAccountService().sync_from_entity(
+                db,
+                bank_account_uuid=data.bank_account_uuid,
+                amount=voucher.total_amount,
+                transaction_type="INCOME",
+                transaction_date=voucher.invoice_date,
+                reference_number=f"VCH-{voucher.id}",
+                remarks=f"Direct Bank Sale — Invoice {voucher.invoice_number}",
+                pump_id=voucher.pump_id,
+            )
+            db.commit()
 
         # Log audit log
         action_label = "Verified Invoice" if status == VerificationStatus.VERIFIED else "Rejected Invoice"

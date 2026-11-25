@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 import inventoryService from "../services/inventoryService";
 import type {
   PurchaseIndent,
@@ -47,6 +48,8 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
   const [density15c, setDensity15c] = useState("");
   const [invoiceNum, setInvoiceNum] = useState("");
   const [totalInvoiceAmt, setTotalInvoiceAmt] = useState("");
+  const [deliverPaymentMode, setDeliverPaymentMode] = useState<"CREDIT" | "BANK" | "UPI">("CREDIT");
+  const [deliverBankUuid, setDeliverBankUuid] = useState("");
   const [deliverRemarks, setDeliverRemarks] = useState("");
 
   // Queries
@@ -548,6 +551,9 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
                   density_at_15c: density,
                   invoice_number: invoiceNum.trim() || undefined,
                   total_invoice_amount: totalAmt,
+                  payment_mode: deliverPaymentMode,
+                  bank_account_uuid:
+                    deliverPaymentMode !== "CREDIT" && deliverBankUuid ? deliverBankUuid : undefined,
                   remarks: deliverRemarks.trim() || undefined,
                 },
               });
@@ -617,6 +623,28 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
                   className="bg-surface-2 border-hairline text-xs text-ink"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-ink-muted">Payment Mode</Label>
+                <select
+                  value={deliverPaymentMode}
+                  onChange={(e) => setDeliverPaymentMode(e.target.value as "CREDIT" | "BANK" | "UPI")}
+                  className="w-full bg-surface-2 border border-hairline rounded-md px-3 py-2 text-xs text-ink outline-none"
+                >
+                  <option value="CREDIT">OMC Credit</option>
+                  <option value="BANK">Bank Transfer (Deduct Bank)</option>
+                  <option value="UPI">UPI (Deduct Bank)</option>
+                </select>
+              </div>
+              {deliverPaymentMode !== "CREDIT" && (
+                <BankAccountSelect
+                  value={deliverBankUuid}
+                  onChange={setDeliverBankUuid}
+                  label="Deduct From Bank Account"
+                />
+              )}
             </div>
 
             <div className="space-y-1.5">

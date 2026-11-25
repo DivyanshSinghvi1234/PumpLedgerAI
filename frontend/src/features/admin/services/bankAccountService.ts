@@ -28,6 +28,29 @@ class BankAccountService {
     return res.data;
   }
 
+  async transferBetweenBanks(data: {
+    from_bank_account_uuid: string;
+    to_bank_account_uuid: string;
+    amount: number;
+    transfer_date: string;
+    reference_number?: string;
+    remarks?: string;
+  }): Promise<{ status: string; message: string }> {
+    const res = await api.post<{ status: string; message: string }>("/v1/bank-accounts/transfer", data);
+    return res.data;
+  }
+
+  async withdrawToCash(data: {
+    bank_account_uuid: string;
+    amount: number;
+    withdrawal_date: string;
+    reference_number?: string;
+    remarks?: string;
+  }): Promise<{ status: string; message: string }> {
+    const res = await api.post<{ status: string; message: string }>("/v1/bank-accounts/withdraw-cash", data);
+    return res.data;
+  }
+
   async getTransactions(limit = 50): Promise<BankTransaction[]> {
     const res = await api.get<BankTransaction[]>("/v1/bank-accounts/transactions", {
       params: { limit },

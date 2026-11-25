@@ -9,7 +9,11 @@ import {
   Building2,
   TrendingUp,
   Receipt,
+  ArrowRightLeft,
+  ArrowDownLeft,
 } from "lucide-react";
+
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 
 import PageHeader from "@/components/common/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -28,6 +32,17 @@ export default function BankAccountsPage() {
 
   const [addBankOpen, setAddBankOpen] = useState(false);
   const [depositCashOpen, setDepositCashOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+
+  // Transfer & Withdrawal State
+  const [fromBankUuid, setFromBankUuid] = useState("");
+  const [toBankUuid, setToBankUuid] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferRemarks, setTransferRemarks] = useState("");
+  const [withdrawBankUuid, setWithdrawBankUuid] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawRemarks, setWithdrawRemarks] = useState("");
 
   // New Bank Form State
   const [accountName, setAccountName] = useState("Main Current Account");
@@ -90,13 +105,72 @@ export default function BankAccountsPage() {
     },
   });
 
+  const transferMutation = useMutation({
+    mutationFn: () =>
+      bankAccountService.transferBetweenBanks({
+        from_bank_account_uuid: fromBankUuid,
+        to_bank_account_uuid: toBankUuid,
+        amount: Number(transferAmount),
+        transfer_date: new Date().toISOString().split("T")[0],
+        remarks: transferRemarks.trim() || undefined,
+      }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      setTransferOpen(false);
+      setTransferAmount("");
+      setTransferRemarks("");
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to transfer funds.");
+    },
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: () =>
+      bankAccountService.withdrawToCash({
+        bank_account_uuid: withdrawBankUuid,
+        amount: Number(withdrawAmount),
+        withdrawal_date: new Date().toISOString().split("T")[0],
+        remarks: withdrawRemarks.trim() || undefined,
+      }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      setWithdrawOpen(false);
+      setWithdrawAmount("");
+      setWithdrawRemarks("");
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to withdraw cash.");
+    },
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Bank & Cash Accounts"
         description="Manage station bank accounts, track forecourt liquid cash available, and record cash-to-bank deposits."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => setTransferOpen(true)}
+              variant="outline"
+              className="font-bold text-xs h-9 cursor-pointer"
+            >
+              <ArrowRightLeft size={15} className="mr-1.5" /> Bank-to-Bank
+            </Button>
+            <Button
+              onClick={() => setWithdrawOpen(true)}
+              variant="outline"
+              className="font-bold text-xs h-9 cursor-pointer"
+            >
+              <ArrowDownLeft size={15} className="mr-1.5" /> Withdraw Cash
+            </Button>
             <Button
               onClick={() => setDepositCashOpen(true)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 cursor-pointer shadow-md"
@@ -511,6 +585,105 @@ export default function BankAccountsPage() {
               </Button>
               <Button type="submit" disabled={depositMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 cursor-pointer">
                 {depositMutation.isPending ? "Depositing..." : "Confirm Deposit"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank-to-Bank Transfer Dialog */}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+              <ArrowRightLeft size={16} className="text-blue-500" /> Bank-to-Bank Transfer
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ink-subtle">
+              Move funds between accounts (e.g. SBI UPI → HDFC Current) without affecting P&L.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              transferMutation.mutate();
+            }}
+            className="space-y-4 py-2"
+          >
+            <BankAccountSelect value={fromBankUuid} onChange={setFromBankUuid} label="From Bank Account" required />
+            <BankAccountSelect value={toBankUuid} onChange={setToBankUuid} label="To Bank Account" required />
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Amount (₹)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Remarks (optional)</Label>
+              <Input
+                value={transferRemarks}
+                onChange={(e) => setTransferRemarks(e.target.value)}
+                placeholder="e.g. Sweep UPI balance to OMC account"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setTransferOpen(false)} className="text-xs h-9">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={transferMutation.isPending} className="bg-blue-600 text-white text-xs h-9">
+                {transferMutation.isPending ? "Transferring..." : "Confirm Transfer"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Bank to Cash Drawer Dialog */}
+      <Dialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+              <ArrowDownLeft size={16} className="text-amber-500" /> Withdraw Bank to Cash Drawer
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ink-subtle">
+              Deducts from bank and adds to Forecourt Cash-in-Hand without affecting P&L.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              withdrawMutation.mutate();
+            }}
+            className="space-y-4 py-2"
+          >
+            <BankAccountSelect value={withdrawBankUuid} onChange={setWithdrawBankUuid} label="From Bank Account" required />
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Amount (₹)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Remarks (optional)</Label>
+              <Input
+                value={withdrawRemarks}
+                onChange={(e) => setWithdrawRemarks(e.target.value)}
+                placeholder="e.g. Cash float for forecourt expenses"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setWithdrawOpen(false)} className="text-xs h-9">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={withdrawMutation.isPending} className="bg-amber-600 text-white text-xs h-9">
+                {withdrawMutation.isPending ? "Withdrawing..." : "Confirm Withdrawal"}
               </Button>
             </DialogFooter>
           </form>

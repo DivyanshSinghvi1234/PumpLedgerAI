@@ -1,5 +1,8 @@
+from datetime import date
+from decimal import Decimal
 from typing import Sequence
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -95,6 +98,91 @@ def deposit_cash_to_bank(
         return {"status": "success", "message": f"Successfully deposited ₹{data.amount:,.2f} to bank account.", "transaction_uuid": txn.uuid}
     except BankAccountNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+class BankTransferRequest(BaseModel):
+    from_bank_account_uuid: str
+    to_bank_account_uuid: str
+    amount: Decimal = Field(..., gt=0)
+    transfer_date: date = Field(default_factory=date.today)
+    reference_number: str | None = None
+    remarks: str | None = None
+
+
+class BankCashWithdrawalRequest(BaseModel):
+    bank_account_uuid: str
+    amount: Decimal = Field(..., gt=0)
+    withdrawal_date: date = Field(default_factory=date.today)
+    reference_number: str | None = None
+    remarks: str | None = None
+
+
+@router.post(
+    "/transfer",
+    status_code=status.HTTP_200_OK,
+    dependencies=manager_required,
+)
+def transfer_between_banks(
+    data: BankTransferRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    pump_id = _get_active_pump_id(db)
+    try:
+        out_txn, in_txn = service.transfer_between_accounts(
+            db,
+            from_bank_account_uuid=data.from_bank_account_uuid,
+            to_bank_account_uuid=data.to_bank_account_uuid,
+            amount=data.amount,
+            transfer_date=data.transfer_date,
+            pump_id=pump_id,
+            reference_number=data.reference_number,
+            remarks=data.remarks,
+            actor_id=current_user.id,
+        )
+        return {
+            "status": "success",
+            "message": f"Transferred ₹{data.amount:,.2f} between bank accounts.",
+            "out_transaction_uuid": str(out_txn.uuid),
+            "in_transaction_uuid": str(in_txn.uuid),
+        }
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post(
+    "/withdraw-cash",
+    status_code=status.HTTP_200_OK,
+    dependencies=manager_required,
+)
+def withdraw_bank_to_cash(
+    data: BankCashWithdrawalRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    pump_id = _get_active_pump_id(db)
+    try:
+        txn = service.withdraw_bank_to_cash(
+            db,
+            bank_account_uuid=data.bank_account_uuid,
+            amount=data.amount,
+            withdrawal_date=data.withdrawal_date,
+            pump_id=pump_id,
+            reference_number=data.reference_number,
+            remarks=data.remarks,
+            actor_id=current_user.id,
+        )
+        return {
+            "status": "success",
+            "message": f"Withdrew ₹{data.amount:,.2f} from bank to Forecourt Cash Drawer.",
+            "transaction_uuid": str(txn.uuid),
+        }
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get(

@@ -11,6 +11,7 @@ import paymentService from "@/features/payments/services/paymentService";
 import AddEntryDialog from "./components/AddEntryDialog";
 import NoBillSaleDialog from "./components/NoBillSaleDialog";
 import RecurringBillsPanel from "./components/RecurringBillsPanel";
+import ConnectedRegisterStrip from "./components/ConnectedRegisterStrip";
 
 import { useIncomeSummary } from "./hooks/useIncomeSummary";
 import { useIncomeList } from "./hooks/useIncomeList";
@@ -434,6 +435,9 @@ export default function IncomePage() {
           </div>
         </div>
       ) : null}
+
+      {/* Connected Register Health Strip */}
+      <ConnectedRegisterStrip apiDate={apiDate} />
 
       {/* Recurring Bills & Fixed Expenses */}
       <RecurringBillsPanel canManage={canManage} />

@@ -134,6 +134,7 @@ class VoucherUpdate(BaseModel):
     card_amount: Decimal | None = None
     credit_amount: Decimal | None = None
 
+    bank_account_uuid: UUID | None = None
     remarks: str | None = None
     items: list[VoucherItemCreate] | None = None
 

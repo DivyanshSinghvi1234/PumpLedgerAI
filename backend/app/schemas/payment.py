@@ -49,6 +49,7 @@ class PaymentBase(BaseModel):
 # =====================================================
 
 class PaymentCreate(PaymentBase):
+    auto_allocate_fifo: bool = True
 
     model_config = ConfigDict(
         extra="forbid",

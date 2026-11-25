@@ -203,6 +203,12 @@ def check_and_update_schema() -> None:
             ("vouchers", "bank_account_id", "INTEGER"),
             ("payments", "bank_account_id", "INTEGER"),
             ("incomes", "bank_account_id", "INTEGER"),
+            ("fuel_tanks", "avg_cost_per_liter", "FLOAT"),
+            ("purchase_indents", "payment_mode", "VARCHAR(20) NOT NULL DEFAULT 'CREDIT'"),
+            ("purchase_indents", "bank_account_uuid", "VARCHAR(36)"),
+            ("day_closings", "settlement_bank_account_uuid", "VARCHAR(36)"),
+            ("day_closings", "cash_deposited_to_bank", "NUMERIC(12,2) NOT NULL DEFAULT 0.00"),
+            ("day_closings", "synced_bank_txn_ids", "JSON"),
         ):
             try:
                 db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))

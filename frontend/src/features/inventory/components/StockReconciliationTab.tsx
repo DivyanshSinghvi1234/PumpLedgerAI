@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
 import type { FuelType, FuelTankCreate, DipReadingCreate, TankTransferCreate } from "../types";
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 import TankVisualization from "./TankVisualization";
 
 
@@ -51,6 +52,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [stockSupplier, setStockSupplier] = useState("");
   const [stockProcurementRate, setStockProcurementRate] = useState("");
   const [stockPaymentMode, setStockPaymentMode] = useState<string>("CREDIT");
+  const [stockBankUuid, setStockBankUuid] = useState<string>("");
   const [stockIgnoreCapacity, setStockIgnoreCapacity] = useState(false);
 
   // Inter-Tank Transfer states
@@ -157,10 +159,13 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       supplier_name?: string;
       procurement_rate?: number;
       payment_mode?: string;
+      bank_account_uuid?: string;
       ignore_capacity?: boolean;
     }) => inventoryService.createDelivery(data),
     onSuccess: () => {
       toast.success("Stock added to tank successfully!");
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
       setAddStockOpen(false);
       setStockQty("");
       setStockInvoice("");
@@ -251,6 +256,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     setStockSupplier("");
     setStockProcurementRate("");
     setStockPaymentMode("CREDIT");
+    setStockBankUuid("");
     setStockIgnoreCapacity(false);
     setAddStockOpen(true);
   };
@@ -272,6 +278,11 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       supplier_name: stockSupplier.trim() || undefined,
       procurement_rate: rate,
       payment_mode: stockPaymentMode,
+      bank_account_uuid:
+        (stockPaymentMode === "BANK" || stockPaymentMode === "UPI" || stockPaymentMode === "CARD") &&
+        stockBankUuid
+          ? stockBankUuid
+          : undefined,
       ignore_capacity: stockIgnoreCapacity,
     });
   };
@@ -1236,11 +1247,20 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-xs text-ink h-9 focus:outline-none transition cursor-pointer"
               >
                 <option value="CREDIT">CREDIT (Pay Later / Due)</option>
-                <option value="CASH">CASH</option>
+                <option value="BANK">BANK TRANSFER (NEFT / RTGS)</option>
                 <option value="UPI">UPI</option>
                 <option value="CARD">CARD</option>
+                <option value="CASH">CASH</option>
               </select>
             </div>
+
+            {(stockPaymentMode === "BANK" || stockPaymentMode === "UPI" || stockPaymentMode === "CARD") && (
+              <BankAccountSelect
+                value={stockBankUuid}
+                onChange={setStockBankUuid}
+                label="Deduct From Bank Account (e.g. HDFC / SBI)"
+              />
+            )}
 
             <label className="flex items-center gap-2 text-[11px] text-ink-muted cursor-pointer">
               <input

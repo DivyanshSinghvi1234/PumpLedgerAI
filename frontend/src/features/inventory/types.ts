@@ -64,6 +64,7 @@ export interface TankerDeliveryCreate {
   remarks?: string | null;
   procurement_rate?: number | null;
   payment_mode?: string;
+  bank_account_uuid?: string | null;
   ignore_capacity?: boolean;
 }
 
@@ -256,6 +257,8 @@ export interface PurchaseIndentStatusUpdate {
   density_at_15c?: number | null;
   invoice_number?: string | null;
   total_invoice_amount?: number | null;
+  payment_mode?: string;
+  bank_account_uuid?: string | null;
   remarks?: string | null;
 }
 

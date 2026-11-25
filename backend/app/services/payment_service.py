@@ -92,6 +92,39 @@ class PaymentService:
             actor_id=actor_id,
         )
 
+        # Auto-settle customer's oldest unpaid vouchers (FIFO) when enabled
+        if getattr(data, "auto_allocate_fifo", True):
+            from app.core.enums import PaymentStatus
+            from app.models.voucher_settlement import VoucherSettlement
+            from app.repositories.voucher_repository import VoucherRepository
+
+            remaining = Decimal(str(data.amount))
+            unpaid_vouchers = VoucherRepository().list_for_customer_fifo(db, customer.id)
+            touched = []
+            for v in unpaid_vouchers:
+                if remaining <= Decimal("0.00"):
+                    break
+                due = v.balance_due
+                alloc = min(remaining, due)
+                if alloc > Decimal("0.00"):
+                    v.amount_paid = (v.amount_paid or Decimal("0.00")) + alloc
+                    if v.balance_due <= Decimal("0.00"):
+                        v.payment_status = PaymentStatus.PAID
+                    else:
+                        v.payment_status = PaymentStatus.PARTIAL
+                    db.add(v)
+                    db.add(
+                        VoucherSettlement(
+                            payment_id=payment.id,
+                            voucher_id=v.id,
+                            amount=alloc,
+                        )
+                    )
+                    touched.append(v)
+                    remaining -= alloc
+            if touched:
+                db.commit()
+
         # Log audit log
         self.audit_service.log_action(
             db,

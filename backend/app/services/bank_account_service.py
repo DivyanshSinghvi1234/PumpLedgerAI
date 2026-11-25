@@ -214,11 +214,115 @@ class BankAccountService:
             if txn.bank_account_id:
                 acc = db.get(BankAccount, txn.bank_account_id)
                 if acc is not None:
-                    if txn.transaction_type in ("INCOME", "DEPOSIT"):
+                    if txn.transaction_type in ("INCOME", "DEPOSIT", "TRANSFER_IN"):
                         acc.current_balance = acc.current_balance - txn.amount
-                    elif txn.transaction_type in ("EXPENSE", "WITHDRAWAL"):
+                    elif txn.transaction_type in ("EXPENSE", "WITHDRAWAL", "TRANSFER_OUT", "CASH_WITHDRAWAL"):
                         acc.current_balance = acc.current_balance + txn.amount
             db.delete(txn)
+
+    def transfer_between_accounts(
+        self,
+        db: Session,
+        *,
+        from_bank_account_uuid: str,
+        to_bank_account_uuid: str,
+        amount: Decimal,
+        transfer_date: date,
+        pump_id: int,
+        reference_number: str | None = None,
+        remarks: str | None = None,
+        actor_id: int | None = None,
+    ) -> tuple[BankTransaction, BankTransaction]:
+        """Transfer funds between two bank accounts (e.g. SBI -> HDFC) without affecting P&L."""
+        if from_bank_account_uuid == to_bank_account_uuid:
+            raise ValueError("Source and destination bank accounts must be different.")
+        if amount <= Decimal("0.00"):
+            raise ValueError("Transfer amount must be greater than zero.")
+
+        from_acc = self.get_by_uuid(db, from_bank_account_uuid)
+        to_acc = self.get_by_uuid(db, to_bank_account_uuid)
+
+        from_acc.current_balance = from_acc.current_balance - amount
+        to_acc.current_balance = to_acc.current_balance + amount
+
+        out_txn = BankTransaction(
+            bank_account_id=from_acc.id,
+            transaction_type="TRANSFER_OUT",
+            amount=amount,
+            transaction_date=transfer_date,
+            reference_number=reference_number,
+            remarks=remarks or f"Transfer to {to_acc.bank_name} ({to_acc.account_name})",
+            pump_id=pump_id,
+        )
+        in_txn = BankTransaction(
+            bank_account_id=to_acc.id,
+            transaction_type="TRANSFER_IN",
+            amount=amount,
+            transaction_date=transfer_date,
+            reference_number=reference_number,
+            remarks=remarks or f"Transfer from {from_acc.bank_name} ({from_acc.account_name})",
+            pump_id=pump_id,
+        )
+        db.add(out_txn)
+        db.add(in_txn)
+        db.flush()
+
+        self.audit_service.log_action(
+            db,
+            action="Bank-to-Bank Transfer",
+            target_table="bank_accounts",
+            target_id=str(from_acc.uuid),
+            actor_id=actor_id,
+            new_values={
+                "from": from_acc.account_name,
+                "to": to_acc.account_name,
+                "amount": str(amount),
+            },
+        )
+        return out_txn, in_txn
+
+    def withdraw_bank_to_cash(
+        self,
+        db: Session,
+        *,
+        bank_account_uuid: str,
+        amount: Decimal,
+        withdrawal_date: date,
+        pump_id: int,
+        reference_number: str | None = None,
+        remarks: str | None = None,
+        actor_id: int | None = None,
+    ) -> BankTransaction:
+        """Withdraw cash from a bank account into Forecourt Cash-in-Hand without affecting P&L."""
+        if amount <= Decimal("0.00"):
+            raise ValueError("Withdrawal amount must be greater than zero.")
+        acc = self.get_by_uuid(db, bank_account_uuid)
+        acc.current_balance = acc.current_balance - amount
+
+        txn = BankTransaction(
+            bank_account_id=acc.id,
+            transaction_type="CASH_WITHDRAWAL",
+            amount=amount,
+            transaction_date=withdrawal_date,
+            reference_number=reference_number,
+            remarks=remarks or f"Cash withdrawn to Forecourt Drawer from {acc.bank_name} ({acc.account_name})",
+            pump_id=pump_id,
+        )
+        db.add(txn)
+        db.flush()
+
+        self.audit_service.log_action(
+            db,
+            action="Withdrew Cash from Bank",
+            target_table="bank_accounts",
+            target_id=str(acc.uuid),
+            actor_id=actor_id,
+            new_values={
+                "amount": str(amount),
+                "new_bank_balance": str(acc.current_balance),
+            },
+        )
+        return txn
 
     def get_liquid_funds_summary(self, db: Session, pump_id: int) -> dict:
         accounts = self.list_bank_accounts(db, pump_id)
@@ -255,7 +359,12 @@ class BankAccountService:
             .where(BankTransaction.pump_id == pump_id, BankTransaction.transaction_type == "DEPOSIT")
         ) or Decimal("0.00")
 
-        total_cash_in = cash_vouchers_sum + split_cash_sum + cash_payments_sum + cash_income_sum
+        cash_withdrawals_from_bank_sum = db.scalar(
+            select(func.coalesce(func.sum(BankTransaction.amount), Decimal("0.00")))
+            .where(BankTransaction.pump_id == pump_id, BankTransaction.transaction_type == "CASH_WITHDRAWAL")
+        ) or Decimal("0.00")
+
+        total_cash_in = cash_vouchers_sum + split_cash_sum + cash_payments_sum + cash_income_sum + cash_withdrawals_from_bank_sum
         total_cash_out = cash_expenses_sum + cash_deposits_to_bank_sum
 
         total_cash_available = total_cash_in - total_cash_out
