@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
-from app.core.enums import LedgerEntryType, PaymentStatus
+from app.core.enums import LedgerEntryType, PaymentMode, PaymentStatus
 from app.core.exceptions import (
     CustomerNotFoundError,
     PaymentNotFoundError,
@@ -50,6 +50,8 @@ class PaymentService:
             customer_id=customer.id,
             amount=data.amount,
             payment_mode=data.payment_mode,
+            cash_amount=data.cash_amount,
+            bank_amount=data.bank_amount,
             payment_date=data.payment_date,
             reference_number=data.reference_number,
             remarks=data.remarks,
@@ -60,13 +62,18 @@ class PaymentService:
         db.flush()
 
         # Sync to selected BankAccount (e.g. HDFC, SBI) if provided
-        if data.bank_account_uuid:
+        bank_sync_amount = (
+            (data.bank_amount or Decimal("0.00"))
+            if data.payment_mode == PaymentMode.SPLIT
+            else data.amount
+        )
+        if data.bank_account_uuid and bank_sync_amount > Decimal("0.00"):
             from app.services.bank_account_service import BankAccountService
 
             acc = BankAccountService().sync_from_entity(
                 db,
                 bank_account_uuid=data.bank_account_uuid,
-                amount=data.amount,
+                amount=bank_sync_amount,
                 transaction_type="INCOME",
                 transaction_date=data.payment_date,
                 reference_number=f"PAY-{payment.id}",

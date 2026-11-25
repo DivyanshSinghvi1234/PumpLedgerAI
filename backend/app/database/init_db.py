@@ -202,6 +202,8 @@ def check_and_update_schema() -> None:
             ("vouchers", "credit_amount", "NUMERIC(12,2) DEFAULT 0.00"),
             ("vouchers", "bank_account_id", "INTEGER"),
             ("payments", "bank_account_id", "INTEGER"),
+            ("payments", "cash_amount", "NUMERIC(12,2)"),
+            ("payments", "bank_amount", "NUMERIC(12,2)"),
             ("incomes", "bank_account_id", "INTEGER"),
             ("fuel_tanks", "avg_cost_per_liter", "FLOAT"),
             ("purchase_indents", "payment_mode", "VARCHAR(20) NOT NULL DEFAULT 'CREDIT'"),

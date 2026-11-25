@@ -522,6 +522,11 @@ class BankAccountService:
             .where(Payment.pump_id == pump_id, Payment.payment_mode == PaymentMode.CASH, Payment.is_active.is_(True))
         ) or Decimal("0.00")
 
+        split_cash_payments_sum = db.scalar(
+            select(func.coalesce(func.sum(func.coalesce(Payment.cash_amount, Decimal("0.00"))), Decimal("0.00")))
+            .where(Payment.pump_id == pump_id, Payment.payment_mode == PaymentMode.SPLIT, Payment.is_active.is_(True))
+        ) or Decimal("0.00")
+
         cash_income_sum = db.scalar(
             select(func.coalesce(func.sum(Income.amount), Decimal("0.00")))
             .where(Income.pump_id == pump_id, Income.payment_mode == PaymentMode.CASH, Income.kind == IncomeKind.INCOME, Income.is_active.is_(True))
@@ -542,7 +547,14 @@ class BankAccountService:
             .where(BankTransaction.pump_id == pump_id, BankTransaction.transaction_type == "CASH_WITHDRAWAL")
         ) or Decimal("0.00")
 
-        total_cash_in = cash_vouchers_sum + split_cash_sum + cash_payments_sum + cash_income_sum + cash_withdrawals_from_bank_sum
+        total_cash_in = (
+            cash_vouchers_sum
+            + split_cash_sum
+            + cash_payments_sum
+            + split_cash_payments_sum
+            + cash_income_sum
+            + cash_withdrawals_from_bank_sum
+        )
         total_cash_out = cash_expenses_sum + cash_deposits_to_bank_sum
 
         total_cash_available = total_cash_in - total_cash_out

@@ -280,6 +280,8 @@ class VoucherPaymentService:
         amount: Decimal,
         payment_mode: PaymentMode,
         payment_date: date,
+        cash_amount: Decimal | None = None,
+        bank_amount: Decimal | None = None,
         bank_account_uuid: str | None = None,
         reference_number: str | None = None,
         remarks: str | None = None,
@@ -348,6 +350,8 @@ class VoucherPaymentService:
             customer_id=customer.id,
             amount=amount,
             payment_mode=payment_mode,
+            cash_amount=cash_amount,
+            bank_amount=bank_amount,
             payment_date=payment_date,
             reference_number=reference_number,
             remarks=remarks or "FIFO settlement",
@@ -355,13 +359,18 @@ class VoucherPaymentService:
         db.add(payment)
         db.flush()
 
-        if bank_account_uuid:
+        bank_sync_amount = (
+            (bank_amount or Decimal("0.00"))
+            if payment_mode == PaymentMode.SPLIT
+            else amount
+        )
+        if bank_account_uuid and bank_sync_amount > Decimal("0.00"):
             from app.services.bank_account_service import BankAccountService
 
             acc = BankAccountService().sync_from_entity(
                 db,
                 bank_account_uuid=bank_account_uuid,
-                amount=amount,
+                amount=bank_sync_amount,
                 transaction_type="INCOME",
                 transaction_date=payment_date,
                 reference_number=f"PAY-{payment.id}",

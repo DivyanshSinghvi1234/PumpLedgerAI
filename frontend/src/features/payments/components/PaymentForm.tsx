@@ -29,6 +29,7 @@ const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
   { label: "UPI", value: "UPI" },
   { label: "Card", value: "CARD" },
   { label: "Bank Transfer", value: "BANK" },
+  { label: "Split (Cash + Bank/UPI)", value: "SPLIT" },
   { label: "Credit", value: "CREDIT" },
 ];
 
@@ -48,7 +49,11 @@ const paymentSchema = z.object({
     .number()
     .positive("Amount must be greater than 0"),
 
-  payment_mode: z.enum(["CASH", "UPI", "CARD", "BANK", "CREDIT"]),
+  payment_mode: z.enum(["CASH", "UPI", "CARD", "BANK", "CREDIT", "SPLIT"]),
+
+  cash_amount: z.coerce.number().min(0).optional(),
+
+  bank_amount: z.coerce.number().min(0).optional(),
 
   bank_account_uuid: z.string().optional(),
 
@@ -59,6 +64,18 @@ const paymentSchema = z.object({
   reference_number: z.string().optional(),
 
   remarks: z.string().optional(),
+}).superRefine((val, ctx) => {
+  if (val.payment_mode === "SPLIT") {
+    const c = val.cash_amount ?? 0;
+    const b = val.bank_amount ?? 0;
+    if (Math.abs(c + b - val.amount) > 0.01) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bank_amount"],
+        message: "Cash + Bank/UPI amount must equal Total Amount.",
+      });
+    }
+  }
 });
 
 
@@ -121,6 +138,8 @@ export default function PaymentForm({
       customer_uuid: data.customer_uuid,
       amount: data.amount,
       payment_mode: data.payment_mode,
+      cash_amount: data.payment_mode === "SPLIT" ? (data.cash_amount ?? 0) : null,
+      bank_amount: data.payment_mode === "SPLIT" ? (data.bank_amount ?? 0) : null,
       bank_account_uuid: data.bank_account_uuid || null,
       payment_date: data.payment_date,
       reference_number: data.reference_number,
@@ -200,7 +219,26 @@ export default function PaymentForm({
           {...register("payment_mode")}
         />
 
-        {(paymentMode === "UPI" || paymentMode === "CARD" || paymentMode === "BANK") && (
+        {(paymentMode === "SPLIT") && (
+          <>
+            <FormInput
+              type="number"
+              step="0.01"
+              label="Cash Part (₹)"
+              error={errors.cash_amount?.message}
+              {...register("cash_amount")}
+            />
+            <FormInput
+              type="number"
+              step="0.01"
+              label="Bank / UPI Part (₹)"
+              error={errors.bank_amount?.message}
+              {...register("bank_amount")}
+            />
+          </>
+        )}
+
+        {(paymentMode === "UPI" || paymentMode === "CARD" || paymentMode === "BANK" || paymentMode === "SPLIT") && (
           <div className="col-span-1 sm:col-span-2">
             <BankAccountSelect
               value={watch("bank_account_uuid")}

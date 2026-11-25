@@ -28,6 +28,10 @@ class PaymentBase(BaseModel):
 
     payment_mode: PaymentMode
 
+    cash_amount: Decimal | None = Field(default=None, ge=0)
+
+    bank_amount: Decimal | None = Field(default=None, ge=0)
+
     bank_account_uuid: UUID | None = None
 
     payment_date: date
@@ -42,6 +46,15 @@ class PaymentBase(BaseModel):
         default=None,
         max_length=500,
     )
+
+    @model_validator(mode="after")
+    def validate_split_amounts(self):
+        if self.payment_mode == PaymentMode.SPLIT:
+            c = self.cash_amount or Decimal("0.00")
+            b = self.bank_amount or Decimal("0.00")
+            if abs((c + b) - self.amount) > Decimal("0.01"):
+                raise ValueError("For SPLIT payments, cash_amount + bank_amount must equal total amount.")
+        return self
 
 
 # =====================================================
@@ -103,6 +116,10 @@ class VoucherSettleRequest(BaseModel):
 
     payment_mode: PaymentMode
 
+    cash_amount: Decimal | None = Field(default=None, ge=0)
+
+    bank_amount: Decimal | None = Field(default=None, ge=0)
+
     bank_account_uuid: UUID | None = None
 
     payment_date: date
@@ -117,6 +134,15 @@ class VoucherSettleRequest(BaseModel):
         default=None,
         max_length=500,
     )
+
+    @model_validator(mode="after")
+    def validate_split_amounts(self):
+        if self.payment_mode == PaymentMode.SPLIT:
+            c = self.cash_amount or Decimal("0.00")
+            b = self.bank_amount or Decimal("0.00")
+            if abs((c + b) - self.amount) > Decimal("0.01"):
+                raise ValueError("For SPLIT payments, cash_amount + bank_amount must equal total amount.")
+        return self
 
     model_config = ConfigDict(extra="forbid")
 
@@ -136,6 +162,10 @@ class PaymentResponse(BaseModel):
     amount: Decimal
 
     payment_mode: PaymentMode
+
+    cash_amount: Decimal | None = None
+
+    bank_amount: Decimal | None = None
 
     payment_date: date
 
@@ -168,6 +198,8 @@ class PaymentResponse(BaseModel):
             "customer_name": customer.name,
             "amount": data.amount,
             "payment_mode": data.payment_mode,
+            "cash_amount": getattr(data, "cash_amount", None),
+            "bank_amount": getattr(data, "bank_amount", None),
             "payment_date": data.payment_date,
             "reference_number": data.reference_number,
             "remarks": data.remarks,
@@ -194,6 +226,8 @@ class PaymentFifoAllocateRequest(BaseModel):
     customer_uuid: UUID
     amount: Decimal = Field(..., gt=0)
     payment_mode: PaymentMode
+    cash_amount: Decimal | None = Field(default=None, ge=0)
+    bank_amount: Decimal | None = Field(default=None, ge=0)
     bank_account_uuid: UUID | None = None
     payment_date: date
     reference_number: str | None = Field(default=None, max_length=50)
@@ -201,6 +235,15 @@ class PaymentFifoAllocateRequest(BaseModel):
     # Optional: scope the FIFO settlement to a single vehicle's vouchers.
     vehicle_uuid: UUID | None = None
     vehicle_number: str | None = Field(default=None, max_length=50)
+
+    @model_validator(mode="after")
+    def validate_split_amounts(self):
+        if self.payment_mode == PaymentMode.SPLIT:
+            c = self.cash_amount or Decimal("0.00")
+            b = self.bank_amount or Decimal("0.00")
+            if abs((c + b) - self.amount) > Decimal("0.01"):
+                raise ValueError("For SPLIT payments, cash_amount + bank_amount must equal total amount.")
+        return self
 
 
 

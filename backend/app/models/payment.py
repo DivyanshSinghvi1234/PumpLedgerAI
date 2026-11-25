@@ -68,6 +68,16 @@ class Payment(
         nullable=False,
     )
 
+    cash_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
+    bank_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        nullable=True,
+    )
+
     payment_date: Mapped[date] = mapped_column(
         Date,
         nullable=False,

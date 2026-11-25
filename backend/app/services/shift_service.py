@@ -99,7 +99,7 @@ class ShiftService:
 
         shift.total_sales_amount = sales_total
 
-        # 2. Query expected cash (opening_cash + cash sales vouchers during this shift)
+        # 2. Query expected cash (opening_cash + cash sales vouchers + cash customer payments)
         cash_sales = db.scalar(
             select(func.sum(Voucher.total_amount))
             .where(
@@ -110,7 +110,31 @@ class ShiftService:
             )
         ) or Decimal("0.00")
 
-        expected_cash = shift.opening_cash + cash_sales
+        from app.models.payment import Payment
+        shift_date = shift.start_time.date()
+        cash_payments = (
+            db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), Decimal("0.00")))
+                .where(
+                    Payment.payment_date == shift_date,
+                    Payment.payment_mode == PaymentMode.CASH,
+                    Payment.is_active.is_(True),
+                )
+            )
+            or Decimal("0.00")
+        ) + (
+            db.scalar(
+                select(func.coalesce(func.sum(func.coalesce(Payment.cash_amount, Decimal("0.00"))), Decimal("0.00")))
+                .where(
+                    Payment.payment_date == shift_date,
+                    Payment.payment_mode == PaymentMode.SPLIT,
+                    Payment.is_active.is_(True),
+                )
+            )
+            or Decimal("0.00")
+        )
+
+        expected_cash = shift.opening_cash + cash_sales + cash_payments
         reported_cash = Decimal(str(closing_cash_reported))
         shift.closing_cash_reported = reported_cash
 
@@ -275,9 +299,33 @@ class ShiftService:
         if not data.nozzle_lines and data.manual_gross_sales is not None:
             gross_sales = data.manual_gross_sales
 
+        from app.models.payment import Payment
+        cash_payments = (
+            db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), Decimal("0.00")))
+                .where(
+                    Payment.payment_date == data.settlement_date,
+                    Payment.payment_mode == PaymentMode.CASH,
+                    Payment.is_active.is_(True),
+                )
+            )
+            or Decimal("0.00")
+        ) + (
+            db.scalar(
+                select(func.coalesce(func.sum(func.coalesce(Payment.cash_amount, Decimal("0.00"))), Decimal("0.00")))
+                .where(
+                    Payment.payment_date == data.settlement_date,
+                    Payment.payment_mode == PaymentMode.SPLIT,
+                    Payment.is_active.is_(True),
+                )
+            )
+            or Decimal("0.00")
+        )
+
         expected_cash = (
             data.opening_float
             + gross_sales
+            + cash_payments
             - data.credit_sales_total
             - data.upi_total
             - data.card_edc_total

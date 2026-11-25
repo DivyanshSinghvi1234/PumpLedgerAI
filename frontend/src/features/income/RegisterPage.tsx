@@ -6,6 +6,7 @@ import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
 import voucherService from "@/features/vouchers/services/voucherService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "@/features/inventory/services/inventoryService";
+import paymentService from "@/features/payments/services/paymentService";
 import api from "@/api/client";
 
 // Cash denominations rendered in the collection-counts grid (note value → state key)
@@ -129,6 +130,29 @@ export default function RegisterPage() {
     queryKey: ["nozzleReadingsBulkForm", date],
     queryFn: () => inventoryService.getBulkReadingsForm(date),
   });
+
+  const { data: paymentsData } = useQuery({
+    queryKey: ["registerPayments", date],
+    queryFn: () => paymentService.getPayments({ payment_date: date, page_size: 100 }),
+  });
+
+  const cashPaymentsForDate = (paymentsData?.items ?? [])
+    .map((p) => {
+      const cashPart =
+        p.payment_mode === "CASH"
+          ? Number(p.amount ?? 0)
+          : p.payment_mode === "SPLIT"
+          ? Number(p.cash_amount ?? 0)
+          : 0;
+      return {
+        uuid: p.uuid,
+        customer_name: p.customer_name,
+        amount: cashPart,
+      };
+    })
+    .filter((p) => p.amount > 0);
+
+  const totalCashPayments = cashPaymentsForDate.reduce((sum, p) => sum + p.amount, 0);
 
   // Fast Monthly Bulk Prefetch — Loads entire month's data in 1 bulk query
   useEffect(() => {
@@ -561,7 +585,7 @@ export default function RegisterPage() {
   const speedAmt = speedSummary.netVol * msRate2;
 
   const totalCalculatedFuelSales = hsdAmt + msAmt + speedAmt;
-  const grandTotalRight = totalCalculatedFuelSales + ledgerInterest + prevDeposit;
+  const grandTotalRight = totalCalculatedFuelSales + ledgerInterest + prevDeposit + totalCashPayments;
 
   return (
     <div className="space-y-6 print-container">
@@ -1011,6 +1035,14 @@ export default function RegisterPage() {
                       </div>
                     ))
                   }
+                  {cashPaymentsForDate.map((p) => (
+                    <div key={p.uuid} className="flex items-center h-[20px] pl-handwritten text-[12px]">
+                      <span className="truncate flex-1 pr-2">Jama: {p.customer_name} [CASH]</span>
+                      <span className="pl-handwritten-strong font-bold text-[13px] pr-1 shrink-0">
+                        {formatLedgerAmount(p.amount)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Gap */}

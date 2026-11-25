@@ -373,9 +373,31 @@ class DayClosingService:
         else:
             physical_cash = Decimal(str(payload.physical_cash_counted or "0.00")).quantize(Decimal("0.01"))
 
+        from app.models.payment import Payment
+        cash_payments = (
+            db.scalar(
+                select(func.coalesce(func.sum(Payment.amount), Decimal("0.00"))).where(
+                    Payment.payment_date == payload.closing_date,
+                    Payment.payment_mode == PaymentMode.CASH,
+                    Payment.is_active.is_(True),
+                )
+            )
+            or Decimal("0.00")
+        ) + (
+            db.scalar(
+                select(func.coalesce(func.sum(func.coalesce(Payment.cash_amount, Decimal("0.00"))), Decimal("0.00"))).where(
+                    Payment.payment_date == payload.closing_date,
+                    Payment.payment_mode == PaymentMode.SPLIT,
+                    Payment.is_active.is_(True),
+                )
+            )
+            or Decimal("0.00")
+        )
+
         expected_cash = (
             opening_float
             + draft.cash_sales
+            + cash_payments
             - draft.cash_expenses
             - payload.cash_to_next_day
         ).quantize(Decimal("0.01"))

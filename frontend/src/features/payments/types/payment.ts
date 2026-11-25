@@ -3,7 +3,8 @@ export type PaymentMode =
   | "UPI"
   | "CARD"
   | "BANK"
-  | "CREDIT";
+  | "CREDIT"
+  | "SPLIT";
 
 export interface Payment {
   uuid: string;
@@ -15,6 +16,10 @@ export interface Payment {
   amount: number;
 
   payment_mode: PaymentMode;
+
+  cash_amount?: number | null;
+
+  bank_amount?: number | null;
 
   bank_account_uuid?: string | null;
 
@@ -51,6 +56,10 @@ export interface CreatePaymentRequest {
   amount: number;
 
   payment_mode: PaymentMode;
+
+  cash_amount?: number | null;
+
+  bank_amount?: number | null;
 
   bank_account_uuid?: string | null;
 
