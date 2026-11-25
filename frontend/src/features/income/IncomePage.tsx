@@ -10,6 +10,7 @@ import inventoryService from "@/features/inventory/services/inventoryService";
 import paymentService from "@/features/payments/services/paymentService";
 import AddEntryDialog from "./components/AddEntryDialog";
 import NoBillSaleDialog from "./components/NoBillSaleDialog";
+import RecurringBillsPanel from "./components/RecurringBillsPanel";
 
 import { useIncomeSummary } from "./hooks/useIncomeSummary";
 import { useIncomeList } from "./hooks/useIncomeList";
@@ -433,6 +434,9 @@ export default function IncomePage() {
           </div>
         </div>
       ) : null}
+
+      {/* Recurring Bills & Fixed Expenses */}
+      <RecurringBillsPanel canManage={canManage} />
 
       {/* Cash Denomination Calculator Card */}
       <CashDenominationsCard notes={notes} onChange={handleNotesChange} />

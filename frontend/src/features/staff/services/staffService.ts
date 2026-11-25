@@ -53,6 +53,7 @@ export interface StaffPayrollRow {
   shift_shortages: number;
   outstanding_balance: number;
   net_payable: number;
+  already_paid_this_month?: boolean;
 }
 
 export interface StaffPayrollPreview {
@@ -113,11 +114,28 @@ const staffService = {
     data: {
       billing_month: string;
       payment_mode: string;
+      bank_account_uuid?: string | null;
       deduct_outstanding: boolean;
       remarks?: string;
     }
   ) {
     const res = await api.post(`/v1/employees/${employeeUuid}/pay-salary`, data);
+    return res.data;
+  },
+
+  async payAllSalaries(data: {
+    billing_month: string;
+    payment_mode: string;
+    bank_account_uuid?: string | null;
+    deduct_outstanding?: boolean;
+    remarks?: string;
+  }): Promise<{
+    billing_month: string;
+    paid_count: number;
+    skipped_count: number;
+    total_net_paid: number;
+  }> {
+    const res = await api.post("/v1/employees/payroll/pay-all", data);
     return res.data;
   },
 };

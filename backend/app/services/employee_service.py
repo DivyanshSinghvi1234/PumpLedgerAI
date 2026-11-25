@@ -19,6 +19,8 @@ from app.schemas.employee import (
     StaffLedgerEntryCreate,
     StaffLedgerEntryResponse,
     StaffLedgerSummaryResponse,
+    StaffBatchPayrollRequest,
+    StaffBatchPayrollResponse,
     StaffPayrollPayRequest,
     StaffPayrollPayResponse,
     StaffPayrollPreviewResponse,
@@ -436,6 +438,7 @@ class EmployeeService:
                     shift_shortages=shortages,
                     outstanding_balance=outstanding,
                     net_payable=net_payable,
+                    already_paid_this_month=self._is_paid_for_month(db, emp, billing_month),
                 )
             )
 
@@ -526,6 +529,80 @@ class EmployeeService:
             deducted_amount=deducted_amount,
             net_paid=net_paid,
             remaining_balance=remaining,
+        )
+
+    def _is_paid_for_month(self, db: Session, employee: Employee, billing_month: str) -> bool:
+        from app.models.income import Income
+
+        paid_income = db.scalar(
+            select(Income.id)
+            .where(
+                Income.is_active.is_(True),
+                Income.category == "Salary",
+                Income.description.contains(f"({billing_month})"),
+                Income.description.contains(employee.full_name),
+            )
+            .limit(1)
+        )
+        if paid_income is not None:
+            return True
+
+        paid_ledger = db.scalar(
+            select(StaffLedgerEntry.id)
+            .where(
+                StaffLedgerEntry.employee_id == employee.id,
+                StaffLedgerEntry.reference_type == "PAYROLL",
+                StaffLedgerEntry.remarks.contains(billing_month),
+            )
+            .limit(1)
+        )
+        return paid_ledger is not None
+
+    def pay_all_salaries(
+        self,
+        db: Session,
+        data: StaffBatchPayrollRequest,
+        actor_id: int | None = None,
+    ) -> StaffBatchPayrollResponse:
+        """Pay monthly salaries for all unpaid active staff (or selected UUIDs) in one batch."""
+        preview = self.payroll_preview(db, data.billing_month)
+        target_uuids = set(data.employee_uuids) if data.employee_uuids else None
+
+        results: list[StaffPayrollPayResponse] = []
+        skipped_count = 0
+        total_net_paid = Decimal("0.00")
+
+        for row in preview.rows:
+            if target_uuids is not None and row.employee_uuid not in target_uuids:
+                continue
+            if row.already_paid_this_month:
+                skipped_count += 1
+                continue
+            if row.net_payable <= Decimal("0.00") and row.outstanding_balance <= Decimal("0.00"):
+                skipped_count += 1
+                continue
+
+            res = self.pay_salary(
+                db,
+                row.employee_uuid,
+                StaffPayrollPayRequest(
+                    billing_month=data.billing_month,
+                    payment_mode=data.payment_mode,
+                    bank_account_uuid=data.bank_account_uuid,
+                    deduct_outstanding=data.deduct_outstanding,
+                    remarks=data.remarks,
+                ),
+                actor_id=actor_id,
+            )
+            results.append(res)
+            total_net_paid += res.net_paid
+
+        return StaffBatchPayrollResponse(
+            billing_month=data.billing_month,
+            paid_count=len(results),
+            skipped_count=skipped_count,
+            total_net_paid=total_net_paid.quantize(Decimal("0.01")),
+            results=results,
         )
 
     def sync_from_users(self, db: Session) -> list[Employee]:

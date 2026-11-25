@@ -159,4 +159,14 @@ class DayClosing(
 
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    settlement_bank_account_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+    cash_deposited_to_bank: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+    )
+
+    synced_bank_txn_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
     closed_by = relationship("User")

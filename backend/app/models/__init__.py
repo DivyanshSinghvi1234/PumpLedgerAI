@@ -26,6 +26,7 @@ from app.models.staff_ledger_entry import StaffLedgerEntry
 from app.models.shift_settlement import ShiftSettlement
 from app.models.day_closing import DayClosing
 from app.models.stock_variance import StockVariance
+from app.models.recurring_expense import RecurringExpense
 
 __all__ = [
     "Voucher",
@@ -59,5 +60,6 @@ __all__ = [
     "ShiftSettlement",
     "DayClosing",
     "StockVariance",
+    "RecurringExpense",
 ]
 

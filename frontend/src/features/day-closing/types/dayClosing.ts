@@ -63,6 +63,8 @@ export interface DayClosingCreate {
   notes_10: number;
   coins: number;
   tank_dips: Record<string, number>;
+  settlement_bank_account_uuid?: string | null;
+  cash_deposited_to_bank?: number;
   notes?: string | null;
 }
 

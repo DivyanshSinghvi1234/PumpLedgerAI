@@ -15,6 +15,8 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeResponse,
     EmployeeUpdate,
+    StaffBatchPayrollRequest,
+    StaffBatchPayrollResponse,
     StaffLedgerEntryCreate,
     StaffLedgerEntryResponse,
     StaffLedgerSummaryResponse,
@@ -71,6 +73,20 @@ def preview_payroll(
     """Preview monthly salary, commission, advances/shortage deductions, and net pay."""
     billing_month = month or date.today().strftime("%Y-%m")
     return service.payroll_preview(db, billing_month)
+
+
+@router.post(
+    "/payroll/pay-all",
+    response_model=StaffBatchPayrollResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def pay_all_salaries(
+    data: StaffBatchPayrollRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Settle monthly salaries for all unpaid active staff in one batch."""
+    return service.pay_all_salaries(db, data, actor_id=current_user.id)
 
 
 @router.post(

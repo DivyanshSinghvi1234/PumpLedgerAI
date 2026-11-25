@@ -72,6 +72,8 @@ class DayClosingCreate(BaseModel):
     notes_10: int = Field(default=0, ge=0)
     coins: Decimal = Field(default=Decimal("0.00"), ge=0)
     tank_dips: dict[str, float] = Field(default_factory=dict)
+    settlement_bank_account_uuid: str | None = None
+    cash_deposited_to_bank: Decimal = Field(default=Decimal("0.00"), ge=0)
     notes: str | None = Field(default=None, max_length=500)
 
 
@@ -102,6 +104,8 @@ class DayClosingResponse(BaseModel):
     warnings: list[DayClosingWarning] | None = None
     closed_at: datetime | None = None
     nozzle_snapshot: list[DayClosingNozzleLine] | None = None
+    settlement_bank_account_uuid: str | None = None
+    cash_deposited_to_bank: Decimal = Decimal("0.00")
     notes: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

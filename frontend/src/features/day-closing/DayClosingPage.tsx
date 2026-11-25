@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import dayClosingService from "./services/dayClosingService";
@@ -44,8 +45,10 @@ export default function DayClosingPage() {
   const [notes10, setNotes10] = useState("0");
   const [coins, setCoins] = useState("0");
 
-  // Step 3: Notes
+  // Step 3: Notes & Bank Sync
   const [notes, setNotes] = useState("");
+  const [settlementBankUuid, setSettlementBankUuid] = useState("");
+  const [cashDepositedToBank, setCashDepositedToBank] = useState("0");
 
   const { data: draft, isLoading } = useQuery({
     queryKey: ["day-closing-draft", closingDate],
@@ -111,13 +114,17 @@ export default function DayClosingPage() {
         notes_10: Number(notes10) || 0,
         coins: Number(coins) || 0,
         tank_dips: tankDipsPayload,
+        settlement_bank_account_uuid: settlementBankUuid || null,
+        cash_deposited_to_bank: Number(cashDepositedToBank) || 0,
         notes: notes.trim() || null,
       }),
     onSuccess: () => {
-      toast.success(`Business day ${closingDate} closed and locked.`);
+      toast.success(`Business day ${closingDate} closed and synced.`);
       queryClient.invalidateQueries({ queryKey: ["day-closing-draft", closingDate] });
       queryClient.invalidateQueries({ queryKey: ["day-closings-history"] });
       queryClient.invalidateQueries({ queryKey: ["stock-variance-daily"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || "Failed to close business day.");
@@ -130,6 +137,8 @@ export default function DayClosingPage() {
       toast.success("Business day reopened for edits.");
       queryClient.invalidateQueries({ queryKey: ["day-closing-draft", closingDate] });
       queryClient.invalidateQueries({ queryKey: ["day-closings-history"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || "Failed to reopen closing.");
@@ -151,6 +160,8 @@ export default function DayClosingPage() {
     setCoins("0");
     setCashToNextDay("0");
     setNotes("");
+    setSettlementBankUuid("");
+    setCashDepositedToBank("0");
   };
 
   if (isLoading && !draft) {
@@ -578,6 +589,53 @@ export default function DayClosingPage() {
                   {variance > 0 ? "+" : ""}
                   {formatCurrency(variance)}
                 </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-hairline bg-surface-2 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase text-ink-muted">
+                  Auto-Sync to Bank Account
+                </p>
+                <p className="text-xs text-ink-muted">
+                  UPI + Card ({formatCurrency(Number(draft.upi_sales) + Number(draft.card_sales))}) will auto-credit to your selected (or primary) bank account.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+              <BankAccountSelect
+                value={settlementBankUuid}
+                onChange={setSettlementBankUuid}
+                label="Settlement Bank Account (Optional — defaults to primary)"
+              />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-ink-muted">
+                    Cash Deposited to Bank Today (₹)
+                  </label>
+                  <button
+                    type="button"
+                    disabled={draft.already_closed}
+                    onClick={() => {
+                      const excess = Math.max(0, physicalCash - (Number(cashToNextDay) || 0));
+                      setCashDepositedToBank(String(excess.toFixed(2)));
+                    }}
+                    className="text-[11px] font-semibold text-fuel-amber hover:underline cursor-pointer disabled:opacity-50"
+                  >
+                    Deposit Excess ({formatCurrency(Math.max(0, physicalCash - (Number(cashToNextDay) || 0)))})
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  disabled={draft.already_closed}
+                  value={cashDepositedToBank}
+                  onChange={(e) => setCashDepositedToBank(e.target.value)}
+                  className="w-full rounded-md border border-hairline bg-surface-1 px-3 py-2 text-xs font-mono font-semibold text-ink outline-none focus:border-fuel-amber"
+                />
               </div>
             </div>
           </div>

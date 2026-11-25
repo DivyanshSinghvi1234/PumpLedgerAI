@@ -27,6 +27,7 @@ from app.models.user_pump_access import UserPumpAccess
 from app.models.income import Income
 from app.models.day_closing import DayClosing
 from app.models.stock_variance import StockVariance
+from app.models.recurring_expense import RecurringExpense
 
 config = context.config
 

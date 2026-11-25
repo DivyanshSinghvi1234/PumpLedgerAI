@@ -48,6 +48,7 @@ from app.api.v1.routes.purchase_indent import router as purchase_indent_router
 from app.api.v1.routes.bank_account import router as bank_account_router
 from app.api.v1.routes.day_closing import router as day_closing_router
 from app.api.v1.routes.stock_variance import router as stock_variance_router
+from app.api.v1.routes.recurring_expense import router as recurring_expense_router
 
 
 
@@ -328,6 +329,11 @@ app.include_router(
     stock_variance_router,
     prefix="/api/v1",
     dependencies=protected,
+)
+app.include_router(
+    recurring_expense_router,
+    prefix="/api/v1",
+    dependencies=manager_protected,
 )
 
 

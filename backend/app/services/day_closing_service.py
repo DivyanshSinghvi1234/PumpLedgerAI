@@ -416,6 +416,20 @@ class DayClosingService:
         closing.closed_at = datetime.now(timezone.utc)
         closing.nozzle_snapshot = nozzle_snapshot
         closing.notes = payload.notes
+        closing.settlement_bank_account_uuid = payload.settlement_bank_account_uuid
+        closing.cash_deposited_to_bank = payload.cash_deposited_to_bank
+
+        db.flush()
+
+        # Auto-sync digital sales (UPI + Card) and optional cash deposit to BankAccount
+        synced_txn_ids = self._sync_closing_to_bank(
+            db,
+            closing=closing,
+            bank_account_uuid=payload.settlement_bank_account_uuid,
+            cash_deposited=payload.cash_deposited_to_bank,
+            actor_id=actor_id,
+        )
+        closing.synced_bank_txn_ids = synced_txn_ids or None
 
         db.commit()
         db.refresh(closing)
@@ -437,10 +451,110 @@ class DayClosingService:
         )
         return closing
 
+    def _sync_closing_to_bank(
+        self,
+        db: Session,
+        *,
+        closing: DayClosing,
+        bank_account_uuid: str | None,
+        cash_deposited: Decimal,
+        actor_id: int | None,
+    ) -> list[int]:
+        """Credit UPI + Card collections and optional cash deposit to the selected (or primary) bank account."""
+        from app.models.bank_account import BankAccount
+        from app.schemas.bank_account import CashDepositRequest
+        from app.services.bank_account_service import BankAccountService
+
+        digital_total = (closing.upi_sales + closing.card_sales).quantize(Decimal("0.01"))
+        if digital_total <= Decimal("0.00") and cash_deposited <= Decimal("0.00"):
+            return []
+
+        bank_service = BankAccountService()
+        target_account = None
+        if bank_account_uuid:
+            target_account = db.scalars(
+                select(BankAccount).where(
+                    BankAccount.uuid == bank_account_uuid,
+                    BankAccount.is_active.is_(True),
+                )
+            ).first()
+        elif digital_total > Decimal("0.00"):
+            # Auto-pick the pump's first active bank account if one exists
+            target_account = db.scalars(
+                select(BankAccount)
+                .where(
+                    BankAccount.pump_id == closing.pump_id,
+                    BankAccount.is_active.is_(True),
+                )
+                .order_by(BankAccount.id.asc())
+                .limit(1)
+            ).first()
+
+        if target_account is None:
+            return []
+
+        closing.settlement_bank_account_uuid = str(target_account.uuid)
+        txn_ids: list[int] = []
+
+        if digital_total > Decimal("0.00"):
+            txn = bank_service.adjust_bank_balance(
+                db,
+                bank_account_id=target_account.id,
+                amount=digital_total,
+                transaction_type="INCOME",
+                transaction_date=closing.closing_date,
+                reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-DIGITAL",
+                remarks=(
+                    f"Auto-synced UPI (₹{closing.upi_sales:,.2f}) + "
+                    f"Card (₹{closing.card_sales:,.2f}) from Day Closing"
+                ),
+                pump_id=closing.pump_id,
+            )
+            txn_ids.append(txn.id)
+
+        if cash_deposited > Decimal("0.00"):
+            dep_txn = bank_service.deposit_cash_to_bank(
+                db,
+                CashDepositRequest(
+                    bank_account_uuid=str(target_account.uuid),
+                    amount=cash_deposited,
+                    deposit_date=closing.closing_date,
+                    reference_number=f"DAYCLOSE-{closing.closing_date.isoformat()}-CASH",
+                    remarks=f"Cash deposited during Day Closing ({closing.closing_date.isoformat()})",
+                ),
+                pump_id=closing.pump_id,
+                actor_id=actor_id,
+            )
+            txn_ids.append(dep_txn.id)
+
+        return txn_ids
+
+    def _reverse_synced_bank_txns(self, db: Session, closing: DayClosing) -> None:
+        """Reverse bank transactions created when this DayClosing was locked."""
+        txn_ids = closing.synced_bank_txn_ids or []
+        if not txn_ids:
+            return
+        from app.models.bank_account import BankAccount, BankTransaction
+
+        txns = list(
+            db.scalars(select(BankTransaction).where(BankTransaction.id.in_(txn_ids))).all()
+        )
+        for txn in txns:
+            if txn.bank_account_id:
+                acc = db.get(BankAccount, txn.bank_account_id)
+                if acc is not None:
+                    if txn.transaction_type in ("INCOME", "DEPOSIT"):
+                        acc.current_balance = acc.current_balance - txn.amount
+                    elif txn.transaction_type in ("EXPENSE", "WITHDRAWAL"):
+                        acc.current_balance = acc.current_balance + txn.amount
+            db.delete(txn)
+        closing.synced_bank_txn_ids = None
+
     def reopen_closing(self, db: Session, closing_uuid: str, actor_id: int | None = None) -> DayClosing:
         closing = db.scalar(select(DayClosing).where(DayClosing.uuid == closing_uuid))
         if not closing:
             raise ValueError("Day closing record not found.")
+        self._reverse_synced_bank_txns(db, closing)
         closing.status = "DRAFT"
         db.commit()
         db.refresh(closing)

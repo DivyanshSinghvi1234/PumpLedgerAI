@@ -92,6 +92,7 @@ class StaffPayrollRow(BaseModel):
     shift_shortages: Decimal
     outstanding_balance: Decimal
     net_payable: Decimal
+    already_paid_this_month: bool = False
 
 
 class StaffPayrollPreviewResponse(BaseModel):
@@ -120,3 +121,20 @@ class StaffPayrollPayResponse(BaseModel):
     deducted_amount: Decimal
     net_paid: Decimal
     remaining_balance: Decimal
+
+
+class StaffBatchPayrollRequest(BaseModel):
+    billing_month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+    payment_mode: str = Field(default="CASH")
+    bank_account_uuid: UUID | None = None
+    deduct_outstanding: bool = True
+    employee_uuids: list[str] | None = None
+    remarks: str | None = Field(default=None, max_length=300)
+
+
+class StaffBatchPayrollResponse(BaseModel):
+    billing_month: str
+    paid_count: int
+    skipped_count: int
+    total_net_paid: Decimal
+    results: list[StaffPayrollPayResponse]
