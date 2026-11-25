@@ -99,6 +99,14 @@ class SoleAdminConstraintError(AppException):
         super().__init__(message)
 
 
+class DayClosedError(AppException):
+    def __init__(self, target_date: str) -> None:
+        super().__init__(
+            f"Business day {target_date} is closed and locked. Reopen the day closing before modifying transactions."
+        )
+
+
+
 # -------------------------
 # Employee Exceptions
 # -------------------------

@@ -160,3 +160,47 @@ export interface CreateVoucherRequest {
 }
 
 export type UpdateVoucherRequest = Partial<CreateVoucherRequest>;
+
+export interface VoucherSuggestRequest {
+  vehicle_number?: string | null;
+  customer_uuid?: string | null;
+  customer_name?: string | null;
+  fuel_type?: FuelType | null;
+  quantity_liters?: number | null;
+  rate_per_liter?: number | null;
+  total_amount?: number | null;
+  invoice_date?: string | null;
+  exclude_voucher_uuid?: string | null;
+}
+
+export interface FuzzyCustomerCandidate {
+  customer_uuid: string;
+  customer_name: string;
+  customer_code?: string | null;
+  mobile?: string | null;
+  score: number;
+}
+
+export interface SuggestionWarning {
+  type: "UNUSUAL_QUANTITY" | "POSSIBLE_DUPLICATE" | "FUZZY_CUSTOMER_MATCH";
+  message: string;
+  duplicate_uuid?: string | null;
+  duplicate_invoice_number?: string | null;
+  candidates: FuzzyCustomerCandidate[];
+}
+
+export interface VoucherSuggestionResponse {
+  normalized_vehicle_number: string | null;
+  vehicle_uuid: string | null;
+  customer_uuid: string | null;
+  customer_name: string | null;
+  customer_confidence: number;
+  fuel_type: FuelType | null;
+  fuel_type_confidence: number;
+  rate_per_liter: number | null;
+  payment_mode: PaymentMode | null;
+  payment_mode_confidence: number;
+  vehicle_avg_quantity: number | null;
+  vehicle_sample_count: number;
+  warnings: SuggestionWarning[];
+}

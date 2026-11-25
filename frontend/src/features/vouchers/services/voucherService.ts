@@ -5,6 +5,8 @@ import type {
   VoucherListResponse,
   CreateVoucherRequest,
   UpdateVoucherRequest,
+  VoucherSuggestRequest,
+  VoucherSuggestionResponse,
 } from "@/types/voucher";
 
 export interface VoucherSearchParams {
@@ -97,6 +99,16 @@ class VoucherService {
       `/v1/vouchers/${uuid}/reject`
     );
 
+    return response.data;
+  }
+
+  async suggestVoucher(
+    data: VoucherSuggestRequest
+  ): Promise<VoucherSuggestionResponse> {
+    const response = await api.post<VoucherSuggestionResponse>(
+      "/v1/vouchers/suggest",
+      data
+    );
     return response.data;
   }
 }

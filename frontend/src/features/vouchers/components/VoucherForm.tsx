@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +13,8 @@ import VehicleAutocomplete from "@/features/vehicles/components/VehicleAutocompl
 import { getTodayDateString } from "@/lib/utils";
 import { enqueueOfflineTransaction } from "@/lib/offlineQueue";
 import { toast } from "sonner";
+import { useVoucherSuggestion } from "../hooks/useVoucherSuggestion";
+import VoucherSuggestionBanner from "./VoucherSuggestionBanner";
 
 
 
@@ -141,6 +144,7 @@ export default function VoucherForm({
     setValue,
     formState: {
       errors,
+      dirtyFields,
     },
   } = useForm<
     VoucherFormInput,
@@ -164,11 +168,97 @@ export default function VoucherForm({
   const customerName = watch("customer_name") ?? "";
   const customerUuid = watch("customer_uuid") ?? "";
   const vehicleNumber = watch("vehicle_number") ?? "";
+  const invoiceDate = watch("invoice_date") ?? "";
+  const fuelType = watch("fuel_type");
 
   const paymentMode = watch("payment_mode");
   const qty = watch("quantity_liters") ?? 0;
   const rate = watch("rate_per_liter") ?? 0;
   const totalAmount = watch("total_amount") ?? 0;
+
+  const isEditMode = Boolean(defaultValues && defaultValues.invoice_number);
+  const [autoNotes, setAutoNotes] = useState<string[]>([]);
+  const lastVehicleRef = useRef<string>("");
+
+  const { suggestion } = useVoucherSuggestion(
+    {
+      vehicle_number: vehicleNumber,
+      customer_uuid: customerUuid || null,
+      customer_name: customerName || null,
+      fuel_type: fuelType,
+      quantity_liters: Number(qty) > 0 ? Number(qty) : null,
+      total_amount: Number(totalAmount) > 0 ? Number(totalAmount) : null,
+      invoice_date: invoiceDate || null,
+    },
+    !isEditMode
+  );
+
+  useEffect(() => {
+    if (!suggestion || isEditMode) return;
+    const notes: string[] = [];
+
+    const vehicleChanged = vehicleNumber.trim() !== lastVehicleRef.current;
+    if (vehicleChanged) {
+      lastVehicleRef.current = vehicleNumber.trim();
+    }
+
+    if (
+      suggestion.customer_uuid &&
+      suggestion.customer_name &&
+      suggestion.customer_confidence >= 0.8 &&
+      (!customerUuid || vehicleChanged)
+    ) {
+      setValue("customer_uuid", suggestion.customer_uuid, { shouldValidate: true });
+      setValue("customer_name", suggestion.customer_name, { shouldValidate: true });
+      notes.push(`Customer: ${suggestion.customer_name}`);
+    }
+
+    if (
+      suggestion.fuel_type &&
+      suggestion.fuel_type_confidence >= 0.8 &&
+      !dirtyFields.fuel_type
+    ) {
+      setValue("fuel_type", suggestion.fuel_type, { shouldValidate: true });
+      notes.push(`Fuel: ${suggestion.fuel_type}`);
+    }
+
+    if (
+      suggestion.rate_per_liter &&
+      Number(suggestion.rate_per_liter) > 0 &&
+      !dirtyFields.rate_per_liter
+    ) {
+      const nextRate = Number(suggestion.rate_per_liter);
+      setValue("rate_per_liter", nextRate, { shouldValidate: true });
+      notes.push(`Rate: ₹${nextRate}`);
+      if (Number(qty) > 0 && !dirtyFields.total_amount) {
+        setValue("total_amount", Number((Number(qty) * nextRate).toFixed(2)), {
+          shouldValidate: true,
+        });
+      }
+    }
+
+    if (
+      suggestion.payment_mode &&
+      suggestion.payment_mode_confidence >= 0.8 &&
+      !dirtyFields.payment_mode
+    ) {
+      setValue("payment_mode", suggestion.payment_mode, { shouldValidate: true });
+      notes.push(`Mode: ${suggestion.payment_mode}`);
+    }
+
+    setAutoNotes(notes);
+  }, [
+    suggestion,
+    isEditMode,
+    vehicleNumber,
+    customerUuid,
+    qty,
+    dirtyFields.fuel_type,
+    dirtyFields.rate_per_liter,
+    dirtyFields.total_amount,
+    dirtyFields.payment_mode,
+    setValue,
+  ]);
 
   const cashAmt = watch("cash_amount") ?? 0;
   const upiAmt = watch("upi_amount") ?? 0;
@@ -224,6 +314,14 @@ export default function VoucherForm({
       onSubmit={handleSubmit(submitForm)}
       className="space-y-6"
     >
+      <VoucherSuggestionBanner
+        suggestion={suggestion}
+        autoAppliedNotes={autoNotes}
+        onPickFuzzyCustomer={(cand) => {
+          setValue("customer_uuid", cand.customer_uuid, { shouldValidate: true });
+          setValue("customer_name", cand.customer_name, { shouldValidate: true });
+        }}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 

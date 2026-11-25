@@ -44,6 +44,9 @@ class IncomeService:
         data: IncomeCreate,
         actor_id: int | None = None,
     ) -> Income:
+        from app.services.day_closing_service import DayClosingService
+
+        DayClosingService.ensure_day_open(db, data.income_date)
 
         # An expense may be linked to a customer — this is a loan: the amount
         # lent is posted as a debit to that customer's ledger so it shows up
@@ -234,6 +237,10 @@ class IncomeService:
         if income is None:
             raise IncomeNotFoundError(income_uuid)
 
+        from app.services.day_closing_service import DayClosingService
+
+        DayClosingService.ensure_day_open(db, income.income_date)
+
         old_values = {
             "kind": income.kind.value,
             "income_date": str(income.income_date),
@@ -284,6 +291,10 @@ class IncomeService:
 
         if income is None:
             raise IncomeNotFoundError(income_uuid)
+
+        from app.services.day_closing_service import DayClosingService
+
+        DayClosingService.ensure_day_open(db, income.income_date)
 
         old_values = {
             "kind": income.kind.value,

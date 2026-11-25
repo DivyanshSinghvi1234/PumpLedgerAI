@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.models import Voucher
 from app.api.v1.routes.voucher import router as voucher_router
+from app.api.v1.routes.smart_voucher import router as smart_voucher_router
 from app.api.v1.routes.upload import router as upload_router
 from fastapi.staticfiles import StaticFiles
 from app.api.v1.routes.vision import router as vision_router
@@ -45,6 +46,8 @@ from app.api.v1.routes.nps import router as nps_router
 from app.api.v1.routes.setting import router as setting_router
 from app.api.v1.routes.purchase_indent import router as purchase_indent_router
 from app.api.v1.routes.bank_account import router as bank_account_router
+from app.api.v1.routes.day_closing import router as day_closing_router
+from app.api.v1.routes.stock_variance import router as stock_variance_router
 
 
 
@@ -100,7 +103,7 @@ async def app_exception_handler(request: Request, exc: AppException):
     name = exc.__class__.__name__
     if "NotFoundError" in name:
         status_code = 404
-    elif "Duplicate" in name:
+    elif "Duplicate" in name or "DayClosed" in name:
         status_code = 409
     res = JSONResponse(
         status_code=status_code,
@@ -176,6 +179,11 @@ async def add_security_headers(request, call_next):
     return response
 
 
+app.include_router(
+    smart_voucher_router,
+    prefix="/api/v1",
+    dependencies=protected,
+)
 app.include_router(
     voucher_router,
     prefix="/api/v1",
@@ -310,6 +318,16 @@ app.include_router(
     bank_account_router,
     prefix="/api/v1",
     dependencies=manager_protected,
+)
+app.include_router(
+    day_closing_router,
+    prefix="/api/v1",
+    dependencies=manager_protected,
+)
+app.include_router(
+    stock_variance_router,
+    prefix="/api/v1",
+    dependencies=protected,
 )
 
 

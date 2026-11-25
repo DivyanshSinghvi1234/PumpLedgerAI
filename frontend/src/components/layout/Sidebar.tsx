@@ -15,6 +15,7 @@ import {
   Coins,
   BookOpen,
   Landmark,
+  Moon,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -82,6 +83,12 @@ const menuItems: MenuGroup[] = [
         title: "8 PM Settlement",
         path: "/dashboard/shift-settlement",
         icon: Wallet,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Day Closing",
+        path: "/dashboard/day-closing",
+        icon: Moon,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
     ],

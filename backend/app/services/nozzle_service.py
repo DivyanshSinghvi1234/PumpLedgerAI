@@ -610,6 +610,8 @@ class NozzleService:
                     "count": len(readings),
                 }
             )
+            from app.services.stock_variance_service import StockVarianceService
+            StockVarianceService().compute_daily_variance(db, r_date, actor_id=actor_id)
 
         return readings
 

@@ -25,6 +25,8 @@ from app.models.fuel_dispenser import FuelDispenser
 from app.models.pump import Pump
 from app.models.user_pump_access import UserPumpAccess
 from app.models.income import Income
+from app.models.day_closing import DayClosing
+from app.models.stock_variance import StockVariance
 
 config = context.config
 

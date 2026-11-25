@@ -271,4 +271,42 @@ class CustomerRepository(
             customer.customer_code = f"CUST{customer.id:06d}"
             customer = self.update(db, customer)
 
-        return customer
+        return customer
+
+    def get_customer_payment_mode(
+        self,
+        db: Session,
+        customer_id: int,
+        limit: int = 20,
+    ) -> tuple[Any, float] | None:
+        """Return (modal_payment_mode, confidence) from a customer's recent vouchers."""
+        from collections import Counter
+        from app.models.voucher import Voucher
+
+        modes = list(
+            db.scalars(
+                select(Voucher.payment_mode)
+                .where(
+                    Voucher.customer_id == customer_id,
+                    Voucher.is_active.is_(True),
+                )
+                .order_by(Voucher.invoice_date.desc(), Voucher.id.desc())
+                .limit(limit)
+            ).all()
+        )
+        if not modes:
+            return None
+
+        counts = Counter(modes)
+        modal_mode, hits = counts.most_common(1)[0]
+        return modal_mode, round(hits / len(modes), 2)
+
+    def get_all_active(self, db: Session) -> list[Customer]:
+        """Return all active customers for the current pump."""
+        return list(
+            db.scalars(
+                select(Customer)
+                .where(Customer.is_active.is_(True))
+                .order_by(Customer.name.asc())
+            ).all()
+        )

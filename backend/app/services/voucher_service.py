@@ -153,6 +153,9 @@ class VoucherService:
         data: VoucherCreate,
         actor_id: int | None = None,
     ) -> Voucher:
+        from app.services.day_closing_service import DayClosingService
+
+        DayClosingService.ensure_day_open(db, data.invoice_date)
 
         existing = self.repository.get_by_invoice(
             db,
@@ -181,6 +184,7 @@ class VoucherService:
         total = data.total_amount
 
         from app.models.voucher_item import VoucherItem
+        from app.database.scoping import active_pump_id
 
         voucher = Voucher(
             **data.model_dump(
@@ -189,7 +193,7 @@ class VoucherService:
             customer_id=customer.id if customer else None,
             vehicle_id=vehicle.id if vehicle else None,
             verification_status=VerificationStatus.VERIFIED,
-            pump_id=getattr(customer, "pump_id", None) if customer else 1,
+            pump_id=getattr(customer, "pump_id", None) if customer else (active_pump_id.get() or 1),
         )
 
 
@@ -488,6 +492,12 @@ class VoucherService:
                 voucher_uuid,
             )
 
+        from app.services.day_closing_service import DayClosingService
+
+        DayClosingService.ensure_day_open(db, voucher.invoice_date)
+        if data.invoice_date is not None and data.invoice_date != voucher.invoice_date:
+            DayClosingService.ensure_day_open(db, data.invoice_date)
+
         # Store old stock configurations to restore
         old_items = list(voucher.items)
         old_fuel_type = voucher.fuel_type
@@ -749,6 +759,10 @@ class VoucherService:
             raise VoucherNotFoundError(
                 voucher_uuid,
             )
+
+        from app.services.day_closing_service import DayClosingService
+
+        DayClosingService.ensure_day_open(db, voucher.invoice_date)
 
         # If it posted to the ledger, reverse the entry and delete the
         # voucher in one transaction; otherwise a plain delete.

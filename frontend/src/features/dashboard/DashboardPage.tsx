@@ -10,6 +10,7 @@ import DebtorAgingCard from "./components/DebtorAgingCard";
 import MarginDashboardCard from "./components/MarginDashboardCard";
 import CustomerAnalyticsCard from "./components/CustomerAnalyticsCard";
 import NPSDashboardCard from "./components/NPSDashboardCard";
+import StockVarianceCard from "./components/StockVarianceCard";
 
 export default function DashboardPage() {
   const {
@@ -45,6 +46,8 @@ export default function DashboardPage() {
       </div>
 
       <StatCards summary={data.summary} />
+
+      <StockVarianceCard />
 
       <DebtorAgingCard />
 

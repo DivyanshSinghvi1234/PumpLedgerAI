@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useCreateVoucher } from "../../vouchers/hooks/useCreateVoucher";
@@ -10,6 +10,8 @@ import VehicleAutocomplete from "../../vehicles/components/VehicleAutocomplete";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import { getTodayDateString } from "@/lib/utils";
 import AppDialog from "@/components/common/AppDialog";
+import { useVoucherSuggestion } from "../../vouchers/hooks/useVoucherSuggestion";
+import VoucherSuggestionBanner from "../../vouchers/components/VoucherSuggestionBanner";
 
 type Props = {
   data: any;
@@ -90,6 +92,61 @@ export default function OCRReviewForm({
   // Mismatch: saved amount differs from computed qty × rate total
   const diff = Number(Math.abs(totalAmount - grandTotal).toFixed(2));
   const isMismatch = diff > 0.05;
+
+  const [autoNotes, setAutoNotes] = useState<string[]>([]);
+  const primaryItem = formData.items[0];
+  const { suggestion } = useVoucherSuggestion({
+    vehicle_number: formData.vehicle_number,
+    customer_uuid: formData.customer_uuid,
+    customer_name: formData.customer_name,
+    fuel_type: primaryItem?.fuel_type || null,
+    quantity_liters: Number(primaryItem?.quantity_liters) > 0 ? Number(primaryItem.quantity_liters) : null,
+    total_amount: totalAmount > 0 ? totalAmount : null,
+    invoice_date: formData.invoice_date,
+  });
+
+  useEffect(() => {
+    if (!suggestion) return;
+    const notes: string[] = [];
+
+    setFormData((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      if (!prev.customer_uuid && suggestion.customer_uuid && suggestion.customer_name && suggestion.customer_confidence >= 0.8) {
+        next.customer_uuid = suggestion.customer_uuid;
+        next.customer_name = suggestion.customer_name;
+        notes.push(`Linked customer: ${suggestion.customer_name}`);
+        changed = true;
+      }
+
+      if (!prev.payment_mode && suggestion.payment_mode && suggestion.payment_mode_confidence >= 0.8) {
+        next.payment_mode = suggestion.payment_mode;
+        notes.push(`Mode: ${suggestion.payment_mode}`);
+        changed = true;
+      }
+
+      if (prev.items.length > 0 && Number(prev.items[0].rate_per_liter) <= 0 && suggestion.rate_per_liter) {
+        const nextItems = [...prev.items];
+        const rate = Number(suggestion.rate_per_liter);
+        const q = Number(nextItems[0].quantity_liters) || 0;
+        nextItems[0] = {
+          ...nextItems[0],
+          rate_per_liter: rate,
+          total_amount: q > 0 ? Number((q * rate).toFixed(2)) : nextItems[0].total_amount,
+        };
+        next.items = nextItems;
+        notes.push(`Rate: ₹${rate}`);
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+
+    if (notes.length > 0) {
+      setAutoNotes(notes);
+    }
+  }, [suggestion]);
 
   function updateField(
     field: string,
@@ -309,6 +366,18 @@ export default function OCRReviewForm({
           🖼 View invoice image
         </button>
       )}
+
+      <VoucherSuggestionBanner
+        suggestion={suggestion}
+        autoAppliedNotes={autoNotes}
+        onPickFuzzyCustomer={(cand) => {
+          setFormData((prev) => ({
+            ...prev,
+            customer_uuid: cand.customer_uuid,
+            customer_name: cand.customer_name,
+          }));
+        }}
+      />
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>

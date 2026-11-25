@@ -121,3 +121,66 @@ class VehicleRepository(BaseRepository[Vehicle]):
         )
 
         return vehicles, total or 0
+
+    def get_all_active_with_customer(self, db: Session) -> list[Vehicle]:
+        """Return active vehicles with customer eager-loaded for matching."""
+        return list(
+            db.scalars(
+                select(Vehicle)
+                .where(Vehicle.is_active.is_(True))
+                .options(joinedload(Vehicle.customer))
+            ).all()
+        )
+
+    def get_vehicle_behavior(self, db: Session, vehicle_id: int, limit: int = 20) -> dict:
+        """Summarize fuel type, payment mode, and quantity stats from recent vouchers."""
+        from collections import Counter
+        import math
+        from app.models.voucher import Voucher
+
+        vouchers = list(
+            db.scalars(
+                select(Voucher)
+                .where(
+                    Voucher.vehicle_id == vehicle_id,
+                    Voucher.is_active.is_(True),
+                )
+                .order_by(Voucher.invoice_date.desc(), Voucher.id.desc())
+                .limit(limit)
+            ).all()
+        )
+
+        if not vouchers:
+            return {
+                "sample_count": 0,
+                "modal_fuel_type": None,
+                "fuel_type_confidence": 0.0,
+                "modal_payment_mode": None,
+                "payment_mode_confidence": 0.0,
+                "avg_quantity": None,
+                "std_quantity": None,
+            }
+
+        n = len(vouchers)
+        fuel_counts = Counter(v.fuel_type for v in vouchers if v.fuel_type is not None)
+        mode_counts = Counter(v.payment_mode for v in vouchers if v.payment_mode is not None)
+
+        modal_fuel, fuel_hits = fuel_counts.most_common(1)[0] if fuel_counts else (None, 0)
+        modal_mode, mode_hits = mode_counts.most_common(1)[0] if mode_counts else (None, 0)
+
+        quantities = [float(v.quantity_liters) for v in vouchers if v.quantity_liters and float(v.quantity_liters) > 0]
+        avg_qty = sum(quantities) / len(quantities) if quantities else None
+        std_qty = None
+        if quantities and len(quantities) >= 2 and avg_qty is not None:
+            variance = sum((q - avg_qty) ** 2 for q in quantities) / len(quantities)
+            std_qty = math.sqrt(variance)
+
+        return {
+            "sample_count": n,
+            "modal_fuel_type": modal_fuel,
+            "fuel_type_confidence": round(fuel_hits / n, 2) if modal_fuel else 0.0,
+            "modal_payment_mode": modal_mode,
+            "payment_mode_confidence": round(mode_hits / n, 2) if modal_mode else 0.0,
+            "avg_quantity": round(avg_qty, 2) if avg_qty is not None else None,
+            "std_quantity": round(std_qty, 2) if std_qty is not None else None,
+        }
