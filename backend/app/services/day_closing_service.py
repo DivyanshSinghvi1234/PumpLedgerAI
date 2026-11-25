@@ -431,6 +431,10 @@ class DayClosingService:
         )
         closing.synced_bank_txn_ids = synced_txn_ids or None
 
+        # Auto-mark shift attendants PRESENT for this closing date
+        from app.services.employee_service import EmployeeService
+        EmployeeService().sync_attendance_from_shifts(db, payload.closing_date)
+
         db.commit()
         db.refresh(closing)
 

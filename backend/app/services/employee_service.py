@@ -17,6 +17,9 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
     StaffLedgerEntryCreate,
+    AttendanceRecordResponse,
+    AttendanceRecordUpsert,
+    AttendanceSyncResponse,
     StaffLedgerEntryResponse,
     StaffLedgerSummaryResponse,
     StaffBatchPayrollRequest,
@@ -383,6 +386,45 @@ class EmployeeService:
         ) or 0.0
         return (Decimal(str(liters)) * rate).quantize(Decimal("0.01"))
 
+    def _prorated_base_salary(
+        self,
+        db: Session,
+        employee: Employee,
+        billing_month: str,
+    ) -> tuple[Decimal, float | None, int]:
+        """Return (effective_base_salary, days_worked_or_None, days_in_month).
+        If attendance records exist for the employee in billing_month, pro-rate base salary;
+        otherwise fall back to full base_salary."""
+        from app.models.employee_attendance import EmployeeAttendance
+
+        period_start, period_end = self._month_bounds(billing_month)
+        days_in_month = (period_end - period_start).days + 1
+        base = Decimal(str(employee.base_salary or 0)).quantize(Decimal("0.01"))
+
+        records = list(
+            db.scalars(
+                select(EmployeeAttendance).where(
+                    EmployeeAttendance.employee_id == employee.id,
+                    EmployeeAttendance.attendance_date >= period_start,
+                    EmployeeAttendance.attendance_date <= period_end,
+                )
+            ).all()
+        )
+        if not records:
+            return base, None, days_in_month
+
+        days_worked = 0.0
+        for rec in records:
+            if rec.status in ("PRESENT", "LEAVE"):
+                days_worked += 1.0
+            elif rec.status == "HALF_DAY":
+                days_worked += 0.5
+
+        effective = (base * Decimal(str(days_worked)) / Decimal(days_in_month)).quantize(
+            Decimal("0.01")
+        )
+        return effective, days_worked, days_in_month
+
     def payroll_preview(
         self,
         db: Session,
@@ -399,6 +441,9 @@ class EmployeeService:
 
         for emp in employees:
             base = Decimal(str(emp.base_salary or 0)).quantize(Decimal("0.01"))
+            prorated_base, days_worked, days_in_month = self._prorated_base_salary(
+                db, emp, billing_month
+            )
             comm = self._monthly_commission(db, emp, period_start, period_end)
 
             entries = db.scalars(
@@ -417,12 +462,12 @@ class EmployeeService:
                 Decimal("0.00"),
             )
 
-            gross = base + comm
+            gross = prorated_base + comm
             deductible = max(Decimal("0.00"), outstanding)
             deducted = min(gross, deductible)
             net_payable = max(Decimal("0.00"), gross - deducted)
 
-            total_base += base
+            total_base += prorated_base
             total_comm += comm
             total_ded += deducted
             total_net += net_payable
@@ -433,6 +478,9 @@ class EmployeeService:
                     full_name=emp.full_name,
                     role=emp.role,
                     base_salary=base,
+                    days_worked=days_worked,
+                    days_in_month=days_in_month,
+                    prorated_base_salary=prorated_base,
                     commission_earned=comm,
                     advances_and_loans=adv_loan,
                     shift_shortages=shortages,
@@ -461,7 +509,7 @@ class EmployeeService:
         employee = self.get_by_uuid(db, employee_uuid)
         period_start, period_end = self._month_bounds(data.billing_month)
 
-        base = Decimal(str(employee.base_salary or 0)).quantize(Decimal("0.01"))
+        base, _, _ = self._prorated_base_salary(db, employee, data.billing_month)
         comm = (
             data.commission_override
             if data.commission_override is not None
@@ -603,6 +651,123 @@ class EmployeeService:
             skipped_count=skipped_count,
             total_net_paid=total_net_paid.quantize(Decimal("0.01")),
             results=results,
+        )
+
+    def list_attendance(
+        self,
+        db: Session,
+        billing_month: str,
+    ) -> list[AttendanceRecordResponse]:
+        from app.models.employee_attendance import EmployeeAttendance
+
+        period_start, period_end = self._month_bounds(billing_month)
+        rows = db.scalars(
+            select(EmployeeAttendance)
+            .where(
+                EmployeeAttendance.attendance_date >= period_start,
+                EmployeeAttendance.attendance_date <= period_end,
+            )
+            .order_by(EmployeeAttendance.attendance_date.desc(), EmployeeAttendance.id.asc())
+        ).all()
+        return [
+            AttendanceRecordResponse(
+                uuid=str(r.uuid),
+                employee_uuid=str(r.employee.uuid),
+                employee_name=r.employee.full_name,
+                attendance_date=r.attendance_date,
+                status=r.status,
+                overtime_hours=r.overtime_hours,
+                notes=r.notes,
+            )
+            for r in rows
+            if r.employee is not None
+        ]
+
+    def upsert_attendance(
+        self,
+        db: Session,
+        data: AttendanceRecordUpsert,
+    ) -> AttendanceRecordResponse:
+        from app.models.employee_attendance import EmployeeAttendance
+
+        emp = self.get_by_uuid(db, data.employee_uuid)
+        existing = db.scalar(
+            select(EmployeeAttendance).where(
+                EmployeeAttendance.employee_id == emp.id,
+                EmployeeAttendance.attendance_date == data.attendance_date,
+            )
+        )
+        if existing is not None:
+            existing.status = data.status
+            existing.overtime_hours = data.overtime_hours
+            existing.notes = data.notes
+            rec = existing
+        else:
+            rec = EmployeeAttendance(
+                employee_id=emp.id,
+                attendance_date=data.attendance_date,
+                status=data.status,
+                overtime_hours=data.overtime_hours,
+                notes=data.notes,
+                pump_id=emp.pump_id,
+            )
+            db.add(rec)
+        db.commit()
+        db.refresh(rec)
+        return AttendanceRecordResponse(
+            uuid=str(rec.uuid),
+            employee_uuid=str(emp.uuid),
+            employee_name=emp.full_name,
+            attendance_date=rec.attendance_date,
+            status=rec.status,
+            overtime_hours=rec.overtime_hours,
+            notes=rec.notes,
+        )
+
+    def sync_attendance_from_shifts(
+        self,
+        db: Session,
+        attendance_date: date,
+    ) -> AttendanceSyncResponse:
+        """Auto-mark employees who worked a shift on attendance_date as PRESENT."""
+        from app.models.employee_attendance import EmployeeAttendance
+
+        shifts = db.scalars(
+            select(Shift).where(
+                Shift.employee_id.is_not(None),
+                func.date(Shift.start_time) == attendance_date,
+            )
+        ).all()
+        marked = 0
+        seen_emp_ids: set[int] = set()
+        for sh in shifts:
+            if sh.employee_id is None or sh.employee_id in seen_emp_ids:
+                continue
+            seen_emp_ids.add(sh.employee_id)
+            exists = db.scalar(
+                select(EmployeeAttendance.id).where(
+                    EmployeeAttendance.employee_id == sh.employee_id,
+                    EmployeeAttendance.attendance_date == attendance_date,
+                )
+            )
+            if exists is None:
+                db.add(
+                    EmployeeAttendance(
+                        employee_id=sh.employee_id,
+                        attendance_date=attendance_date,
+                        status="PRESENT",
+                        overtime_hours=Decimal("0.00"),
+                        shift_id=sh.id,
+                        notes="Auto-marked from shift",
+                        pump_id=sh.pump_id,
+                    )
+                )
+                marked += 1
+        if marked > 0:
+            db.commit()
+        return AttendanceSyncResponse(
+            attendance_date=attendance_date,
+            marked_present_count=marked,
         )
 
     def sync_from_users(self, db: Session) -> list[Employee]:

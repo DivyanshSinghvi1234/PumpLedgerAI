@@ -48,6 +48,9 @@ export interface StaffPayrollRow {
   full_name: string;
   role: string;
   base_salary: number;
+  days_worked?: number | null;
+  days_in_month?: number | null;
+  prorated_base_salary?: number | null;
   commission_earned: number;
   advances_and_loans: number;
   shift_shortages: number;
@@ -136,6 +139,27 @@ const staffService = {
     total_net_paid: number;
   }> {
     const res = await api.post("/v1/employees/payroll/pay-all", data);
+    return res.data;
+  },
+
+  async markAttendance(data: {
+    employee_uuid: string;
+    attendance_date: string;
+    status: "PRESENT" | "ABSENT" | "HALF_DAY" | "LEAVE";
+    overtime_hours?: number;
+    notes?: string;
+  }) {
+    const res = await api.post("/v1/employees/attendance", data);
+    return res.data;
+  },
+
+  async syncAttendanceFromShifts(attendanceDate?: string): Promise<{
+    attendance_date: string;
+    marked_present_count: number;
+  }> {
+    const res = await api.post("/v1/employees/attendance/sync-from-shifts", null, {
+      params: attendanceDate ? { attendance_date: attendanceDate } : undefined,
+    });
     return res.data;
   },
 };

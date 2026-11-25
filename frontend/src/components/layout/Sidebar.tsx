@@ -16,6 +16,7 @@ import {
   BookOpen,
   Landmark,
   Moon,
+  TrendingUp,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -42,6 +43,12 @@ const menuItems: MenuGroup[] = [
     section: "Overview",
     items: [
       { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      {
+        title: "Command Center",
+        path: "/dashboard/command-center",
+        icon: TrendingUp,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
     ],
   },
   {

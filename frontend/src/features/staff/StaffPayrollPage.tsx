@@ -140,6 +140,32 @@ export default function StaffPayrollPage() {
     onError: () => toast.error("Failed to run batch payroll"),
   });
 
+  const syncAttendanceMutation = useMutation({
+    mutationFn: () => staffService.syncAttendanceFromShifts(),
+    onSuccess: (res) => {
+      toast.success(`Synced shift attendance: ${res.marked_present_count} staff marked Present today.`);
+      queryClient.invalidateQueries({ queryKey: ["staff-payroll"] });
+    },
+    onError: () => toast.error("Failed to sync attendance"),
+  });
+
+  const markAttendanceMutation = useMutation({
+    mutationFn: (payload: {
+      employee_uuid: string;
+      status: "PRESENT" | "ABSENT" | "HALF_DAY" | "LEAVE";
+    }) =>
+      staffService.markAttendance({
+        employee_uuid: payload.employee_uuid,
+        attendance_date: getTodayDateString(),
+        status: payload.status,
+      }),
+    onSuccess: (res: any) => {
+      toast.success(`${res.employee_name} marked ${res.status} for today`);
+      queryClient.invalidateQueries({ queryKey: ["staff-payroll"] });
+    },
+    onError: () => toast.error("Failed to mark attendance"),
+  });
+
   const unpaidCount = (payroll?.rows || []).filter(
     (r) => !r.already_paid_this_month && (r.net_payable > 0 || r.outstanding_balance > 0)
   ).length;
@@ -164,6 +190,14 @@ export default function StaffPayrollPage() {
               className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40 disabled:opacity-50"
             >
               Sync from Users
+            </button>
+            <button
+              type="button"
+              disabled={syncAttendanceMutation.isPending}
+              onClick={() => syncAttendanceMutation.mutate()}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted/40 disabled:opacity-50"
+            >
+              Sync Shift Attendance
             </button>
             <button
               type="button"
@@ -343,7 +377,18 @@ export default function StaffPayrollPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono">{formatCurrency(row.base_salary)}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {row.days_worked !== null && row.days_worked !== undefined ? (
+                      <div>
+                        <div>{formatCurrency(row.prorated_base_salary ?? row.base_salary)}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {row.days_worked}/{row.days_in_month}d
+                        </div>
+                      </div>
+                    ) : (
+                      formatCurrency(row.base_salary)
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono text-emerald-600">
                     {formatCurrency(row.commission_earned)}
                   </td>
@@ -355,6 +400,24 @@ export default function StaffPayrollPage() {
                     {formatCurrency(row.net_payable)}
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
+                    <select
+                      aria-label={`Mark today attendance for ${row.full_name}`}
+                      defaultValue=""
+                      onChange={(e) => {
+                        const val = e.target.value as "PRESENT" | "ABSENT" | "HALF_DAY" | "LEAVE" | "";
+                        if (val) {
+                          markAttendanceMutation.mutate({ employee_uuid: row.employee_uuid, status: val });
+                          e.target.value = "";
+                        }
+                      }}
+                      className="rounded border bg-background px-1.5 py-1 text-xs"
+                    >
+                      <option value="">Today: Mark…</option>
+                      <option value="PRESENT">Present</option>
+                      <option value="HALF_DAY">Half Day</option>
+                      <option value="ABSENT">Absent</option>
+                      <option value="LEAVE">Leave</option>
+                    </select>
                     <button
                       type="button"
                       onClick={() => setSelectedUuid(row.employee_uuid)}

@@ -59,6 +59,8 @@ class PurchaseIndent(
     procurement_cost_per_liter: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_invoice_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
     invoice_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    payment_mode: Mapped[str] = mapped_column(String(20), default="CREDIT", nullable=False)
+    bank_account_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
     remarks: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     decanted_tank = relationship("FuelTank", foreign_keys=[decanted_tank_id])

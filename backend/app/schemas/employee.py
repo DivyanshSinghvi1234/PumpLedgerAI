@@ -87,6 +87,9 @@ class StaffPayrollRow(BaseModel):
     full_name: str
     role: str
     base_salary: Decimal
+    days_worked: float | None = None
+    days_in_month: int | None = None
+    prorated_base_salary: Decimal | None = None
     commission_earned: Decimal
     advances_and_loans: Decimal
     shift_shortages: Decimal
@@ -138,3 +141,29 @@ class StaffBatchPayrollResponse(BaseModel):
     skipped_count: int
     total_net_paid: Decimal
     results: list[StaffPayrollPayResponse]
+
+
+AttendanceStatus = Literal["PRESENT", "ABSENT", "HALF_DAY", "LEAVE"]
+
+
+class AttendanceRecordUpsert(BaseModel):
+    employee_uuid: str
+    attendance_date: date
+    status: AttendanceStatus = "PRESENT"
+    overtime_hours: Decimal = Field(default=Decimal("0.00"), ge=0, le=24)
+    notes: str | None = Field(default=None, max_length=200)
+
+
+class AttendanceRecordResponse(BaseModel):
+    uuid: str
+    employee_uuid: str
+    employee_name: str
+    attendance_date: date
+    status: str
+    overtime_hours: Decimal
+    notes: str | None = None
+
+
+class AttendanceSyncResponse(BaseModel):
+    attendance_date: date
+    marked_present_count: int

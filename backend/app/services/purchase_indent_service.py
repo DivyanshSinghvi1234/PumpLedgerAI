@@ -40,10 +40,14 @@ class PurchaseIndentService:
             raise ValueError("Ordered volume must be greater than zero.")
 
         if not pump_id:
+            from app.database.scoping import active_pump_id
             from app.models.pump import Pump
-            p = db.scalars(select(Pump).where(Pump.is_active.is_(True))).first()
-            if p:
-                pump_id = p.id
+
+            pump_id = active_pump_id.get()
+            if not pump_id:
+                p = db.scalars(select(Pump).where(Pump.is_active.is_(True))).first()
+                if p:
+                    pump_id = p.id
 
         indent_num = self.generate_indent_number(db)
         indent = PurchaseIndent(
@@ -110,6 +114,8 @@ class PurchaseIndentService:
                 "procurement_cost_per_liter": ind.procurement_cost_per_liter,
                 "total_invoice_amount": ind.total_invoice_amount,
                 "invoice_number": ind.invoice_number,
+                "payment_mode": ind.payment_mode,
+                "bank_account_uuid": ind.bank_account_uuid,
                 "remarks": ind.remarks,
                 "created_at": ind.created_at,
                 "updated_at": ind.updated_at,
@@ -127,6 +133,8 @@ class PurchaseIndentService:
         density_at_15c: float | None = None,
         invoice_number: str | None = None,
         total_invoice_amount: float | None = None,
+        payment_mode: str = "CREDIT",
+        bank_account_uuid: str | None = None,
         remarks: str | None = None,
         actor_id: int | None = None,
     ) -> PurchaseIndent:
@@ -147,6 +155,9 @@ class PurchaseIndentService:
             indent.invoice_number = invoice_number.strip()
         if total_invoice_amount is not None:
             indent.total_invoice_amount = total_invoice_amount
+        indent.payment_mode = payment_mode or "CREDIT"
+        if bank_account_uuid is not None:
+            indent.bank_account_uuid = bank_account_uuid
         if remarks is not None:
             indent.remarks = remarks.strip()
 
@@ -163,6 +174,28 @@ class PurchaseIndentService:
             if not indent.actual_delivery_date:
                 indent.actual_delivery_date = date.today()
 
+            # Compute true landed cost/L and update weighted average tank cost
+            landed_rate = indent.procurement_cost_per_liter
+            if indent.total_invoice_amount and indent.ordered_liters > 0:
+                landed_rate = round(float(indent.total_invoice_amount) / float(indent.ordered_liters), 4)
+                indent.procurement_cost_per_liter = landed_rate
+
+            if landed_rate is not None and landed_rate > 0:
+                prev_stock = max(0.0, float(tank.current_stock_liters or 0.0))
+                prev_cost = float(tank.avg_cost_per_liter or landed_rate)
+                new_total = prev_stock + float(indent.ordered_liters)
+                if new_total > 0:
+                    tank.avg_cost_per_liter = round(
+                        ((prev_stock * prev_cost) + (float(indent.ordered_liters) * landed_rate))
+                        / new_total,
+                        4,
+                    )
+
+            try:
+                pay_mode_enum = PaymentMode(indent.payment_mode)
+            except ValueError:
+                pay_mode_enum = PaymentMode.CREDIT
+
             # Create corresponding TankerDelivery to increase stock automatically
             self.tank_service.create_delivery(
                 db=db,
@@ -173,10 +206,35 @@ class PurchaseIndentService:
                 density=indent.density_at_15c,
                 supplier_name=indent.omc_company.value,
                 remarks=f"Decanted from TT #{indent.tank_truck_number or 'N/A'} (Indent #{indent.indent_number})",
-                procurement_rate=indent.procurement_cost_per_liter,
-                payment_mode=PaymentMode.CREDIT,
+                procurement_rate=landed_rate,
+                payment_mode=pay_mode_enum,
                 ignore_capacity=True,
             )
+
+            # Auto-debit BankAccount if paid by BANK / UPI and bank_account_uuid is provided
+            invoice_total = float(indent.total_invoice_amount or 0.0)
+            if invoice_total <= 0 and landed_rate:
+                invoice_total = round(landed_rate * float(indent.ordered_liters), 2)
+
+            if indent.payment_mode in ("BANK", "UPI") and indent.bank_account_uuid and invoice_total > 0:
+                from decimal import Decimal
+                from app.models.bank_account import BankAccount
+                from app.services.bank_account_service import BankAccountService
+
+                ba = db.scalars(
+                    select(BankAccount).where(BankAccount.uuid == indent.bank_account_uuid)
+                ).first()
+                if ba is not None:
+                    BankAccountService().adjust_bank_balance(
+                        db,
+                        bank_account_id=ba.id,
+                        amount=Decimal(str(invoice_total)).quantize(Decimal("0.01")),
+                        transaction_type="EXPENSE",
+                        transaction_date=indent.actual_delivery_date,
+                        reference_number=indent.invoice_number or indent.indent_number,
+                        remarks=f"Tanker Delivery {indent.omc_company.value} ({indent.ordered_liters}L)",
+                        pump_id=ba.pump_id,
+                    )
 
         db.flush()
         self.audit_service.log_action(

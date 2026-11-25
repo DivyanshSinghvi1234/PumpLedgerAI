@@ -12,6 +12,9 @@ from app.core.exceptions import (
 )
 from app.models.user import User
 from app.schemas.employee import (
+    AttendanceRecordResponse,
+    AttendanceRecordUpsert,
+    AttendanceSyncResponse,
     EmployeeCreate,
     EmployeeResponse,
     EmployeeUpdate,
@@ -99,6 +102,46 @@ def sync_employees_from_users(
 ):
     """Import active OPERATOR/MANAGER login accounts as Staff profiles."""
     return service.sync_from_users(db)
+
+
+@router.get(
+    "/attendance",
+    response_model=list[AttendanceRecordResponse],
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def list_attendance(
+    month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+):
+    billing_month = month or date.today().strftime("%Y-%m")
+    return service.list_attendance(db, billing_month)
+
+
+@router.post(
+    "/attendance",
+    response_model=AttendanceRecordResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def upsert_attendance(
+    data: AttendanceRecordUpsert,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.upsert_attendance(db, data)
+    except EmployeeNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/attendance/sync-from-shifts",
+    response_model=AttendanceSyncResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def sync_attendance_from_shifts(
+    attendance_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return service.sync_attendance_from_shifts(db, attendance_date or date.today())
 
 
 @router.put(

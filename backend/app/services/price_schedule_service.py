@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
@@ -134,4 +134,57 @@ class PriceScheduleService:
         if schedule is None:
             raise PriceScheduleNotFoundError(schedule_uuid)
         self.repository.delete(db, schedule)
+
+    def schedule_6am_revision(
+        self,
+        db: Session,
+        effective_date: date,
+        rates: dict[FuelType, Decimal | float],
+    ) -> list[PriceSchedule]:
+        """Schedule fuel rate changes to take effect at 06:00 AM UTC on effective_date."""
+        effective_dt = datetime(
+            effective_date.year,
+            effective_date.month,
+            effective_date.day,
+            6,
+            0,
+            0,
+            tzinfo=timezone.utc,
+        )
+        created: list[PriceSchedule] = []
+        for ftype, rate_val in rates.items():
+            if rate_val is not None and float(rate_val) > 0:
+                created.append(self.create_schedule(db, ftype, rate_val, effective_dt))
+        return created
+
+    def get_6am_alert(self, db: Session, target_date: date | None = None) -> dict:
+        """Check if any fuel rate changed on target_date (6 AM revision) compared to prior day."""
+        from datetime import timedelta
+
+        check_date = target_date or date.today()
+        prev_eod = datetime(
+            check_date.year, check_date.month, check_date.day, 0, 29, 0, tzinfo=timezone.utc
+        )
+        after_6am = datetime(
+            check_date.year, check_date.month, check_date.day, 23, 59, 59, tzinfo=timezone.utc
+        )
+        changes: list[dict] = []
+        for ftype in (FuelType.PETROL, FuelType.DIESEL, FuelType.SPEED):
+            old_rate = self.get_active_rate(db, ftype, prev_eod)
+            new_rate = self.get_active_rate(db, ftype, after_6am)
+            if old_rate is not None and new_rate is not None and old_rate != new_rate:
+                changes.append(
+                    {
+                        "fuel_type": ftype.value,
+                        "old_rate": float(old_rate),
+                        "new_rate": float(new_rate),
+                        "diff": round(float(new_rate - old_rate), 2),
+                    }
+                )
+        return {
+            "target_date": check_date.isoformat(),
+            "has_price_change": len(changes) > 0,
+            "requires_6am_interim_reading": len(changes) > 0,
+            "changes": changes,
+        }
 

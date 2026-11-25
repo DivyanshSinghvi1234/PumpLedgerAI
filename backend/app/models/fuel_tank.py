@@ -51,6 +51,11 @@ class FuelTank(
         nullable=True,
     )
 
+    avg_cost_per_liter: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
     dip_readings = relationship(
         "DipReading",
         back_populates="fuel_tank",

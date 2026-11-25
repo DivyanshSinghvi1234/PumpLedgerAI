@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date, datetime
+from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, require_roles
@@ -74,6 +76,46 @@ def sync_prices(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync live rates: {str(e)}",
         )
+
+
+class SixAmRevisionRequest(BaseModel):
+    effective_date: date
+    petrol_rate: Decimal | None = Field(default=None, gt=0)
+    diesel_rate: Decimal | None = Field(default=None, gt=0)
+    speed_rate: Decimal | None = Field(default=None, gt=0)
+
+
+@router.get("/6am-alert", response_model=dict)
+def get_6am_alert(
+    target_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return service.get_6am_alert(db, target_date=target_date)
+
+
+@router.post(
+    "/schedule-6am",
+    response_model=list[PriceScheduleResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def schedule_6am_revision(
+    data: SixAmRevisionRequest,
+    db: Session = Depends(get_db),
+):
+    rates: dict[FuelType, Decimal] = {}
+    if data.petrol_rate is not None:
+        rates[FuelType.PETROL] = data.petrol_rate
+    if data.diesel_rate is not None:
+        rates[FuelType.DIESEL] = data.diesel_rate
+    if data.speed_rate is not None:
+        rates[FuelType.SPEED] = data.speed_rate
+    if not rates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provide at least one fuel rate to schedule.",
+        )
+    return service.schedule_6am_revision(db, data.effective_date, rates)
 
 
 @router.get(

@@ -24,6 +24,8 @@ class PurchaseIndentStatusUpdate(BaseModel):
     density_at_15c: float | None = None
     invoice_number: str | None = None
     total_invoice_amount: float | None = None
+    payment_mode: str = "CREDIT"
+    bank_account_uuid: str | None = None
     remarks: str | None = None
 
 
@@ -45,6 +47,8 @@ class PurchaseIndentResponse(BaseModel):
     procurement_cost_per_liter: float | None = None
     total_invoice_amount: float | None = None
     invoice_number: str | None = None
+    payment_mode: str = "CREDIT"
+    bank_account_uuid: str | None = None
     remarks: str | None = None
     created_at: datetime
     updated_at: datetime
