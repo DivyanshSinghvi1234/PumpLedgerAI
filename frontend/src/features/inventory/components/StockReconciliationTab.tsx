@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
+import api from "@/api/client";
 import type { FuelType, FuelTankCreate, DipReadingCreate, TankTransferCreate } from "../types";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
 import TankVisualization from "./TankVisualization";
@@ -98,9 +99,26 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const {
     data: transfers,
   } = useQuery({
-
     queryKey: ["tank-transfers"],
     queryFn: () => inventoryService.getTransfers(),
+  });
+
+  const { data: deliveries = [] } = useQuery({
+    queryKey: ["tank-deliveries"],
+    queryFn: () => inventoryService.getDeliveries(),
+  });
+
+  const deleteDeliveryMutation = useMutation({
+    mutationFn: (uuid: string) => api.delete(`/v1/tanks/deliveries/${uuid}`),
+    onSuccess: () => {
+      toast.success("Tanker delivery reversed (stock, expense & bank restored).");
+      queryClient.invalidateQueries({ queryKey: ["tanks"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-deliveries"] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || "Failed to reverse delivery."),
   });
 
   // Mutations
@@ -164,8 +182,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     }) => inventoryService.createDelivery(data),
     onSuccess: () => {
       toast.success("Stock added to tank successfully!");
-      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["tank-deliveries"] });
       setAddStockOpen(false);
       setStockQty("");
       setStockInvoice("");
@@ -280,7 +297,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
       payment_mode: stockPaymentMode,
       bank_account_uuid:
         (stockPaymentMode === "BANK" || stockPaymentMode === "UPI" || stockPaymentMode === "CARD") &&
-        stockBankUuid
+          stockBankUuid
           ? stockBankUuid
           : undefined,
       ignore_capacity: stockIgnoreCapacity,
@@ -520,11 +537,10 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                           <div className="mt-2.5 flex items-center justify-between text-xs border-t border-hairline/45 pt-2.5">
                             <span className="text-ink-muted">Run-out Forecast:</span>
                             <span
-                              className={`font-mono font-bold ${
-                                daysLeft !== null && daysLeft <= 3
-                                  ? "text-red-500 font-black animate-pulse"
-                                  : "text-ink"
-                              }`}
+                              className={`font-mono font-bold ${daysLeft !== null && daysLeft <= 3
+                                ? "text-red-500 font-black animate-pulse"
+                                : "text-ink"
+                                }`}
                             >
                               {daysLeft !== null ? `${daysLeft} days` : "No sales history"}
                             </span>
@@ -793,6 +809,60 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
             </CardContent>
           </Card>
 
+
+          {/* Recent Tanker Deliveries (Reversible) */}
+          {deliveries.length > 0 && (
+            <Card className="glass border-hairline overflow-hidden mt-6">
+              <CardHeader className="bg-surface-2/60 border-b border-hairline py-4">
+                <CardTitle className="text-sm font-bold text-ink">
+                  Recent Tanker Deliveries (Stock & Bank Synced)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-surface-2/40">
+                    <TableRow className="border-hairline">
+                      <TableHead className="text-[10px] font-mono uppercase">Date</TableHead>
+                      <TableHead className="text-[10px] font-mono uppercase">Invoice</TableHead>
+                      <TableHead className="text-[10px] font-mono uppercase text-right">Qty (L)</TableHead>
+                      <TableHead className="text-[10px] font-mono uppercase">Mode</TableHead>
+                      {isAdminOrManager && (
+                        <TableHead className="text-[10px] font-mono uppercase text-right">Action</TableHead>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deliveries.slice(0, 10).map((d) => (
+                      <TableRow key={d.uuid} className="border-hairline text-xs">
+                        <TableCell>{d.delivery_date}</TableCell>
+                        <TableCell className="font-mono">{d.invoice_number || "—"}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">
+                          +{Number(d.quantity_liters).toLocaleString("en-IN")} L
+                        </TableCell>
+                        <TableCell>{d.payment_mode}</TableCell>
+                        {isAdminOrManager && (
+                          <TableCell className="text-right">
+                            <button
+                              type="button"
+                              disabled={deleteDeliveryMutation.isPending}
+                              onClick={() => {
+                                if (window.confirm("Reverse this delivery? Stock, expense, and bank debit will be rolled back.")) {
+                                  deleteDeliveryMutation.mutate(d.uuid);
+                                }
+                              }}
+                              className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
+                            >
+                              Reverse
+                            </button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Inter-Tank Transfers & Decanting Log Card */}
           <Card className="glass border-hairline overflow-hidden mt-6">

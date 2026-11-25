@@ -324,6 +324,153 @@ class BankAccountService:
         )
         return txn
 
+    def update_bank_account(
+        self,
+        db: Session,
+        uuid: str,
+        data: BankAccountUpdate,
+        actor_id: int | None = None,
+    ) -> BankAccount:
+        acc = self.get_by_uuid(db, uuid)
+        for field, val in data.model_dump(exclude_unset=True).items():
+            if isinstance(val, str):
+                val = val.strip()
+            setattr(acc, field, val)
+        db.commit()
+        db.refresh(acc)
+        self.audit_service.log_action(
+            db,
+            action="Updated Bank Account",
+            target_table="bank_accounts",
+            target_id=str(acc.uuid),
+            actor_id=actor_id,
+            new_values={
+                "account_name": acc.account_name,
+                "bank_name": acc.bank_name,
+                "account_type": acc.account_type,
+            },
+        )
+        return acc
+
+    def reconcile_csv(
+        self,
+        db: Session,
+        bank_account_uuid: str,
+        csv_text: str,
+    ) -> dict:
+        """Parse a bank statement CSV and match rows against recorded BankTransactions."""
+        import csv
+        import io
+        from datetime import datetime, timedelta
+
+        acc = self.get_by_uuid(db, bank_account_uuid)
+        txns = list(
+            db.scalars(
+                select(BankTransaction)
+                .where(BankTransaction.bank_account_id == acc.id)
+                .order_by(BankTransaction.transaction_date.desc())
+            ).all()
+        )
+        used_txn_ids: set[int] = set()
+
+        def _parse_date(raw: str) -> date | None:
+            s = (raw or "").strip()
+            for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%d-%b-%Y", "%m/%d/%Y"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except ValueError:
+                    continue
+            return None
+
+        def _parse_num(raw: str | None) -> Decimal:
+            if not raw:
+                return Decimal("0.00")
+            cleaned = raw.replace(",", "").replace("₹", "").strip()
+            if not cleaned or cleaned == "-":
+                return Decimal("0.00")
+            try:
+                return abs(Decimal(cleaned)).quantize(Decimal("0.01"))
+            except Exception:
+                return Decimal("0.00")
+
+        reader = csv.DictReader(io.StringIO(csv_text.strip()))
+        matched: list[dict] = []
+        unmatched_credits: list[dict] = []
+        unmatched_debits: list[dict] = []
+
+        for row in reader:
+            norm = {str(k).strip().lower(): (v or "").strip() for k, v in row.items() if k}
+            txn_date = _parse_date(
+                norm.get("date")
+                or norm.get("txn date")
+                or norm.get("transaction date")
+                or norm.get("value date")
+                or ""
+            )
+            desc = (
+                norm.get("description")
+                or norm.get("narration")
+                or norm.get("particulars")
+                or norm.get("remarks")
+                or "Bank Entry"
+            )
+            ref = norm.get("ref") or norm.get("reference") or norm.get("chq/ref no") or norm.get("utr") or ""
+            credit_amt = _parse_num(norm.get("credit") or norm.get("deposit") or norm.get("cr"))
+            debit_amt = _parse_num(norm.get("debit") or norm.get("withdrawal") or norm.get("dr"))
+
+            if credit_amt <= Decimal("0.00") and debit_amt <= Decimal("0.00"):
+                # Fallback if single "amount" + "type" column
+                amt = _parse_num(norm.get("amount"))
+                t_type = (norm.get("type") or "").upper()
+                if "CR" in t_type or "CREDIT" in t_type or "DEP" in t_type:
+                    credit_amt = amt
+                elif amt > 0:
+                    debit_amt = amt
+
+            if credit_amt <= Decimal("0.00") and debit_amt <= Decimal("0.00"):
+                continue
+
+            is_credit = credit_amt > Decimal("0.00")
+            target_amt = credit_amt if is_credit else debit_amt
+            expected_types = {"INCOME", "DEPOSIT", "TRANSFER_IN", "OPENING_BALANCE"} if is_credit else {"EXPENSE", "WITHDRAWAL", "TRANSFER_OUT", "CASH_WITHDRAWAL"}
+
+            match_txn = None
+            for t in txns:
+                if t.id in used_txn_ids or t.transaction_type not in expected_types:
+                    continue
+                if abs(t.amount - target_amt) <= Decimal("2.00"):
+                    if txn_date is None or abs((t.transaction_date - txn_date).days) <= 3:
+                        match_txn = t
+                        break
+
+            item = {
+                "date": txn_date.isoformat() if txn_date else "",
+                "description": desc,
+                "reference": ref,
+                "amount": float(target_amt),
+                "kind": "CREDIT" if is_credit else "DEBIT",
+            }
+            if match_txn is not None:
+                used_txn_ids.add(match_txn.id)
+                item["matched_txn_uuid"] = str(match_txn.uuid)
+                item["matched_remarks"] = match_txn.remarks
+                matched.append(item)
+            elif is_credit:
+                unmatched_credits.append(item)
+            else:
+                unmatched_debits.append(item)
+
+        return {
+            "bank_account_uuid": str(acc.uuid),
+            "account_name": acc.account_name,
+            "matched_count": len(matched),
+            "unmatched_credits_count": len(unmatched_credits),
+            "unmatched_debits_count": len(unmatched_debits),
+            "matched": matched,
+            "unmatched_credits": unmatched_credits,
+            "unmatched_debits": unmatched_debits,
+        }
+
     def get_liquid_funds_summary(self, db: Session, pump_id: int) -> dict:
         accounts = self.list_bank_accounts(db, pump_id)
         total_bank_balance = sum((a.current_balance for a in accounts), Decimal("0.00"))

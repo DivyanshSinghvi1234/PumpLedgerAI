@@ -80,6 +80,7 @@ class VoucherCreate(VoucherBase):
     # the OCR upload flow. Absent for manually-entered vouchers.
     image_path: str | None = None
     bank_account_uuid: UUID | None = None
+    override_credit_limit: bool = False
     items: list[VoucherItemCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")

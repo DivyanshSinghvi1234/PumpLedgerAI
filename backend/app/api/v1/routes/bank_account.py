@@ -14,6 +14,7 @@ from app.models.pump import Pump
 from app.schemas.bank_account import (
     BankAccountCreate,
     BankAccountResponse,
+    BankAccountUpdate,
     CashDepositRequest,
     BankTransactionResponse,
     LiquidFundsSummaryResponse,
@@ -183,6 +184,42 @@ def withdraw_bank_to_cash(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+class BankReconcileRequest(BaseModel):
+    csv_text: str = Field(..., min_length=1)
+
+
+@router.patch(
+    "/{uuid}",
+    response_model=BankAccountResponse,
+    dependencies=manager_required,
+)
+def update_bank_account(
+    uuid: str,
+    data: BankAccountUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return service.update_bank_account(db, uuid, data, actor_id=current_user.id)
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{uuid}/reconcile",
+    dependencies=manager_required,
+)
+def reconcile_bank_statement(
+    uuid: str,
+    data: BankReconcileRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.reconcile_csv(db, uuid, data.csv_text)
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get(

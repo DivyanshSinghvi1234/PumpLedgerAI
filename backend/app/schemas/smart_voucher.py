@@ -35,6 +35,7 @@ class SuggestionWarning(BaseModel):
         "UNUSUAL_QUANTITY",
         "POSSIBLE_DUPLICATE",
         "FUZZY_CUSTOMER_MATCH",
+        "CREDIT_LIMIT_EXCEEDED",
     ]
     message: str
     duplicate_uuid: str | None = None
@@ -55,4 +56,6 @@ class VoucherSuggestionResponse(BaseModel):
     payment_mode_confidence: float = 0.0
     vehicle_avg_quantity: float | None = None
     vehicle_sample_count: int = 0
+    customer_credit_limit: Decimal | None = None
+    customer_outstanding_balance: Decimal | None = None
     warnings: list[SuggestionWarning] = Field(default_factory=list)

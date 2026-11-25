@@ -3,8 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_current_user, get_db, require_roles
 from app.core.enums import UserRole
+from app.models.user import User
 from app.schemas.fuel_tank import (
     FuelTankCreate,
     FuelTankUpdate,
@@ -77,6 +78,22 @@ def create_delivery(data: TankerDeliveryCreate, db: Session = Depends(get_db)):
 )
 def list_deliveries(db: Session = Depends(get_db)):
     return service.list_deliveries(db)
+
+
+@router.delete(
+    "/deliveries/{delivery_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def delete_delivery(
+    delivery_uuid: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        service.delete_delivery(db, delivery_uuid, actor_id=current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post(

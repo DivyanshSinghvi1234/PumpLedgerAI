@@ -137,6 +137,8 @@ export interface CreateVoucherRequest {
 
   bank_account_uuid?: string | null;
 
+  override_credit_limit?: boolean;
+
   cash_amount?: number | null;
 
 
@@ -182,7 +184,7 @@ export interface FuzzyCustomerCandidate {
 }
 
 export interface SuggestionWarning {
-  type: "UNUSUAL_QUANTITY" | "POSSIBLE_DUPLICATE" | "FUZZY_CUSTOMER_MATCH";
+  type: "UNUSUAL_QUANTITY" | "POSSIBLE_DUPLICATE" | "FUZZY_CUSTOMER_MATCH" | "CREDIT_LIMIT_EXCEEDED";
   message: string;
   duplicate_uuid?: string | null;
   duplicate_invoice_number?: string | null;

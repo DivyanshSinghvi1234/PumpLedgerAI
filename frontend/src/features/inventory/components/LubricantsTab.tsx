@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getTodayDateString } from "@/lib/utils";
+import api from "@/api/client";
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 import settingService from "@/features/settings/services/settingService";
 
 export interface LubricantItem {
@@ -50,6 +52,10 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
   const [selectedItem, setSelectedItem] = useState<LubricantItem | null>(null);
   const [adjustQty, setAdjustQty] = useState<number>(1);
   const [adjustType, setAdjustType] = useState<"ADD" | "SALE">("SALE");
+  const [adjustCost, setAdjustCost] = useState<string>("");
+  const [adjustPayMode, setAdjustPayMode] = useState<"CASH" | "BANK" | "UPI">("BANK");
+  const [adjustBankUuid, setAdjustBankUuid] = useState<string>("");
+  const [syncToRegister, setSyncToRegister] = useState<boolean>(true);
 
   // Sync settings with backend
   const { data: savedItems } = useQuery({
@@ -96,7 +102,7 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
     setNewItem({ name: "", category: "Engine Oil", unit_price: 350, stock_qty: 10, min_threshold: 5 });
   };
 
-  const handleAdjustStock = (e: React.FormEvent) => {
+  const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem || adjustQty <= 0) return;
 
@@ -110,6 +116,36 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
     });
 
     handleSaveItems(updated);
+
+    const totalAmt =
+      adjustType === "ADD"
+        ? Number(adjustCost || 0)
+        : Number(selectedItem.unit_price || 0) * adjustQty;
+
+    if (syncToRegister && totalAmt > 0) {
+      try {
+        await api.post("/v1/income", {
+          kind: adjustType === "ADD" ? "EXPENSE" : "INCOME",
+          income_date: getTodayDateString(),
+          description:
+            adjustType === "ADD"
+              ? `Lube/DEF Purchase: ${adjustQty}x ${selectedItem.name}`
+              : `Lube/DEF Sale: ${adjustQty}x ${selectedItem.name}`,
+          amount: totalAmt,
+          category: "Lubricants & DEF",
+          payment_mode: adjustPayMode,
+          bank_account_uuid:
+            adjustPayMode !== "CASH" && adjustBankUuid ? adjustBankUuid : null,
+          is_sale: adjustType === "SALE",
+        });
+        queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+        queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      } catch {
+        toast.warning("Stock updated, but failed to post to Register/Bank.");
+      }
+    }
+
     toast.success(
       adjustType === "ADD"
         ? `Added +${adjustQty} units to "${selectedItem.name}"`
@@ -117,6 +153,7 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
     );
     setAdjustOpen(false);
     setSelectedItem(null);
+    setAdjustCost("");
   };
 
   const filteredItems = items.filter(
@@ -366,6 +403,51 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
                   onChange={(e) => setAdjustQty(Math.max(1, Number(e.target.value)))}
                 />
               </div>
+
+              <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncToRegister}
+                  onChange={(e) => setSyncToRegister(e.target.checked)}
+                />
+                Sync to Register & Bank Account
+              </label>
+
+              {syncToRegister && (
+                <div className="space-y-3 rounded-lg border border-hairline bg-surface-2 p-3">
+                  {adjustType === "ADD" && (
+                    <div>
+                      <Label className="text-xs">Total Purchase Cost (₹)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 3200.00"
+                        value={adjustCost}
+                        onChange={(e) => setAdjustCost(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs">Payment Mode</Label>
+                    <select
+                      value={adjustPayMode}
+                      onChange={(e) => setAdjustPayMode(e.target.value as "CASH" | "BANK" | "UPI")}
+                      className="mt-1 w-full rounded-md border border-hairline bg-card px-2.5 py-1.5 text-xs text-ink"
+                    >
+                      <option value="BANK">Bank Transfer</option>
+                      <option value="UPI">UPI</option>
+                      <option value="CASH">Cash Drawer</option>
+                    </select>
+                  </div>
+                  {adjustPayMode !== "CASH" && (
+                    <BankAccountSelect
+                      value={adjustBankUuid}
+                      onChange={setAdjustBankUuid}
+                      label="Bank Account (HDFC / SBI)"
+                    />
+                  )}
+                </div>
+              )}
 
               <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" onClick={() => setAdjustOpen(false)}>

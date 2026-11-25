@@ -77,6 +77,8 @@ const voucherSchema = z
 
     bank_account_uuid: z.string().optional(),
 
+    override_credit_limit: z.boolean().optional(),
+
     cash_amount: z.coerce.number().min(0).optional(),
     upi_amount: z.coerce.number().min(0).optional(),
     card_amount: z.coerce.number().min(0).optional(),
@@ -333,6 +335,13 @@ export default function VoucherForm({
           setValue("customer_name", cand.customer_name, { shouldValidate: true });
         }}
       />
+
+      {suggestion?.warnings?.some((w) => w.type === "CREDIT_LIMIT_EXCEEDED") && (
+        <label className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-500 cursor-pointer">
+          <input type="checkbox" {...register("override_credit_limit")} />
+          Manager Override: Allow credit voucher above customer credit limit
+        </label>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 

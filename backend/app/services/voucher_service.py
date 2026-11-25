@@ -183,12 +183,31 @@ class VoucherService:
 
         total = data.total_amount
 
+        if customer is not None and customer.credit_limit and customer.credit_limit > Decimal("0.00"):
+            credit_added = (
+                total
+                if data.payment_mode == PaymentMode.CREDIT
+                else (
+                    (data.credit_amount or Decimal("0.00"))
+                    if data.payment_mode == PaymentMode.SPLIT
+                    else Decimal("0.00")
+                )
+            )
+            if credit_added > Decimal("0.00") and not getattr(data, "override_credit_limit", False):
+                projected = Decimal(str(customer.outstanding_balance or 0)) + credit_added
+                if projected > customer.credit_limit:
+                    from app.core.exceptions import CreditLimitExceededError
+                    raise CreditLimitExceededError(
+                        f"Credit limit (₹{customer.credit_limit:,.2f}) exceeded for {customer.name} "
+                        f"(projected balance: ₹{projected:,.2f}). Record a payment or enable Manager Override."
+                    )
+
         from app.models.voucher_item import VoucherItem
         from app.database.scoping import active_pump_id
 
         voucher = Voucher(
             **data.model_dump(
-                exclude={"customer_uuid", "items", "bank_account_uuid"},
+                exclude={"customer_uuid", "items", "bank_account_uuid", "override_credit_limit"},
             ),
             customer_id=customer.id if customer else None,
             vehicle_id=vehicle.id if vehicle else None,

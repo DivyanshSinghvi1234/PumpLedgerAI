@@ -58,6 +58,37 @@ class BankAccountService {
     return res.data;
   }
 
+  async updateBankAccount(
+    uuid: string,
+    data: {
+      account_name?: string;
+      bank_name?: string;
+      account_number?: string;
+      ifsc_code?: string;
+      account_type?: string;
+    }
+  ): Promise<BankAccount> {
+    const res = await api.patch<BankAccount>(`/v1/bank-accounts/${uuid}`, data);
+    return res.data;
+  }
+
+  async reconcileCsv(
+    uuid: string,
+    csvText: string
+  ): Promise<{
+    bank_account_uuid: string;
+    account_name: string;
+    matched_count: number;
+    unmatched_credits_count: number;
+    unmatched_debits_count: number;
+    matched: Array<{ date: string; description: string; reference: string; amount: number; matched_remarks?: string }>;
+    unmatched_credits: Array<{ date: string; description: string; reference: string; amount: number }>;
+    unmatched_debits: Array<{ date: string; description: string; reference: string; amount: number }>;
+  }> {
+    const res = await api.post(`/v1/bank-accounts/${uuid}/reconcile`, { csv_text: csvText });
+    return res.data;
+  }
+
   async deleteBankAccount(uuid: string): Promise<void> {
     await api.delete(`/v1/bank-accounts/${uuid}`);
   }

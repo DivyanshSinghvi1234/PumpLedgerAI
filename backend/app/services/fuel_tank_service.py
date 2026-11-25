@@ -208,6 +208,50 @@ class FuelTankService:
     def list_deliveries(self, db: Session) -> list[TankerDelivery]:
         return list(db.scalars(select(TankerDelivery).where(TankerDelivery.is_active == True).order_by(TankerDelivery.delivery_date.desc())).all())
 
+    def delete_delivery(self, db: Session, delivery_uuid: str, actor_id: int | None = None) -> None:
+        """Reverse a TankerDelivery: restore tank stock, reverse bank debit, and soft-delete procurement expense."""
+        delivery = db.scalar(
+            select(TankerDelivery).where(
+                TankerDelivery.uuid == delivery_uuid,
+                TankerDelivery.is_active.is_(True),
+            )
+        )
+        if delivery is None:
+            raise ValueError(f"Tanker delivery '{delivery_uuid}' not found.")
+
+        tank = db.get(FuelTank, delivery.tank_id)
+        if tank is not None:
+            tank.current_stock_liters = max(0.0, float(tank.current_stock_liters) - float(delivery.quantity_liters))
+            db.add(tank)
+
+        from app.services.bank_account_service import BankAccountService
+        BankAccountService().reverse_by_reference(db, f"DEL-{delivery.id}")
+
+        if delivery.procurement_rate and delivery.procurement_rate > 0:
+            from app.models.income import Income
+            from app.core.enums import IncomeKind
+
+            exp_amt = Decimal(str(round(delivery.quantity_liters * delivery.procurement_rate, 2)))
+            exp = db.scalar(
+                select(Income)
+                .where(
+                    Income.is_active.is_(True),
+                    Income.kind == IncomeKind.EXPENSE,
+                    Income.category == "Procurement",
+                    Income.income_date == delivery.delivery_date,
+                    Income.amount == exp_amt,
+                )
+                .order_by(Income.id.desc())
+                .limit(1)
+            )
+            if exp is not None:
+                exp.is_active = False
+                db.add(exp)
+
+        delivery.is_active = False
+        db.add(delivery)
+        db.commit()
+
     def update_stock(
         self,
         db: Session,

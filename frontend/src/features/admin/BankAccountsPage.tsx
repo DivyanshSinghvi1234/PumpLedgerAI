@@ -11,6 +11,9 @@ import {
   Receipt,
   ArrowRightLeft,
   ArrowDownLeft,
+  Pencil,
+  Trash2,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
@@ -43,6 +46,21 @@ export default function BankAccountsPage() {
   const [withdrawBankUuid, setWithdrawBankUuid] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawRemarks, setWithdrawRemarks] = useState("");
+
+  // Edit Bank State
+  const [editBankOpen, setEditBankOpen] = useState(false);
+  const [editingBankUuid, setEditingBankUuid] = useState("");
+  const [editAccName, setEditAccName] = useState("");
+  const [editBankName, setEditBankName] = useState("");
+  const [editAccNum, setEditAccNum] = useState("");
+  const [editIfsc, setEditIfsc] = useState("");
+  const [editAccType, setEditAccType] = useState("CURRENT");
+
+  // Reconcile CSV State
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [reconcileBankUuid, setReconcileBankUuid] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [reconcileResult, setReconcileResult] = useState<Awaited<ReturnType<typeof bankAccountService.reconcileCsv>> | null>(null);
 
   // New Bank Form State
   const [accountName, setAccountName] = useState("Main Current Account");
@@ -150,6 +168,43 @@ export default function BankAccountsPage() {
     },
   });
 
+  const updateBankMutation = useMutation({
+    mutationFn: () =>
+      bankAccountService.updateBankAccount(editingBankUuid, {
+        account_name: editAccName.trim(),
+        bank_name: editBankName.trim(),
+        account_number: editAccNum.trim() || undefined,
+        ifsc_code: editIfsc.trim() || undefined,
+        account_type: editAccType,
+      }),
+    onSuccess: () => {
+      toast.success("Bank account updated.");
+      setEditBankOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update bank account."),
+  });
+
+  const deleteBankMutation = useMutation({
+    mutationFn: (uuid: string) => bankAccountService.deleteBankAccount(uuid),
+    onSuccess: () => {
+      toast.success("Bank account removed.");
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete bank account."),
+  });
+
+  const reconcileMutation = useMutation({
+    mutationFn: () => bankAccountService.reconcileCsv(reconcileBankUuid, csvText),
+    onSuccess: (res) => {
+      setReconcileResult(res);
+      toast.success(`Reconciled: ${res.matched_count} matched, ${res.unmatched_credits_count + res.unmatched_debits_count} unmatched.`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to reconcile CSV."),
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -157,6 +212,16 @@ export default function BankAccountsPage() {
         description="Manage station bank accounts, track forecourt liquid cash available, and record cash-to-bank deposits."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => {
+                setReconcileResult(null);
+                setReconcileOpen(true);
+              }}
+              variant="outline"
+              className="font-bold text-xs h-9 cursor-pointer"
+            >
+              <FileSpreadsheet size={15} className="mr-1.5" /> Reconcile CSV
+            </Button>
             <Button
               onClick={() => setTransferOpen(true)}
               variant="outline"
@@ -264,7 +329,37 @@ export default function BankAccountsPage() {
                     <Badge className="bg-blue-500/15 text-blue-400 border-transparent font-bold text-[10px]">
                       {acc.bank_name}
                     </Badge>
-                    <span className="text-[10px] font-mono text-ink-subtle uppercase">{acc.account_type}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono text-ink-subtle uppercase mr-1">{acc.account_type}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBankUuid(acc.uuid);
+                          setEditAccName(acc.account_name);
+                          setEditBankName(acc.bank_name);
+                          setEditAccNum(acc.account_number || "");
+                          setEditIfsc(acc.ifsc_code || "");
+                          setEditAccType(acc.account_type);
+                          setEditBankOpen(true);
+                        }}
+                        className="p-1 rounded hover:bg-surface-3 text-ink-muted hover:text-ink cursor-pointer"
+                        title="Edit bank account"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Delete bank account "${acc.account_name}"?`)) {
+                            deleteBankMutation.mutate(acc.uuid);
+                          }
+                        }}
+                        className="p-1 rounded hover:bg-rose-500/15 text-ink-muted hover:text-rose-500 cursor-pointer"
+                        title="Delete bank account"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                   <CardTitle className="text-sm font-bold text-ink mt-1.5">{acc.account_name}</CardTitle>
                   <CardDescription className="text-xs font-mono text-ink-subtle">
@@ -687,6 +782,143 @@ export default function BankAccountsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Bank Account Dialog */}
+      <Dialog open={editBankOpen} onOpenChange={setEditBankOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-ink">Edit Bank Account</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateBankMutation.mutate();
+            }}
+            className="space-y-3 py-2"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-ink-muted">Account Label *</Label>
+                <Input value={editAccName} onChange={(e) => setEditAccName(e.target.value)} required />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-ink-muted">Bank Name *</Label>
+                <Input value={editBankName} onChange={(e) => setEditBankName(e.target.value)} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-ink-muted">Account Number</Label>
+                <Input value={editAccNum} onChange={(e) => setEditAccNum(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-ink-muted">IFSC Code</Label>
+                <Input value={editIfsc} onChange={(e) => setEditIfsc(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Account Type</Label>
+              <select
+                value={editAccType}
+                onChange={(e) => setEditAccType(e.target.value)}
+                className="w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-xs text-ink"
+              >
+                <option value="CURRENT">Current Account</option>
+                <option value="SAVINGS">Savings Account</option>
+                <option value="OD">Overdraft (OD / CC)</option>
+              </select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setEditBankOpen(false)} className="text-xs h-9">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateBankMutation.isPending} className="bg-blue-600 text-white text-xs h-9">
+                {updateBankMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank Statement CSV Reconcile Dialog */}
+      <Dialog open={reconcileOpen} onOpenChange={setReconcileOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[620px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+              <FileSpreadsheet size={16} className="text-emerald-500" /> Bank Statement CSV Auto-Reconciler
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ink-subtle">
+              Upload or paste CSV (Date, Description, Credit, Debit) to match against recorded transactions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <BankAccountSelect value={reconcileBankUuid} onChange={setReconcileBankUuid} label="Select Bank Account" required />
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Upload CSV File or Paste Rows</Label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setCsvText(await file.text());
+                  }
+                }}
+                className="block w-full text-xs text-ink-muted"
+              />
+              <textarea
+                rows={4}
+                placeholder="Date,Description,Credit,Debit&#10;2026-11-26,UPI Settlement,12500,0"
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                className="w-full rounded-md border border-hairline bg-surface-2 p-2 text-xs font-mono text-ink"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                disabled={!reconcileBankUuid || !csvText.trim() || reconcileMutation.isPending}
+                onClick={() => reconcileMutation.mutate()}
+                className="bg-emerald-600 text-white text-xs h-9"
+              >
+                {reconcileMutation.isPending ? "Matching..." : "Run Auto-Match"}
+              </Button>
+            </div>
+
+            {reconcileResult && (
+              <div className="space-y-3 border-t border-hairline pt-3 text-xs">
+                <div className="flex gap-3 font-semibold">
+                  <span className="text-emerald-500">Matched: {reconcileResult.matched_count}</span>
+                  <span className="text-amber-500">Unmatched Credits: {reconcileResult.unmatched_credits_count}</span>
+                  <span className="text-rose-500">Unmatched Debits: {reconcileResult.unmatched_debits_count}</span>
+                </div>
+                {reconcileResult.unmatched_credits.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="font-bold text-amber-500">Unmatched Credits (missing in app):</p>
+                    {reconcileResult.unmatched_credits.map((u, i) => (
+                      <div key={i} className="flex justify-between rounded bg-amber-500/10 px-2.5 py-1.5">
+                        <span>{u.date} · {u.description}</span>
+                        <span className="font-mono font-bold">+{formatCurrency(u.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {reconcileResult.unmatched_debits.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="font-bold text-rose-500">Unmatched Debits (missing in app):</p>
+                    {reconcileResult.unmatched_debits.map((u, i) => (
+                      <div key={i} className="flex justify-between rounded bg-rose-500/10 px-2.5 py-1.5">
+                        <span>{u.date} · {u.description}</span>
+                        <span className="font-mono font-bold">−{formatCurrency(u.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

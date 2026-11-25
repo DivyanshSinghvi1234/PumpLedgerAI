@@ -290,6 +290,20 @@ class SmartVoucherService:
                 )
             )
 
+        # 7. Customer Credit Limit Guardrail
+        if resolved_customer is not None and resolved_customer.credit_limit and resolved_customer.credit_limit > Decimal("0.00"):
+            proj = Decimal(str(resolved_customer.outstanding_balance or 0)) + Decimal(str(payload.total_amount or 0))
+            if proj > resolved_customer.credit_limit:
+                warnings.append(
+                    SuggestionWarning(
+                        type="CREDIT_LIMIT_EXCEEDED",
+                        message=(
+                            f"Credit limit exceeded for {resolved_customer.name}: "
+                            f"projected ₹{float(proj):,.2f} > limit ₹{float(resolved_customer.credit_limit):,.2f}."
+                        ),
+                    )
+                )
+
         return VoucherSuggestionResponse(
             normalized_vehicle_number=normalized_plate,
             vehicle_uuid=str(vehicle.uuid) if vehicle else None,
@@ -303,5 +317,7 @@ class SmartVoucherService:
             payment_mode_confidence=mode_conf,
             vehicle_avg_quantity=avg_qty,
             vehicle_sample_count=sample_count,
+            customer_credit_limit=resolved_customer.credit_limit if resolved_customer else None,
+            customer_outstanding_balance=resolved_customer.outstanding_balance if resolved_customer else None,
             warnings=warnings,
         )

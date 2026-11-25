@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, AlertTriangle, Fuel, Landmark, Wallet, Receipt } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, AlertTriangle, Fuel, Landmark, Wallet, Receipt, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 import api from "@/api/client";
 import bankAccountService from "@/features/admin/services/bankAccountService";
@@ -11,6 +12,8 @@ interface ConnectedRegisterStripProps {
 }
 
 export default function ConnectedRegisterStrip({ apiDate }: ConnectedRegisterStripProps) {
+  const queryClient = useQueryClient();
+
   const { data: closingDraft } = useQuery({
     queryKey: ["day-closing-draft", apiDate],
     queryFn: async () => {
@@ -29,11 +32,36 @@ export default function ConnectedRegisterStrip({ apiDate }: ConnectedRegisterStr
     queryFn: () => bankAccountService.getLiquidFundsSummary(),
   });
 
-  if (!closingDraft && !funds) return null;
-
   const meterSales = Number(closingDraft?.gross_meter_sales ?? 0);
   const voucherSales = Number(closingDraft?.total_voucher_sales ?? 0);
+  const unbilledGap = Math.max(0, Number((meterSales - voucherSales).toFixed(2)));
   const meterGap = Math.abs(meterSales - voucherSales);
+
+  const postUnbilledMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/v1/income", {
+        kind: "INCOME",
+        income_date: apiDate,
+        description: `Unbilled Meter Cash Sale (${apiDate})`,
+        amount: unbilledGap,
+        category: "Fuel Sale",
+        payment_mode: "CASH",
+        is_sale: true,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success(`Posted ${formatCurrency(unbilledGap)} unbilled cash sale to Register & Cash Drawer!`);
+      queryClient.invalidateQueries({ queryKey: ["day-closing-draft", apiDate] });
+      queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      queryClient.invalidateQueries({ queryKey: ["incomeSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || "Failed to post unbilled cash sale."),
+  });
+
+  if (!closingDraft && !funds) return null;
+
   const hasStockAlert = (closingDraft?.tank_dips ?? []).some(
     (t) => t.status === "WARNING" || t.status === "CRITICAL"
   );
@@ -45,6 +73,19 @@ export default function ConnectedRegisterStrip({ apiDate }: ConnectedRegisterStr
           Connected Register Health ({apiDate})
         </p>
         <div className="flex items-center gap-3 text-xs">
+          {unbilledGap > 1 && !closingDraft?.already_closed && (
+            <button
+              type="button"
+              disabled={postUnbilledMutation.isPending}
+              onClick={() => postUnbilledMutation.mutate()}
+              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+            >
+              <Zap className="h-3 w-3" />
+              {postUnbilledMutation.isPending
+                ? "Posting..."
+                : `Post Unbilled Cash (${formatCurrency(unbilledGap)})`}
+            </button>
+          )}
           {closingDraft?.already_closed ? (
             <span className="inline-flex items-center gap-1 text-emerald-500 font-semibold">
               <CheckCircle2 className="h-3.5 w-3.5" /> Day Locked & Synced

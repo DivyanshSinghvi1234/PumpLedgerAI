@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, QrCode, Copy } from "lucide-react";
+import { toast } from "sonner";
 
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
@@ -29,6 +30,8 @@ export default function CustomerLedgerPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reconcileOpen, setReconcileOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [upiOpen, setUpiOpen] = useState(false);
+  const [upiId, setUpiId] = useState(() => localStorage.getItem("pump_upi_id") || "");
 
   const {
     data,
@@ -78,6 +81,16 @@ export default function CustomerLedgerPage() {
               Generate Statement
             </button>
 
+            {Number(data.closing_balance) > 0 && (
+              <button
+                onClick={() => setUpiOpen((v) => !v)}
+                className="rounded-md border border-blue-500/30 bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 px-3 py-2 cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+              >
+                <QrCode size={15} />
+                UPI Pay Link
+              </button>
+            )}
+
 
             <button
               onClick={() => {
@@ -111,6 +124,53 @@ export default function CustomerLedgerPage() {
           </div>
         }
       />
+
+      {upiOpen && Number(data.closing_balance) > 0 && (
+        <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-1 flex-1 min-w-[220px]">
+            <label className="block text-xs font-semibold text-ink-muted">
+              Station UPI ID (saved for future statements)
+            </label>
+            <input
+              placeholder="e.g. pump@hdfcbank"
+              value={upiId}
+              onChange={(e) => {
+                setUpiId(e.target.value);
+                localStorage.setItem("pump_upi_id", e.target.value);
+              }}
+              className="w-full max-w-xs rounded-md border border-hairline bg-card px-3 py-1.5 text-xs font-mono"
+            />
+          </div>
+          {upiId.trim() && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId.trim())}&pn=${encodeURIComponent(activePump?.name || "Fuel Station")}&am=${Number(data.closing_balance).toFixed(2)}&cu=INR`;
+                  navigator.clipboard.writeText(upiLink);
+                  toast.success("UPI payment link copied!");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 cursor-pointer"
+              >
+                <Copy size={13} />
+                Copy UPI Link ({formatCurrency(data.closing_balance)})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const upiLink = `upi://pay?pa=${encodeURIComponent(upiId.trim())}&pn=${encodeURIComponent(activePump?.name || "Fuel Station")}&am=${Number(data.closing_balance).toFixed(2)}&cu=INR`;
+                  const msg = `Dear ${data.customer_name}, please pay ${formatCurrency(data.closing_balance)} via UPI: ${upiLink} | Statement: ${window.location.origin}/statement/${customerUuid}`;
+                  window.open(getWhatsAppShareUrl((data as any).mobile, msg), "_blank");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
+              >
+                <MessageCircle size={13} />
+                Send via WhatsApp
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <LedgerSummary
         customerName={data.customer_name}
