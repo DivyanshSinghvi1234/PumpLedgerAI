@@ -2,7 +2,7 @@ import { WifiOff, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 export default function OfflineBanner() {
-  const { isOnline, pendingCount, isSyncing, triggerSync } = useOnlineStatus();
+  const { isOnline, pendingCount, isSyncing, triggerSync, clearQueue } = useOnlineStatus();
 
   // If online and no items queued, render nothing
   if (isOnline && pendingCount === 0) {
@@ -36,14 +36,23 @@ export default function OfflineBanner() {
       </div>
 
       {pendingCount > 0 && isOnline && (
-        <button
-          onClick={triggerSync}
-          disabled={isSyncing}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-3 hover:bg-surface-4 text-ink transition cursor-pointer disabled:opacity-50"
-        >
-          <RefreshCw size={12} className={isSyncing ? "animate-spin" : ""} />
-          {isSyncing ? "Syncing..." : "Sync Now"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={triggerSync}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-3 hover:bg-surface-4 text-ink transition cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={isSyncing ? "animate-spin" : ""} />
+            {isSyncing ? "Syncing..." : "Sync Now"}
+          </button>
+          <button
+            onClick={clearQueue}
+            disabled={isSyncing}
+            className="px-2 py-1 rounded-lg border border-hairline text-ink-muted hover:text-ink transition cursor-pointer disabled:opacity-50"
+          >
+            Clear
+          </button>
+        </div>
       )}
     </div>
   );

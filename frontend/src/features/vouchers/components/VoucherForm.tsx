@@ -8,6 +8,7 @@ import FormInput from "@/components/forms/FormInput";
 import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
 import FormDatePicker from "@/components/forms/FormDatePicker";
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
 import VehicleAutocomplete from "@/features/vehicles/components/VehicleAutocomplete";
 import { getTodayDateString } from "@/lib/utils";
@@ -74,6 +75,7 @@ const voucherSchema = z
 
     payment_mode: z.enum(["CASH", "UPI", "CARD", "BANK", "CREDIT", "SPLIT"]),
 
+    bank_account_uuid: z.string().optional(),
 
     cash_amount: z.coerce.number().min(0).optional(),
     upi_amount: z.coerce.number().min(0).optional(),
@@ -289,6 +291,10 @@ export default function VoucherForm({
     const payload = {
       ...data,
       customer_uuid: data.customer_uuid || null,
+      bank_account_uuid:
+        data.payment_mode === "BANK" && data.bank_account_uuid
+          ? data.bank_account_uuid
+          : null,
     };
 
     if (!navigator.onLine) {
@@ -309,9 +315,14 @@ export default function VoucherForm({
 
 
 
+  function handleInvalid(formErrors: Record<string, { message?: string }>) {
+    const firstMsg = Object.values(formErrors).find((e) => e?.message)?.message;
+    toast.error(firstMsg || "Please check the highlighted fields before saving.");
+  }
+
   return (
     <form
-      onSubmit={handleSubmit(submitForm)}
+      onSubmit={handleSubmit(submitForm, handleInvalid)}
       className="space-y-6"
     >
       <VoucherSuggestionBanner
@@ -402,6 +413,16 @@ export default function VoucherForm({
           error={errors.payment_mode?.message}
           {...register("payment_mode")}
         />
+
+        {paymentMode === "BANK" && (
+          <div className="sm:col-span-2">
+            <BankAccountSelect
+              value={watch("bank_account_uuid")}
+              onChange={(uuid) => setValue("bank_account_uuid", uuid)}
+              label="Credited Bank Account (e.g. HDFC / SBI — Optional)"
+            />
+          </div>
+        )}
 
         <FormInput
           type="number"

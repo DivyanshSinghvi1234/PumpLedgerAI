@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   getOfflineQueue,
+  saveOfflineQueue,
   subscribeOfflineQueue,
   processOfflineQueue,
   type QueuedTransaction,
@@ -41,10 +43,20 @@ export function useOnlineStatus() {
   const triggerSync = async () => {
     setIsSyncing(true);
     try {
-      await processOfflineQueue();
+      const res = await processOfflineQueue();
+      if (res.successCount > 0) {
+        toast.success(`Synced ${res.successCount} queued item(s).`);
+      } else if (res.failCount > 0) {
+        toast.error(`Could not sync ${res.failCount} item(s). Backend may be offline or rejected the data.`);
+      }
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const clearQueue = () => {
+    saveOfflineQueue([]);
+    toast.info("Cleared offline sync queue.");
   };
 
   return {
@@ -53,5 +65,6 @@ export function useOnlineStatus() {
     pendingQueue: queue,
     isSyncing,
     triggerSync,
+    clearQueue,
   };
 }
