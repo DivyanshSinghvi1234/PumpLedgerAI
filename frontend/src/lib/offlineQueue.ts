@@ -5,7 +5,7 @@ export interface QueuedTransaction {
   id: string;
   type: "VOUCHER" | "PAYMENT" | "METER_READING";
   endpoint: string;
-  payload: any;
+  payload: unknown;
   timestamp: number;
   attempts: number;
   description: string;
@@ -41,7 +41,7 @@ export function saveOfflineQueue(queue: QueuedTransaction[]): void {
 export function enqueueOfflineTransaction(
   type: QueuedTransaction["type"],
   endpoint: string,
-  payload: any,
+  payload: unknown,
   description: string
 ): QueuedTransaction {
   const queue = getOfflineQueue();
@@ -98,10 +98,17 @@ export async function processOfflineQueue(): Promise<{
     try {
       await api.post(item.endpoint, item.payload);
       successCount++;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const status =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { status?: unknown } }).response?.status === "number"
+          ? (err as { response: { status: number } }).response.status
+          : undefined;
       // If 4xx validation error, don't retry forever — drop or log
-      if (err.response && err.response.status >= 400 && err.response.status < 500) {
-        console.error(`Offline item ${item.id} rejected by server with ${err.response.status}`, err);
+      if (status !== undefined && status >= 400 && status < 500) {
+        console.error(`Offline item ${item.id} rejected by server with ${status}`, err);
         failCount++;
       } else {
         // Network or 5xx server error: keep in queue with incremented attempts

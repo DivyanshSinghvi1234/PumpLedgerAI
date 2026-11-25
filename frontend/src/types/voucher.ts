@@ -159,5 +159,4 @@ export interface CreateVoucherRequest {
   }[] | null;
 }
 
-export interface UpdateVoucherRequest
-  extends Partial<CreateVoucherRequest> { }
+export type UpdateVoucherRequest = Partial<CreateVoucherRequest>;

@@ -46,6 +46,29 @@ class CustomerService:
         )
         return customer
 
+    def _validate_unique_fields(
+        self,
+        db: Session,
+        *,
+        customer_code: str | None = None,
+        mobile: str | None = None,
+        gst_number: str | None = None,
+        current_customer: Customer | None = None,
+    ) -> None:
+        """Ensure customer_code, mobile, and gst_number are not already taken."""
+        checks = (
+            ("customer_code", customer_code, self.repository.get_by_code, DuplicateCustomerCodeError),
+            ("mobile", mobile, self.repository.get_by_mobile, DuplicateCustomerPhoneError),
+            ("gst_number", gst_number, self.repository.get_by_gst, DuplicateCustomerGSTError),
+        )
+        for field_name, value, lookup_fn, error_cls in checks:
+            if not value:
+                continue
+            if current_customer is not None and value == getattr(current_customer, field_name):
+                continue
+            if lookup_fn(db, value):
+                raise error_cls(value)
+
     # -----------------------------------
     # Create
     # -----------------------------------
@@ -57,38 +80,12 @@ class CustomerService:
         actor_id: int | None = None,
     ) -> Customer:
 
-        if data.customer_code:
-            existing = self.repository.get_by_code(
-                db,
-                data.customer_code,
-            )
-
-            if existing:
-                raise DuplicateCustomerCodeError(
-                    data.customer_code,
-                )
-
-        if data.mobile:
-            existing = self.repository.get_by_mobile(
-                db,
-                data.mobile,
-            )
-
-            if existing:
-                raise DuplicateCustomerPhoneError(
-                    data.mobile,
-                )
-
-        if data.gst_number:
-            existing = self.repository.get_by_gst(
-                db,
-                data.gst_number,
-            )
-
-            if existing:
-                raise DuplicateCustomerGSTError(
-                    data.gst_number,
-                )
+        self._validate_unique_fields(
+            db,
+            customer_code=data.customer_code,
+            mobile=data.mobile,
+            gst_number=data.gst_number,
+        )
 
         customer_data = data.model_dump()
 
@@ -234,56 +231,13 @@ class CustomerService:
             "opening_balance": str(customer.opening_balance) if customer.opening_balance else "0.00",
         }
 
-        # Duplicate Mobile
-        if (
-            "mobile" in update_data
-            and update_data["mobile"]
-            and update_data["mobile"] != customer.mobile
-        ):
-
-            existing = self.repository.get_by_mobile(
-                db,
-                update_data["mobile"],
-            )
-
-            if existing:
-                raise DuplicateCustomerPhoneError(
-                    update_data["mobile"],
-                )
-
-        # Duplicate GST
-        if (
-            "gst_number" in update_data
-            and update_data["gst_number"]
-            and update_data["gst_number"] != customer.gst_number
-        ):
-
-            existing = self.repository.get_by_gst(
-                db,
-                update_data["gst_number"],
-            )
-
-            if existing:
-                raise DuplicateCustomerGSTError(
-                    update_data["gst_number"],
-                )
-
-        # Duplicate Customer Code
-        if (
-            "customer_code" in update_data
-            and update_data["customer_code"]
-            and update_data["customer_code"] != customer.customer_code
-        ):
-
-            existing = self.repository.get_by_code(
-                db,
-                update_data["customer_code"],
-            )
-
-            if existing:
-                raise DuplicateCustomerCodeError(
-                    update_data["customer_code"],
-                )
+        self._validate_unique_fields(
+            db,
+            customer_code=update_data.get("customer_code"),
+            mobile=update_data.get("mobile"),
+            gst_number=update_data.get("gst_number"),
+            current_customer=customer,
+        )
 
         # An opening-balance change is posted as a ledger adjustment for
         # the delta (the ledger is the single balance writer), NOT by

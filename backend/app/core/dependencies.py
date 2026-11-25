@@ -58,7 +58,7 @@ def get_current_user(
 
     # Track user's last active time (throttle updates to every 30 seconds for efficiency)
     from datetime import datetime, timezone, timedelta
-    now_naive = datetime.utcnow()
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
     last_active = user.last_active_at
     if last_active and last_active.tzinfo is not None:
         last_active = last_active.replace(tzinfo=None)

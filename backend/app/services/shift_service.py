@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -78,7 +78,7 @@ class ShiftService:
             "cash_reconciled": shift.cash_reconciled,
         }
 
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc).replace(tzinfo=None)
         shift.end_time = end_time
 
         # 1. Query total sales during this shift (active vouchers created within start_time and end_time)

@@ -1,7 +1,9 @@
+import type { CreateVoucherRequest } from "@/types/voucher";
+
 export interface OfflineVoucherItem {
   id: string; // client-generated temporary UUID
   createdAt: string;
-  payload: any;
+  payload: CreateVoucherRequest;
 }
 
 const STORAGE_KEY = "pumpledger_offline_vouchers_queue";
@@ -16,7 +18,7 @@ export class OfflineStore {
     }
   }
 
-  queueVoucher(payload: any): OfflineVoucherItem {
+  queueVoucher(payload: CreateVoucherRequest): OfflineVoucherItem {
     const queue = this.getQueuedVouchers();
     const newItem: OfflineVoucherItem = {
       id: `offline-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -38,7 +40,7 @@ export class OfflineStore {
   }
 
   async syncQueue(
-    postVoucherFn: (payload: any) => Promise<any>
+    postVoucherFn: (payload: CreateVoucherRequest) => Promise<unknown>
   ): Promise<{ synced: number; failed: number }> {
     const queue = this.getQueuedVouchers();
     if (queue.length === 0) return { synced: 0, failed: 0 };
@@ -51,7 +53,7 @@ export class OfflineStore {
       try {
         await postVoucherFn(item.payload);
         synced++;
-      } catch (err) {
+      } catch {
         failed++;
         remaining.push(item);
       }

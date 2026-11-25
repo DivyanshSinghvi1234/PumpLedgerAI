@@ -74,6 +74,6 @@ The frontend expects the backend at `http://127.0.0.1:8000` (see
 
 ## Testing & Quality Assurance
 
-- **Backend:** 58 automated unit and integration tests (`pytest` / `uv run pytest`).
-- **Frontend:** Strict TypeScript type-checking (`tsc -b`) and optimized production bundling with Vite.
+- **Backend:** 63 automated unit and integration tests (`pytest` / `uv run pytest`).
+- **Frontend:** Vitest + Testing Library unit/component tests (`npm test`), strict TypeScript type-checking (`tsc -b`), and optimized production bundling with Vite.
 

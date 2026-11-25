@@ -1,6 +1,7 @@
 # Reload trigger: 2026-07-22 10:04
+from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 from app.models import Voucher
@@ -62,12 +63,20 @@ manager_protected = [
 
 from app.middleware.scoping import PumpScopingMiddleware
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    logger.info("Starting PumpLedger API...")
+    init_db()
+    logger.info("Database initialized")
+    yield
+
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description=settings.APP_DESCRIPTION,
-    default_response_class=ORJSONResponse,
+    lifespan=lifespan,
 )
 
 # Register pump scoping middleware
@@ -77,7 +86,7 @@ app.add_middleware(PumpScopingMiddleware)
 from app.core.exceptions import AppException
 from fastapi import Request
 
-def _attach_cors_headers(request: Request, response: ORJSONResponse) -> ORJSONResponse:
+def _attach_cors_headers(request: Request, response: JSONResponse) -> JSONResponse:
     origin = request.headers.get("origin") or "*"
     response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -93,7 +102,7 @@ async def app_exception_handler(request: Request, exc: AppException):
         status_code = 404
     elif "Duplicate" in name:
         status_code = 409
-    res = ORJSONResponse(
+    res = JSONResponse(
         status_code=status_code,
         content={"detail": str(exc)},
     )
@@ -103,7 +112,7 @@ async def app_exception_handler(request: Request, exc: AppException):
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
-    res = ORJSONResponse(
+    res = JSONResponse(
         status_code=500,
         content={"detail": f"Internal Server Error: {str(exc)}"},
     )
@@ -318,15 +327,6 @@ app.mount(
     StaticFiles(directory=storage_dir),
     name="storage",
 )
-
-
-@app.on_event("startup")
-async def startup():
-    logger.info("Starting PumpLedger API...")
-
-    init_db()
-
-    logger.info("Database initialized")
 
 
 @app.get("/", tags=["Root"])
