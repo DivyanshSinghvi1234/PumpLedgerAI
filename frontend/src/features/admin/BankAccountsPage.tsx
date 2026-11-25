@@ -263,32 +263,40 @@ export default function BankAccountsPage() {
       <PageHeader
         title="Bank & Cash Accounts"
         description="Manage station bank accounts, track forecourt liquid cash available, and record cash-to-bank deposits."
+        helpText="Add your pump's bank accounts (HDFC, SBI, ICICI) here. Whenever you deposit cash, pay for tanker deliveries, or record customer bank/UPI payments, balances update automatically."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={() => {
-                setReconcileResult(null);
-                setReconcileOpen(true);
-              }}
-              variant="outline"
-              className="font-bold text-xs h-9 cursor-pointer"
-            >
-              <FileSpreadsheet size={15} className="mr-1.5" /> Reconcile CSV
-            </Button>
-            <Button
-              onClick={() => setTransferOpen(true)}
-              variant="outline"
-              className="font-bold text-xs h-9 cursor-pointer"
-            >
-              <ArrowRightLeft size={15} className="mr-1.5" /> Bank-to-Bank
-            </Button>
-            <Button
-              onClick={() => setWithdrawOpen(true)}
-              variant="outline"
-              className="font-bold text-xs h-9 cursor-pointer"
-            >
-              <ArrowDownLeft size={15} className="mr-1.5" /> Withdraw Cash
-            </Button>
+            <details className="relative">
+              <summary className="list-none inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface-2 px-3 h-9 text-xs font-bold text-ink hover:bg-surface-3 cursor-pointer select-none">
+                More Actions ▾
+              </summary>
+              <div className="absolute right-0 mt-1.5 w-48 rounded-lg border border-hairline bg-surface-1 shadow-xl p-1.5 z-30 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReconcileResult(null);
+                    setReconcileOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-ink hover:bg-surface-3 cursor-pointer"
+                >
+                  <FileSpreadsheet size={14} className="text-emerald-400" /> Reconcile CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransferOpen(true)}
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-ink hover:bg-surface-3 cursor-pointer"
+                >
+                  <ArrowRightLeft size={14} className="text-blue-400" /> Bank-to-Bank
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWithdrawOpen(true)}
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-ink hover:bg-surface-3 cursor-pointer"
+                >
+                  <ArrowDownLeft size={14} className="text-amber-400" /> Withdraw Cash
+                </button>
+              </div>
+            </details>
             <Button
               onClick={() => setDepositCashOpen(true)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 cursor-pointer shadow-md"

@@ -22,6 +22,7 @@ export default function InventoryPage() {
         <PageHeader
           title="Inventory & Pricing"
           description="Configure storage tanks, bulk meter entries, packaged lubricants & DEF, OMC purchase indents, fuel rates, and dispensers."
+          helpText="Start in Fuel Storage to add tanks and record tanker deliveries (which can auto-deduct your selected Bank Account). Use Meter Readings daily, Price Schedules when rates change, and Lube & DEF Stock for packaged items."
         />
       </div>
 

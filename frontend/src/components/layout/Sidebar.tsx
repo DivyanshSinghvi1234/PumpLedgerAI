@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Upload,
@@ -17,6 +18,8 @@ import {
   Landmark,
   Moon,
   TrendingUp,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -36,54 +39,21 @@ interface MenuGroup {
   items: MenuItem[];
   /** If set, only these roles see this entire section. */
   allowedRoles?: UserRole[];
+  /** Collapse this section by default to reduce visual clutter. */
+  defaultCollapsed?: boolean;
 }
 
 const menuItems: MenuGroup[] = [
   {
-    section: "Overview",
+    section: "Daily Routine",
     items: [
       { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-      {
-        title: "Command Center",
-        path: "/dashboard/command-center",
-        icon: TrendingUp,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-    ],
-  },
-  {
-    section: "Operations",
-    items: [
       { title: "Upload Invoice", path: "/dashboard/upload", icon: Upload },
       { title: "Vouchers", path: "/dashboard/vouchers", icon: FileText },
       {
         title: "Payments",
         path: "/dashboard/payments",
         icon: Wallet,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Tally Sync",
-        path: "/dashboard/tally",
-        icon: FileCode,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Inventory",
-        path: "/dashboard/inventory",
-        icon: Fuel,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Revenue / Expenses",
-        path: "/dashboard/income",
-        icon: Coins,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Staff & Payroll",
-        path: "/dashboard/staff",
-        icon: UserCog,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
@@ -101,12 +71,13 @@ const menuItems: MenuGroup[] = [
     ],
   },
   {
-    section: "Records",
+    section: "Stock & Customers",
+    allowedRoles: ["ADMIN", "MANAGER"],
     items: [
       {
-        title: "Daily Register",
-        path: "/dashboard/register",
-        icon: BookOpen,
+        title: "Inventory",
+        path: "/dashboard/inventory",
+        icon: Fuel,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
@@ -121,6 +92,49 @@ const menuItems: MenuGroup[] = [
         icon: Truck,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
+    ],
+  },
+  {
+    section: "Money & Staff",
+    allowedRoles: ["ADMIN", "MANAGER"],
+    items: [
+      {
+        title: "Bank & Cash Accounts",
+        path: "/dashboard/bank-accounts",
+        icon: Landmark,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Revenue / Expenses",
+        path: "/dashboard/income",
+        icon: Coins,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Staff & Payroll",
+        path: "/dashboard/staff",
+        icon: UserCog,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+    ],
+  },
+  {
+    section: "Reports & Admin",
+    allowedRoles: ["ADMIN", "MANAGER"],
+    defaultCollapsed: true,
+    items: [
+      {
+        title: "Command Center",
+        path: "/dashboard/command-center",
+        icon: TrendingUp,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "Daily Register",
+        path: "/dashboard/register",
+        icon: BookOpen,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
       {
         title: "Reports",
         path: "/dashboard/reports",
@@ -128,21 +142,15 @@ const menuItems: MenuGroup[] = [
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
+        title: "Tally Sync",
+        path: "/dashboard/tally",
+        icon: FileCode,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
         title: "Audit Trail",
         path: "/dashboard/audit",
         icon: History,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-    ],
-  },
-  {
-    section: "Administration",
-    allowedRoles: ["ADMIN", "MANAGER"],
-    items: [
-      {
-        title: "Bank & Cash Accounts",
-        path: "/dashboard/bank-accounts",
-        icon: Landmark,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
@@ -153,7 +161,6 @@ const menuItems: MenuGroup[] = [
       },
     ],
   },
-
 ];
 
 interface SidebarProps {
@@ -163,6 +170,21 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { hasRole } = useCurrentUser();
+  const location = useLocation();
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const group of menuItems) {
+      if (group.defaultCollapsed) {
+        const hasActiveChild = group.items.some((item) => location.pathname.startsWith(item.path));
+        initial[group.section] = !hasActiveChild;
+      }
+    }
+    return initial;
+  });
+
+  const toggleSection = (section: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
 
   /** Check whether the current user can see a given item / section. */
   function isAllowed(roles?: UserRole[]): boolean {
@@ -236,46 +258,55 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
               if (visibleItems.length === 0) return null;
 
+              const isCollapsed = Boolean(collapsedSections[group.section]);
+
               return (
                 <div key={group.section}>
-                  <p className="mb-2.5 px-3 text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary">
-                    {group.section}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(group.section)}
+                    className="mb-2 flex w-full items-center justify-between px-3 text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary hover:text-ink-muted cursor-pointer transition"
+                  >
+                    <span>{group.section}</span>
+                    {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                  </button>
 
-                  <div className="space-y-0.5">
-                    {visibleItems.map((item) => {
-                      const Icon = item.icon;
+                  {!isCollapsed && (
+                    <div className="space-y-0.5">
+                      {visibleItems.map((item) => {
+                        const Icon = item.icon;
 
-                      return (
-                        <NavLink
-                          key={item.path}
-                          to={item.path}
-                          end={item.path === "/dashboard"}
-                          onClick={handleNavClick}
-                          className={({ isActive }) =>
-                            `group flex items-center gap-3 py-2 px-3 text-[13px] font-medium rounded-lg transition-all duration-150 ${
-                              isActive
-                                ? "nav-active-bar bg-gradient-to-r from-fuel-amber/10 to-transparent text-ink font-semibold"
-                                : "text-ink-muted hover:bg-surface-3/60 hover:text-ink"
-                            }`
-                          }
-                        >
-                          {({ isActive }) => (
-                            <>
-                              <div className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                        return (
+                          <NavLink
+                            key={item.path}
+                            to={item.path}
+                            end={item.path === "/dashboard"}
+                            onClick={handleNavClick}
+                            className={({ isActive }) =>
+                              `group flex items-center gap-3 py-2 px-3 text-[13px] font-medium rounded-lg transition-all duration-150 ${
                                 isActive
-                                  ? "bg-fuel-amber/15 text-fuel-amber"
-                                  : "text-ink-subtle group-hover:text-ink-muted"
-                              }`}>
-                                <Icon size={15} />
-                              </div>
-                              <span>{item.title}</span>
-                            </>
-                          )}
-                        </NavLink>
-                      );
-                    })}
-                  </div>
+                                  ? "nav-active-bar bg-gradient-to-r from-fuel-amber/10 to-transparent text-ink font-semibold"
+                                  : "text-ink-muted hover:bg-surface-3/60 hover:text-ink"
+                              }`
+                            }
+                          >
+                            {({ isActive }) => (
+                              <>
+                                <div className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                                  isActive
+                                    ? "bg-fuel-amber/15 text-fuel-amber"
+                                    : "text-ink-subtle group-hover:text-ink-muted"
+                                }`}>
+                                  <Icon size={15} />
+                                </div>
+                                <span>{item.title}</span>
+                              </>
+                            )}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
