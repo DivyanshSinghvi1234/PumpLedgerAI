@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import api from "@/api/client";
 import PageHeader from "@/components/common/PageHeader";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
+import ShiftHandoverPanel from "./components/ShiftHandoverPanel";
 import staffService from "@/features/staff/services/staffService";
 
 interface NozzleLineState {
@@ -579,6 +580,8 @@ export default function ShiftSettlementPage() {
           </table>
         </div>
       </div>
+
+      <ShiftHandoverPanel employees={employees} />
     </div>
   );
 }

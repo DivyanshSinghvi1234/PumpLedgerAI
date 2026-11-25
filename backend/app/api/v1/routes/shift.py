@@ -267,6 +267,151 @@ def create_settlement(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+# ======================================================
+# Digital Shift Handover Sign-Off
+# ======================================================
+
+
+from decimal import Decimal
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field
+
+
+class HandoverCreateRequest(BaseModel):
+    handover_date: date = Field(default_factory=date.today)
+    outgoing_employee_uuid: str
+    incoming_employee_uuid: str | None = None
+    cash_expected: Decimal = Field(..., ge=0)
+    cash_handed_over: Decimal = Field(..., ge=0)
+    notes: str | None = Field(default=None, max_length=300)
+
+
+class HandoverConfirmRequest(BaseModel):
+    auto_post_shortage: bool = True
+
+
+def _serialize_handover(h) -> dict:
+    return {
+        "uuid": str(h.uuid),
+        "handover_date": h.handover_date.isoformat(),
+        "outgoing_employee_uuid": str(h.outgoing_employee.uuid) if h.outgoing_employee else None,
+        "outgoing_employee_name": h.outgoing_employee.full_name if h.outgoing_employee else "Unknown",
+        "incoming_employee_uuid": str(h.incoming_employee.uuid) if h.incoming_employee else None,
+        "incoming_employee_name": h.incoming_employee.full_name if h.incoming_employee else None,
+        "cash_expected": float(h.cash_expected),
+        "cash_handed_over": float(h.cash_handed_over),
+        "variance": float(h.variance),
+        "meter_snapshot": h.meter_snapshot or [],
+        "outgoing_confirmed": h.outgoing_confirmed,
+        "incoming_confirmed": h.incoming_confirmed,
+        "incoming_confirmed_at": h.incoming_confirmed_at.isoformat() if h.incoming_confirmed_at else None,
+        "shortage_posted": h.shortage_posted,
+        "notes": h.notes,
+    }
+
+
+@router.get("/handovers")
+def list_handovers(db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    from app.models.shift_handover import ShiftHandover
+
+    rows = db.scalars(
+        select(ShiftHandover)
+        .options(joinedload(ShiftHandover.outgoing_employee), joinedload(ShiftHandover.incoming_employee))
+        .order_by(ShiftHandover.handover_date.desc(), ShiftHandover.id.desc())
+        .limit(30)
+    ).all()
+    return [_serialize_handover(r) for r in rows]
+
+
+@router.post("/handovers", status_code=status.HTTP_201_CREATED)
+def create_handover(
+    data: HandoverCreateRequest,
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.models.employee import Employee
+    from app.models.nozzle import Nozzle
+    from app.models.shift_handover import ShiftHandover
+
+    out_emp = db.scalar(select(Employee).where(Employee.uuid == data.outgoing_employee_uuid))
+    if not out_emp:
+        raise HTTPException(status_code=404, detail="Outgoing employee not found")
+
+    in_emp = None
+    if data.incoming_employee_uuid:
+        in_emp = db.scalar(select(Employee).where(Employee.uuid == data.incoming_employee_uuid))
+        if not in_emp:
+            raise HTTPException(status_code=404, detail="Incoming employee not found")
+
+    nozzles = db.scalars(select(Nozzle).where(Nozzle.is_active.is_(True)).order_by(Nozzle.id.asc())).all()
+    snapshot = [
+        {"nozzle_name": n.name, "fuel_type": n.fuel_type.value, "reading": float(n.last_reading or 0.0)}
+        for n in nozzles
+    ]
+    variance = (data.cash_handed_over - data.cash_expected).quantize(Decimal("0.01"))
+
+    h = ShiftHandover(
+        handover_date=data.handover_date,
+        outgoing_employee_id=out_emp.id,
+        incoming_employee_id=in_emp.id if in_emp else None,
+        cash_expected=data.cash_expected,
+        cash_handed_over=data.cash_handed_over,
+        variance=variance,
+        meter_snapshot=snapshot,
+        outgoing_confirmed=True,
+        incoming_confirmed=False,
+        shortage_posted=False,
+        notes=data.notes.strip() if data.notes else None,
+        pump_id=out_emp.pump_id,
+    )
+    db.add(h)
+    db.commit()
+    db.refresh(h)
+    return _serialize_handover(h)
+
+
+@router.post("/handovers/{uuid}/confirm")
+def confirm_handover(
+    uuid: str,
+    data: HandoverConfirmRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.models.shift_handover import ShiftHandover
+    from app.models.staff_ledger_entry import StaffLedgerEntry
+
+    h = db.scalar(select(ShiftHandover).where(ShiftHandover.uuid == uuid))
+    if not h:
+        raise HTTPException(status_code=404, detail="Shift handover not found")
+
+    req = data or HandoverConfirmRequest()
+    h.incoming_confirmed = True
+    h.incoming_confirmed_at = datetime.now(timezone.utc)
+
+    if req.auto_post_shortage and not h.shortage_posted and Decimal(str(h.variance)) < Decimal("0.00"):
+        shortage_amt = abs(Decimal(str(h.variance))).quantize(Decimal("0.01"))
+        db.add(
+            StaffLedgerEntry(
+                employee_id=h.outgoing_employee_id,
+                entry_date=h.handover_date,
+                entry_type="SHORTAGE",
+                amount=shortage_amt,
+                signed_amount=shortage_amt,
+                remarks=f"Confirmed shift handover shortage ({h.handover_date.isoformat()})",
+                reference_type="HANDOVER",
+                reference_id=h.id,
+                pump_id=h.pump_id,
+            )
+        )
+        h.shortage_posted = True
+
+    db.commit()
+    db.refresh(h)
+    return _serialize_handover(h)
+
+
 @router.post(
     "/settlements/{uuid}/settle-digital",
     response_model=ShiftSettlementResponse,
@@ -288,4 +433,149 @@ def settle_digital_batch(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+# ======================================================
+# Digital Shift Handover Sign-Off
+# ======================================================
+
+
+from decimal import Decimal
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field
+
+
+class HandoverCreateRequest(BaseModel):
+    handover_date: date = Field(default_factory=date.today)
+    outgoing_employee_uuid: str
+    incoming_employee_uuid: str | None = None
+    cash_expected: Decimal = Field(..., ge=0)
+    cash_handed_over: Decimal = Field(..., ge=0)
+    notes: str | None = Field(default=None, max_length=300)
+
+
+class HandoverConfirmRequest(BaseModel):
+    auto_post_shortage: bool = True
+
+
+def _serialize_handover(h) -> dict:
+    return {
+        "uuid": str(h.uuid),
+        "handover_date": h.handover_date.isoformat(),
+        "outgoing_employee_uuid": str(h.outgoing_employee.uuid) if h.outgoing_employee else None,
+        "outgoing_employee_name": h.outgoing_employee.full_name if h.outgoing_employee else "Unknown",
+        "incoming_employee_uuid": str(h.incoming_employee.uuid) if h.incoming_employee else None,
+        "incoming_employee_name": h.incoming_employee.full_name if h.incoming_employee else None,
+        "cash_expected": float(h.cash_expected),
+        "cash_handed_over": float(h.cash_handed_over),
+        "variance": float(h.variance),
+        "meter_snapshot": h.meter_snapshot or [],
+        "outgoing_confirmed": h.outgoing_confirmed,
+        "incoming_confirmed": h.incoming_confirmed,
+        "incoming_confirmed_at": h.incoming_confirmed_at.isoformat() if h.incoming_confirmed_at else None,
+        "shortage_posted": h.shortage_posted,
+        "notes": h.notes,
+    }
+
+
+@router.get("/handovers")
+def list_handovers(db: Session = Depends(get_db)):
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
+    from app.models.shift_handover import ShiftHandover
+
+    rows = db.scalars(
+        select(ShiftHandover)
+        .options(joinedload(ShiftHandover.outgoing_employee), joinedload(ShiftHandover.incoming_employee))
+        .order_by(ShiftHandover.handover_date.desc(), ShiftHandover.id.desc())
+        .limit(30)
+    ).all()
+    return [_serialize_handover(r) for r in rows]
+
+
+@router.post("/handovers", status_code=status.HTTP_201_CREATED)
+def create_handover(
+    data: HandoverCreateRequest,
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.models.employee import Employee
+    from app.models.nozzle import Nozzle
+    from app.models.shift_handover import ShiftHandover
+
+    out_emp = db.scalar(select(Employee).where(Employee.uuid == data.outgoing_employee_uuid))
+    if not out_emp:
+        raise HTTPException(status_code=404, detail="Outgoing employee not found")
+
+    in_emp = None
+    if data.incoming_employee_uuid:
+        in_emp = db.scalar(select(Employee).where(Employee.uuid == data.incoming_employee_uuid))
+        if not in_emp:
+            raise HTTPException(status_code=404, detail="Incoming employee not found")
+
+    nozzles = db.scalars(select(Nozzle).where(Nozzle.is_active.is_(True)).order_by(Nozzle.id.asc())).all()
+    snapshot = [
+        {"nozzle_name": n.name, "fuel_type": n.fuel_type.value, "reading": float(n.last_reading or 0.0)}
+        for n in nozzles
+    ]
+    variance = (data.cash_handed_over - data.cash_expected).quantize(Decimal("0.01"))
+
+    h = ShiftHandover(
+        handover_date=data.handover_date,
+        outgoing_employee_id=out_emp.id,
+        incoming_employee_id=in_emp.id if in_emp else None,
+        cash_expected=data.cash_expected,
+        cash_handed_over=data.cash_handed_over,
+        variance=variance,
+        meter_snapshot=snapshot,
+        outgoing_confirmed=True,
+        incoming_confirmed=False,
+        shortage_posted=False,
+        notes=data.notes.strip() if data.notes else None,
+        pump_id=out_emp.pump_id,
+    )
+    db.add(h)
+    db.commit()
+    db.refresh(h)
+    return _serialize_handover(h)
+
+
+@router.post("/handovers/{uuid}/confirm")
+def confirm_handover(
+    uuid: str,
+    data: HandoverConfirmRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.models.shift_handover import ShiftHandover
+    from app.models.staff_ledger_entry import StaffLedgerEntry
+
+    h = db.scalar(select(ShiftHandover).where(ShiftHandover.uuid == uuid))
+    if not h:
+        raise HTTPException(status_code=404, detail="Shift handover not found")
+
+    req = data or HandoverConfirmRequest()
+    h.incoming_confirmed = True
+    h.incoming_confirmed_at = datetime.now(timezone.utc)
+
+    if req.auto_post_shortage and not h.shortage_posted and Decimal(str(h.variance)) < Decimal("0.00"):
+        shortage_amt = abs(Decimal(str(h.variance))).quantize(Decimal("0.01"))
+        db.add(
+            StaffLedgerEntry(
+                employee_id=h.outgoing_employee_id,
+                entry_date=h.handover_date,
+                entry_type="SHORTAGE",
+                amount=shortage_amt,
+                signed_amount=shortage_amt,
+                remarks=f"Confirmed shift handover shortage ({h.handover_date.isoformat()})",
+                reference_type="HANDOVER",
+                reference_id=h.id,
+                pump_id=h.pump_id,
+            )
+        )
+        h.shortage_posted = True
+
+    db.commit()
+    db.refresh(h)
+    return _serialize_handover(h)
 

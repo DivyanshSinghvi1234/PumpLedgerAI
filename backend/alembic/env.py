@@ -29,6 +29,7 @@ from app.models.day_closing import DayClosing
 from app.models.stock_variance import StockVariance
 from app.models.recurring_expense import RecurringExpense
 from app.models.employee_attendance import EmployeeAttendance
+from app.models.shift_handover import ShiftHandover
 
 config = context.config
 

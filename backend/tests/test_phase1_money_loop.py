@@ -162,6 +162,7 @@ def test_batch_payroll_pay_all_and_idempotency(client, auth_headers):
     assert ba_resp.status_code == 201
     bank_uuid = ba_resp.json()["uuid"]
 
+    emp_uuids = []
     for name, salary in [("Raju Attendant", "15000.00"), ("Suresh Attendant", "18000.00")]:
         e_resp = client.post(
             f"{P}/employees",
@@ -174,8 +175,9 @@ def test_batch_payroll_pay_all_and_idempotency(client, auth_headers):
             },
         )
         assert e_resp.status_code == 201, e_resp.text
+        emp_uuids.append(e_resp.json()["uuid"])
 
-    # Run batch pay-all
+    # Run batch pay-all for these employees
     batch_resp = client.post(
         f"{P}/employees/payroll/pay-all",
         headers=auth_headers,
@@ -184,6 +186,7 @@ def test_batch_payroll_pay_all_and_idempotency(client, auth_headers):
             "payment_mode": "BANK",
             "bank_account_uuid": bank_uuid,
             "deduct_outstanding": True,
+            "employee_uuids": emp_uuids,
         },
     )
     assert batch_resp.status_code == 200, batch_resp.text
@@ -193,7 +196,9 @@ def test_batch_payroll_pay_all_and_idempotency(client, auth_headers):
 
     # Preview should now mark them already_paid_this_month=True
     prev = client.get(f"{P}/employees/payroll/preview?month={billing_month}", headers=auth_headers).json()
-    assert all(r["already_paid_this_month"] is True for r in prev["rows"])
+    target_rows = [r for r in prev["rows"] if r["employee_uuid"] in emp_uuids]
+    assert len(target_rows) == 2
+    assert all(r["already_paid_this_month"] is True for r in target_rows)
 
     # Re-running pay-all skips both
     batch_resp_2 = client.post(
@@ -203,6 +208,7 @@ def test_batch_payroll_pay_all_and_idempotency(client, auth_headers):
             "billing_month": billing_month,
             "payment_mode": "BANK",
             "bank_account_uuid": bank_uuid,
+            "employee_uuids": emp_uuids,
         },
     )
     assert batch_resp_2.status_code == 200
