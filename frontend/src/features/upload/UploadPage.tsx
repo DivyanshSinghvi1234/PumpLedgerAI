@@ -15,7 +15,7 @@ import {
   uploadErrorMessage,
 } from "./services/uploadService";
 
-const MAX_BATCH_SIZE = 5;
+const MAX_BATCH_SIZE = 30;
 
 type SelectedImage = {
   file: File;

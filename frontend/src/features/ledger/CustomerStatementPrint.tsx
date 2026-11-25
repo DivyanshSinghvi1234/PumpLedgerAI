@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon, PrinterIcon } from "lucide-react";
+import { ArrowLeftIcon, PrinterIcon, FileTextIcon } from "lucide-react";
 
 import api from "@/api/client";
 import LoadingState from "@/components/common/LoadingState";
@@ -20,9 +20,57 @@ interface LedgerRow {
   remarks: string | null;
 }
 
+interface GSTInvoiceResponse {
+  customer_uuid: string;
+  customer_name: string;
+  customer_code?: string | null;
+  gst_number?: string | null;
+  address?: string | null;
+  mobile?: string | null;
+  billing_month: string;
+  invoice_number: string;
+  period_start: string;
+  period_end: string;
+  hsn_summary: {
+    fuel_type: string;
+    hsn_code: string;
+    total_liters: number;
+    taxable_amount: number;
+  }[];
+  vehicle_subtotals: {
+    vehicle_number: string;
+    slip_count: number;
+    total_liters: number;
+    total_amount: number;
+  }[];
+  line_items: {
+    invoice_date: string;
+    invoice_number: string;
+    vehicle_number: string;
+    fuel_type: string;
+    hsn_code: string;
+    quantity_liters: number;
+    rate_per_liter: number;
+    total_amount: number;
+  }[];
+  total_liters: number;
+  grand_total: number;
+  slip_count: number;
+}
+
 export default function CustomerStatementPrint() {
   const { customerUuid = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [docMode, setDocMode] = useState<"statement" | "gst">(
+    searchParams.get("mode") === "gst" ? "gst" : "statement"
+  );
+  const [billingMonth, setBillingMonth] = useState(() => {
+    const paramMonth = searchParams.get("month");
+    if (paramMonth) return paramMonth;
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   // Fetch customer details
   const { data: customer, isLoading: isLoadingCustomer } = useQuery({
@@ -42,6 +90,23 @@ export default function CustomerStatementPrint() {
       return res.data;
     },
     enabled: Boolean(customerUuid),
+  });
+
+  // Fetch station branding
+  const { data: branding } = useQuery({
+    queryKey: ["settings", "station_branding"],
+    queryFn: () => settingService.getSetting<StationBranding>("station_branding"),
+  });
+
+  const { data: gstInvoice, isLoading: isLoadingGst } = useQuery<GSTInvoiceResponse>({
+    queryKey: ["report-gst-invoice", customerUuid, billingMonth],
+    queryFn: async () => {
+      const res = await api.get(`/v1/reports/gst-invoice/${customerUuid}`, {
+        params: { month: billingMonth },
+      });
+      return res.data;
+    },
+    enabled: Boolean(customerUuid) && docMode === "gst",
   });
 
   // Auto-print only after both data sources are resolved and rendering is complete
@@ -70,12 +135,6 @@ export default function CustomerStatementPrint() {
     );
   }
 
-  // Fetch station branding
-  const { data: branding } = useQuery({
-    queryKey: ["settings", "station_branding"],
-    queryFn: () => settingService.getSetting<StationBranding>("station_branding"),
-  });
-
   // Calculate totals
   const totalDebit = statement.rows.reduce(
     (sum: number, r: LedgerRow) => (r.signed_amount > 0 ? sum + r.amount : sum),
@@ -89,7 +148,7 @@ export default function CustomerStatementPrint() {
   return (
     <div className="min-h-screen bg-canvas p-4 md:p-8 print:bg-white print:p-0">
       {/* Action Header — Hidden during print */}
-      <div className="mx-auto max-w-4xl mb-6 flex items-center justify-between border-b pb-4 print:hidden">
+      <div className="mx-auto max-w-4xl mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 print:hidden">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-ink hover:bg-muted/30 transition cursor-pointer"
@@ -98,13 +157,33 @@ export default function CustomerStatementPrint() {
           <span>Back to Ledger</span>
         </button>
 
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition cursor-pointer"
-        >
-          <PrinterIcon size={16} />
-          <span>Print Statement</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDocMode(docMode === "statement" ? "gst" : "statement")}
+            className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-ink hover:bg-muted/30 transition cursor-pointer"
+          >
+            <FileTextIcon size={16} />
+            <span>{docMode === "gst" ? "Switch to Statement" : "Monthly GST Tax Invoice"}</span>
+          </button>
+
+          {docMode === "gst" && (
+            <input
+              type="month"
+              value={billingMonth}
+              onChange={(e) => setBillingMonth(e.target.value)}
+              className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-ink"
+            />
+          )}
+
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition cursor-pointer"
+          >
+            <PrinterIcon size={16} />
+            <span>{docMode === "gst" ? "Print GST Invoice" : "Print Statement"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Printable Statement Container */}
@@ -138,8 +217,13 @@ export default function CustomerStatementPrint() {
           </div>
           <div className="text-left sm:text-right">
             <h2 className="text-lg font-bold uppercase tracking-wide text-ink print:text-black">
-              Account Statement
+              {docMode === "gst" ? "Consolidated Monthly Tax Invoice" : "Account Statement"}
             </h2>
+            {docMode === "gst" && gstInvoice && (
+              <p className="text-xs font-mono font-semibold text-ink print:text-black mt-1">
+                Invoice No: {gstInvoice.invoice_number}
+              </p>
+            )}
             <p className="text-xs text-ink-muted print:text-gray-600 mt-1">
               Generated Date: {new Date().toLocaleDateString("en-GB", {
                 day: "numeric",
@@ -147,11 +231,15 @@ export default function CustomerStatementPrint() {
                 year: "numeric",
               })}
             </p>
-            {statement.from_date && (
+            {docMode === "gst" && gstInvoice ? (
+              <p className="text-xs text-ink-muted print:text-gray-600">
+                Billing Period: {gstInvoice.period_start} to {gstInvoice.period_end}
+              </p>
+            ) : statement.from_date ? (
               <p className="text-xs text-ink-muted print:text-gray-600">
                 Period: {statement.from_date} to {statement.to_date || "Present"}
               </p>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -196,6 +284,109 @@ export default function CustomerStatementPrint() {
           </div>
         </div>
 
+        {docMode === "gst" ? (
+          isLoadingGst ? (
+            <div className="py-12 text-center text-sm text-ink-muted">Loading GST invoice…</div>
+          ) : !gstInvoice ? (
+            <div className="py-12 text-center text-sm text-ink-muted">No GST invoice data for {billingMonth}.</div>
+          ) : (
+            <div className="space-y-8">
+              <div className="grid grid-cols-3 gap-4 text-center text-xs border border-hairline rounded-xl p-3 bg-muted/10 print:bg-transparent print:border-gray-300">
+                <div>
+                  <span className="text-ink-muted block uppercase tracking-wider mb-0.5">Total Slips</span>
+                  <span className="font-semibold font-mono text-sm">{gstInvoice.slip_count}</span>
+                </div>
+                <div>
+                  <span className="text-ink-muted block uppercase tracking-wider mb-0.5">Total Quantity</span>
+                  <span className="font-semibold font-mono text-sm">{Number(gstInvoice.total_liters).toFixed(2)} L</span>
+                </div>
+                <div>
+                  <span className="text-ink-muted block uppercase tracking-wider mb-0.5">Invoice Grand Total</span>
+                  <span className="font-semibold font-mono text-sm text-ink">{formatCurrency(gstInvoice.grand_total)}</span>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2">HSN / Fuel Grade Summary</h3>
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted border-ink-muted/20">
+                      <th className="py-2 px-2">Fuel Grade</th>
+                      <th className="py-2 px-2">HSN Code</th>
+                      <th className="py-2 px-2 text-right">Quantity (L)</th>
+                      <th className="py-2 px-2 text-right">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gstInvoice.hsn_summary.map((row) => (
+                      <tr key={row.fuel_type} className="border-b border-hairline">
+                        <td className="py-2 px-2 font-semibold">{row.fuel_type}</td>
+                        <td className="py-2 px-2 font-mono">{row.hsn_code}</td>
+                        <td className="py-2 px-2 text-right font-mono">{Number(row.total_liters).toFixed(2)}</td>
+                        <td className="py-2 px-2 text-right font-mono font-semibold">{formatCurrency(row.taxable_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2">Vehicle-Wise Subtotals</h3>
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted border-ink-muted/20">
+                      <th className="py-2 px-2">Vehicle Number</th>
+                      <th className="py-2 px-2 text-right">Slips</th>
+                      <th className="py-2 px-2 text-right">Quantity (L)</th>
+                      <th className="py-2 px-2 text-right">Subtotal (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gstInvoice.vehicle_subtotals.map((v) => (
+                      <tr key={v.vehicle_number} className="border-b border-hairline">
+                        <td className="py-2 px-2 font-mono font-semibold">{v.vehicle_number}</td>
+                        <td className="py-2 px-2 text-right font-mono">{v.slip_count}</td>
+                        <td className="py-2 px-2 text-right font-mono">{Number(v.total_liters).toFixed(2)}</td>
+                        <td className="py-2 px-2 text-right font-mono font-semibold">{formatCurrency(v.total_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-muted mb-2">Itemized Fuel Slips</h3>
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b-2 text-[10px] font-bold uppercase tracking-wider text-ink-muted border-ink-muted/20">
+                      <th className="py-2 px-2">Date</th>
+                      <th className="py-2 px-2">Slip No</th>
+                      <th className="py-2 px-2">Vehicle</th>
+                      <th className="py-2 px-2">Fuel (HSN)</th>
+                      <th className="py-2 px-2 text-right">Qty (L)</th>
+                      <th className="py-2 px-2 text-right">Rate</th>
+                      <th className="py-2 px-2 text-right">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gstInvoice.line_items.map((item, idx) => (
+                      <tr key={`${item.invoice_number}-${idx}`} className="border-b border-hairline">
+                        <td className="py-2 px-2">{item.invoice_date}</td>
+                        <td className="py-2 px-2 font-mono">{item.invoice_number}</td>
+                        <td className="py-2 px-2 font-mono">{item.vehicle_number}</td>
+                        <td className="py-2 px-2">{item.fuel_type} ({item.hsn_code})</td>
+                        <td className="py-2 px-2 text-right font-mono">{Number(item.quantity_liters).toFixed(2)}</td>
+                        <td className="py-2 px-2 text-right font-mono">{Number(item.rate_per_liter).toFixed(2)}</td>
+                        <td className="py-2 px-2 text-right font-mono font-semibold">{formatCurrency(item.total_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        ) : (
+        <>
         {/* Transaction Summary Blocks */}
         <div className="grid grid-cols-3 gap-4 mb-6 text-center text-xs border border-hairline rounded-xl p-3 bg-muted/10 print:bg-transparent print:border-gray-300">
           <div>
@@ -292,6 +483,8 @@ export default function CustomerStatementPrint() {
             </tbody>
           </table>
         </div>
+        </>
+        )}
 
         {/* Corporate Sign-off Footer */}
         <div className="mt-16 flex justify-between items-end border-t pt-8 text-[10px] text-ink-muted print:text-gray-600">

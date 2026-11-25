@@ -14,6 +14,7 @@ from app.schemas.report import (
     DailyReportResponse,
     DebtorAgingResponse,
     LedgerReportResponse,
+    MonthlyGSTInvoiceResponse,
     VoucherReportResponse,
 )
 from app.services.report_service import ReportService
@@ -245,3 +246,35 @@ def debtor_aging_export(
         header,
         rows,
     )
+
+
+# ======================================================
+# Consolidated Monthly GST Tax Invoice
+# ======================================================
+
+@router.get(
+    "/gst-invoice/{customer_uuid}",
+    response_model=MonthlyGSTInvoiceResponse,
+    dependencies=manager,
+)
+def monthly_gst_invoice(
+    customer_uuid: str,
+    month: str | None = Query(default=None, description="Billing month in YYYY-MM format"),
+    db: Session = Depends(get_db),
+):
+    try:
+        return service.monthly_gst_invoice(
+            db,
+            customer_uuid,
+            billing_month=month,
+        )
+    except CustomerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc

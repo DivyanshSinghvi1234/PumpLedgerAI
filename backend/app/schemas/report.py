@@ -161,3 +161,58 @@ class DebtorAgingResponse(BaseModel):
     total_60_plus: Decimal
 
     count: int
+
+
+# =====================================================
+# Consolidated Monthly GST Tax Invoice
+# =====================================================
+
+class GSTInvoiceHSNSummaryRow(BaseModel):
+
+    fuel_type: str
+    hsn_code: str
+    total_liters: Decimal
+    taxable_amount: Decimal
+
+
+class GSTInvoiceVehicleSubtotalRow(BaseModel):
+
+    vehicle_number: str
+    slip_count: int
+    total_liters: Decimal
+    total_amount: Decimal
+
+
+class GSTInvoiceLineItem(BaseModel):
+
+    invoice_date: date
+    invoice_number: str
+    vehicle_number: str
+    fuel_type: str
+    hsn_code: str
+    quantity_liters: Decimal
+    rate_per_liter: Decimal
+    total_amount: Decimal
+
+
+class MonthlyGSTInvoiceResponse(BaseModel):
+
+    customer_uuid: UUID
+    customer_name: str
+    customer_code: str | None = None
+    gst_number: str | None = None
+    address: str | None = None
+    mobile: str | None = None
+
+    billing_month: str
+    invoice_number: str
+    period_start: date
+    period_end: date
+
+    hsn_summary: list[GSTInvoiceHSNSummaryRow]
+    vehicle_subtotals: list[GSTInvoiceVehicleSubtotalRow]
+    line_items: list[GSTInvoiceLineItem]
+
+    total_liters: Decimal
+    grand_total: Decimal
+    slip_count: int

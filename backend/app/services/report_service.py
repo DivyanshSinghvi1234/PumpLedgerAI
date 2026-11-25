@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
+from app.core.exceptions import CustomerNotFoundError
+from app.models.customer import Customer
+from app.models.voucher import Voucher
 from app.repositories.report_repository import ReportRepository
 from app.schemas.report import (
     CustomerReportResponse,
@@ -12,8 +17,12 @@ from app.schemas.report import (
     DailyReportResponse,
     DebtorAgingResponse,
     DebtorAgingRow,
+    GSTInvoiceHSNSummaryRow,
+    GSTInvoiceLineItem,
+    GSTInvoiceVehicleSubtotalRow,
     LedgerReportResponse,
     LedgerReportRow,
+    MonthlyGSTInvoiceResponse,
     VoucherReportResponse,
     VoucherReportRow,
 )
@@ -407,3 +416,157 @@ class ReportService:
         ]
 
         return header, rows
+
+    # -----------------------------------
+    # Consolidated Monthly GST Tax Invoice
+    # -----------------------------------
+
+    _HSN_MAP = {
+        "PETROL": "27101241",
+        "SPEED": "27101241",
+        "DIESEL": "27101944",
+        "LUBRICANT": "27101990",
+    }
+
+    def monthly_gst_invoice(
+        self,
+        db: Session,
+        customer_uuid: str,
+        *,
+        billing_month: str | None = None,
+    ) -> MonthlyGSTInvoiceResponse:
+        customer = db.scalar(
+            select(Customer).where(
+                Customer.uuid == customer_uuid,
+                Customer.is_active.is_(True),
+            )
+        )
+        if customer is None:
+            raise CustomerNotFoundError(customer_uuid)
+
+        if billing_month:
+            try:
+                year_str, month_str = billing_month.split("-")
+                year, month = int(year_str), int(month_str)
+                if not (1 <= month <= 12):
+                    raise ValueError
+            except ValueError as exc:
+                raise ValueError("billing_month must be in YYYY-MM format.") from exc
+        else:
+            today = date.today()
+            year, month = today.year, today.month
+            billing_month = f"{year:04d}-{month:02d}"
+
+        _, last_day = monthrange(year, month)
+        period_start = date(year, month, 1)
+        period_end = date(year, month, last_day)
+
+        vouchers = db.scalars(
+            select(Voucher)
+            .options(selectinload(Voucher.items))
+            .where(
+                Voucher.customer_id == customer.id,
+                Voucher.is_active.is_(True),
+                Voucher.invoice_date >= period_start,
+                Voucher.invoice_date <= period_end,
+            )
+            .order_by(Voucher.invoice_date.asc(), Voucher.id.asc())
+        ).all()
+
+        hsn_buckets: dict[str, dict] = {}
+        vehicle_buckets: dict[str, dict] = {}
+        line_items: list[GSTInvoiceLineItem] = []
+        total_liters = Decimal("0.00")
+        grand_total = Decimal("0.00")
+
+        def _record_line(
+            v: Voucher,
+            veh: str,
+            ftype: str,
+            qty: Decimal,
+            rate: Decimal,
+            amt: Decimal,
+        ) -> None:
+            nonlocal total_liters, grand_total
+            hsn = self._HSN_MAP.get(ftype, "27101990")
+            total_liters += qty
+            grand_total += amt
+            vehicle_buckets[veh]["total_liters"] += qty
+            vehicle_buckets[veh]["total_amount"] += amt
+
+            if ftype not in hsn_buckets:
+                hsn_buckets[ftype] = {
+                    "fuel_type": ftype,
+                    "hsn_code": hsn,
+                    "total_liters": Decimal("0.00"),
+                    "taxable_amount": Decimal("0.00"),
+                }
+            hsn_buckets[ftype]["total_liters"] += qty
+            hsn_buckets[ftype]["taxable_amount"] += amt
+
+            line_items.append(
+                GSTInvoiceLineItem(
+                    invoice_date=v.invoice_date,
+                    invoice_number=v.invoice_number,
+                    vehicle_number=veh,
+                    fuel_type=ftype,
+                    hsn_code=hsn,
+                    quantity_liters=qty,
+                    rate_per_liter=rate,
+                    total_amount=amt,
+                )
+            )
+
+        for v in vouchers:
+            veh = (v.vehicle_number or "UNASSIGNED").strip().upper()
+            v_items = v.items if getattr(v, "items", None) else []
+
+            if veh not in vehicle_buckets:
+                vehicle_buckets[veh] = {
+                    "vehicle_number": veh,
+                    "slip_count": 0,
+                    "total_liters": Decimal("0.00"),
+                    "total_amount": Decimal("0.00"),
+                }
+            vehicle_buckets[veh]["slip_count"] += 1
+
+            entries = v_items if v_items else [v]
+            for it in entries:
+                ftype = it.fuel_type.value if hasattr(it.fuel_type, "value") else str(it.fuel_type)
+                _record_line(
+                    v,
+                    veh,
+                    ftype,
+                    Decimal(str(it.quantity_liters or 0)),
+                    Decimal(str(it.rate_per_liter or 0)),
+                    Decimal(str(it.total_amount or 0)),
+                )
+
+        cust_code = customer.customer_code or f"CUST{customer.id:06d}"
+        invoice_number = f"GST-{year:04d}{month:02d}-{cust_code}"
+
+        return MonthlyGSTInvoiceResponse(
+            customer_uuid=customer.uuid,
+            customer_name=customer.name,
+            customer_code=customer.customer_code,
+            gst_number=customer.gst_number,
+            address=customer.address,
+            mobile=customer.mobile,
+            billing_month=billing_month,
+            invoice_number=invoice_number,
+            period_start=period_start,
+            period_end=period_end,
+            hsn_summary=[GSTInvoiceHSNSummaryRow(**row) for row in hsn_buckets.values()],
+            vehicle_subtotals=[
+                GSTInvoiceVehicleSubtotalRow(**row)
+                for row in sorted(
+                    vehicle_buckets.values(),
+                    key=lambda r: r["total_amount"],
+                    reverse=True,
+                )
+            ],
+            line_items=line_items,
+            total_liters=total_liters,
+            grand_total=grand_total,
+            slip_count=len(vouchers),
+        )

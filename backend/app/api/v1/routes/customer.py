@@ -214,4 +214,24 @@ def generate_whatsapp_digest(
     digest_service = WhatsAppDigestService()
     return digest_service.get_customer_monthly_digest(
         db, min_balance=min_balance, actor_id=current_user.id
+    )
+
+
+@router.get(
+    "/whatsapp-overdue-reminders",
+    dependencies=manager,
+)
+def get_overdue_whatsapp_reminders(
+    min_age_days: int = 15,
+    min_balance: float = 1.0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.services.whatsapp_digest_service import WhatsAppDigestService
+    digest_service = WhatsAppDigestService()
+    return digest_service.get_overdue_reminders(
+        db,
+        min_age_days=min_age_days,
+        min_balance=min_balance,
+        actor_id=current_user.id,
     )
