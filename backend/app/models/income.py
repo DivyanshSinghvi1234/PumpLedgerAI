@@ -131,6 +131,15 @@ class Income(
 
     customer = relationship("Customer")
 
+    # Optional employee link for staff salary advances, loans, or salary payouts.
+    employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id"),
+        nullable=True,
+        index=True,
+    )
+
+    employee = relationship("Employee")
+
     def __repr__(self) -> str:
         return (
             f"<Income("

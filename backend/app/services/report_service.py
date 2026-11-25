@@ -23,6 +23,8 @@ from app.schemas.report import (
     LedgerReportResponse,
     LedgerReportRow,
     MonthlyGSTInvoiceResponse,
+    PnLCategoryRow,
+    PnLReportResponse,
     VoucherReportResponse,
     VoucherReportRow,
 )
@@ -569,4 +571,123 @@ class ReportService:
             total_liters=total_liters,
             grand_total=grand_total,
             slip_count=len(vouchers),
+        )
+
+    # -----------------------------------
+    # Daily & Monthly Profit & Loss (P&L)
+    # -----------------------------------
+
+    def pnl_report(
+        self,
+        db: Session,
+        *,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> PnLReportResponse:
+        from app.core.enums import IncomeKind
+        from app.models.fuel_tank import FuelTank, TankerDelivery
+        from app.models.income import Income
+        from app.models.shift_settlement import ShiftSettlement
+
+        today = date.today()
+        start = from_date or date(today.year, today.month, 1)
+        end = to_date or today
+
+        vouchers = db.scalars(
+            select(Voucher)
+            .options(selectinload(Voucher.items))
+            .where(
+                Voucher.is_active.is_(True),
+                Voucher.invoice_date >= start,
+                Voucher.invoice_date <= end,
+            )
+        ).all()
+
+        # Latest procurement rate per fuel type
+        proc_rates: dict[str, Decimal] = {}
+        deliveries = db.execute(
+            select(TankerDelivery.procurement_rate, FuelTank.fuel_type)
+            .join(FuelTank, TankerDelivery.tank_id == FuelTank.id)
+            .where(
+                TankerDelivery.is_active.is_(True),
+                TankerDelivery.procurement_rate.is_not(None),
+                TankerDelivery.delivery_date <= end,
+            )
+            .order_by(TankerDelivery.delivery_date.desc(), TankerDelivery.id.desc())
+        ).all()
+        for proc_rate, raw_ftype in deliveries:
+            ftype = raw_ftype.value if hasattr(raw_ftype, "value") else str(raw_ftype)
+            if ftype not in proc_rates and proc_rate is not None:
+                proc_rates[ftype] = Decimal(str(proc_rate))
+
+        fuel_revenue = Decimal("0.00")
+        fuel_liters = Decimal("0.00")
+        fuel_cogs = Decimal("0.00")
+
+        for v in vouchers:
+            entries = v.items if getattr(v, "items", None) else [v]
+            for it in entries:
+                ftype = it.fuel_type.value if hasattr(it.fuel_type, "value") else str(it.fuel_type)
+                qty = Decimal(str(it.quantity_liters or 0))
+                amt = Decimal(str(it.total_amount or 0))
+                fuel_revenue += amt
+                fuel_liters += qty
+                if ftype in proc_rates:
+                    fuel_cogs += (qty * proc_rates[ftype]).quantize(Decimal("0.01"))
+
+        fuel_gross_margin = (fuel_revenue - fuel_cogs).quantize(Decimal("0.01"))
+
+        incomes = db.scalars(
+            select(Income).where(
+                Income.is_active.is_(True),
+                Income.income_date >= start,
+                Income.income_date <= end,
+            )
+        ).all()
+
+        other_income = Decimal("0.00")
+        total_expenses = Decimal("0.00")
+        cat_buckets: dict[str, Decimal] = {}
+
+        for row in incomes:
+            amt = Decimal(str(row.amount or 0))
+            if row.kind == IncomeKind.INCOME:
+                other_income += amt
+            elif row.kind == IncomeKind.EXPENSE:
+                total_expenses += amt
+                cat = (row.category or "General Expense").strip() or "General Expense"
+                cat_buckets[cat] = cat_buckets.get(cat, Decimal("0.00")) + amt
+
+        settlements = db.scalars(
+            select(ShiftSettlement).where(
+                ShiftSettlement.settlement_date >= start,
+                ShiftSettlement.settlement_date <= end,
+            )
+        ).all()
+        shift_variance = sum(
+            (Decimal(str(s.variance or 0)) for s in settlements),
+            Decimal("0.00"),
+        )
+
+        net_profit = (fuel_gross_margin + other_income - total_expenses + shift_variance).quantize(
+            Decimal("0.01")
+        )
+
+        expense_rows = [
+            PnLCategoryRow(category=k, amount=v.quantize(Decimal("0.01")))
+            for k, v in sorted(cat_buckets.items(), key=lambda kv: kv[1], reverse=True)
+        ]
+
+        return PnLReportResponse(
+            from_date=start,
+            to_date=end,
+            fuel_revenue=fuel_revenue.quantize(Decimal("0.01")),
+            fuel_liters=fuel_liters.quantize(Decimal("0.01")),
+            fuel_cogs=fuel_cogs.quantize(Decimal("0.01")),
+            fuel_gross_margin=fuel_gross_margin,
+            other_income=other_income.quantize(Decimal("0.01")),
+            total_expenses=total_expenses.quantize(Decimal("0.01")),
+            shift_variance=shift_variance.quantize(Decimal("0.01")),
+            net_profit=net_profit,
+            expense_by_category=expense_rows,
         )

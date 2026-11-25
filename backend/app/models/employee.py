@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, String
+from decimal import Decimal
+from sqlalchemy import Boolean, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
@@ -40,6 +41,18 @@ class Employee(
         String(50),
         nullable=False,
         default="OPERATOR",
+    )
+
+    base_salary: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+    )
+
+    commission_rate_per_liter: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4),
+        default=Decimal("0.0000"),
+        nullable=False,
     )
 
     is_active: Mapped[bool] = mapped_column(

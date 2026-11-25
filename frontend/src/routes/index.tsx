@@ -42,6 +42,8 @@ const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage
 const AuditLogPage = lazyWithRetry(() => import("../features/audit/AuditLogPage"));
 const UserManagementPage = lazyWithRetry(() => import("../features/users/UserManagementPage"));
 const BankAccountsPage = lazyWithRetry(() => import("../features/admin/BankAccountsPage"));
+const StaffPayrollPage = lazyWithRetry(() => import("../features/staff/StaffPayrollPage"));
+const ShiftSettlementPage = lazyWithRetry(() => import("../features/shifts/ShiftSettlementPage"));
 
 const AccessDeniedPage = lazyWithRetry(() => import("../components/auth/AccessDeniedPage"));
 const ProtectedRoute = lazyWithRetry(() => import("../components/auth/ProtectedRoute"));
@@ -140,6 +142,14 @@ const router = createBrowserRouter([
           {
             path: "bank-accounts",
             element: <SuspenseWrapper><BankAccountsPage /></SuspenseWrapper>,
+          },
+          {
+            path: "staff",
+            element: <SuspenseWrapper><StaffPayrollPage /></SuspenseWrapper>,
+          },
+          {
+            path: "shift-settlement",
+            element: <SuspenseWrapper><ShiftSettlementPage /></SuspenseWrapper>,
           },
         ],
       },

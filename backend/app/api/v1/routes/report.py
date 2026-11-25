@@ -15,6 +15,7 @@ from app.schemas.report import (
     DebtorAgingResponse,
     LedgerReportResponse,
     MonthlyGSTInvoiceResponse,
+    PnLReportResponse,
     VoucherReportResponse,
 )
 from app.services.report_service import ReportService
@@ -278,3 +279,16 @@ def monthly_gst_invoice(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+
+
+@router.get(
+    "/pnl",
+    response_model=PnLReportResponse,
+    dependencies=manager,
+)
+def pnl_report(
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return service.pnl_report(db, from_date=from_date, to_date=to_date)

@@ -216,3 +216,28 @@ class MonthlyGSTInvoiceResponse(BaseModel):
     total_liters: Decimal
     grand_total: Decimal
     slip_count: int
+
+
+# =====================================================
+# Daily & Monthly Profit & Loss (P&L)
+# =====================================================
+
+class PnLCategoryRow(BaseModel):
+
+    category: str
+    amount: Decimal
+
+
+class PnLReportResponse(BaseModel):
+
+    from_date: date
+    to_date: date
+    fuel_revenue: Decimal
+    fuel_liters: Decimal
+    fuel_cogs: Decimal
+    fuel_gross_margin: Decimal
+    other_income: Decimal
+    total_expenses: Decimal
+    shift_variance: Decimal
+    net_profit: Decimal
+    expense_by_category: list[PnLCategoryRow]

@@ -837,3 +837,89 @@ class TallyService:
             duration_ms=duration,
             warnings=warnings
         )
+
+    def generate_expenses_and_contra_xml(
+        self,
+        db: Session,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> str:
+        """Generate Tally Prime XML with Payment vouchers (expenses/salaries)
+        and Contra vouchers (cash deposits to bank)."""
+        from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
+        from app.core.enums import IncomeKind
+        from app.models.bank_account import BankTransaction
+        from app.models.income import Income
+
+        envelope = ET.Element("ENVELOPE")
+        header = ET.SubElement(envelope, "HEADER")
+        ET.SubElement(header, "TALLYREQUEST").text = "Import Data"
+        body = ET.SubElement(envelope, "BODY")
+        import_data = ET.SubElement(body, "IMPORTDATA")
+        req_desc = ET.SubElement(import_data, "REQUESTDESC")
+        ET.SubElement(req_desc, "REPORTNAME").text = "Vouchers"
+        req_data = ET.SubElement(import_data, "REQUESTDATA")
+
+        exp_query = (
+            select(Income)
+            .options(joinedload(Income.bank_account))
+            .where(Income.is_active.is_(True), Income.kind == IncomeKind.EXPENSE)
+        )
+        if from_date:
+            exp_query = exp_query.filter(Income.income_date >= from_date)
+        if to_date:
+            exp_query = exp_query.filter(Income.income_date <= to_date)
+        expenses = db.scalars(exp_query.order_by(Income.income_date.asc())).all()
+
+        def _append_voucher(vtype: str, vdate: date, narration: str, dr_ledger: str, cr_ledger: str, amt: Decimal) -> None:
+            tally_msg = ET.SubElement(req_data, "TALLYMESSAGE", {"xmlns:UDF": "TallyUDF"})
+            vch = ET.SubElement(tally_msg, "VOUCHER", {"VCHTYPE": vtype, "ACTION": "Create"})
+            ET.SubElement(vch, "DATE").text = vdate.strftime("%Y%m%d")
+            ET.SubElement(vch, "VOUCHERTYPENAME").text = vtype
+            ET.SubElement(vch, "NARRATION").text = narration
+            dr = ET.SubElement(vch, "ALLLEDGERENTRIES.LIST")
+            ET.SubElement(dr, "LEDGERNAME").text = dr_ledger
+            ET.SubElement(dr, "ISDEEMEDPOSITIVE").text = "Yes"
+            ET.SubElement(dr, "AMOUNT").text = f"-{amt:.2f}"
+            cr = ET.SubElement(vch, "ALLLEDGERENTRIES.LIST")
+            ET.SubElement(cr, "LEDGERNAME").text = cr_ledger
+            ET.SubElement(cr, "ISDEEMEDPOSITIVE").text = "No"
+            ET.SubElement(cr, "AMOUNT").text = f"{amt:.2f}"
+
+        for exp in expenses:
+            dr_name = (exp.category or "General Expense").strip() or "General Expense"
+            cr_name = exp.bank_account.account_name if exp.bank_account else "Cash"
+            _append_voucher(
+                "Payment",
+                exp.income_date,
+                exp.description,
+                dr_name,
+                cr_name,
+                Decimal(str(exp.amount)),
+            )
+
+        txn_query = (
+            select(BankTransaction)
+            .options(joinedload(BankTransaction.bank_account))
+            .where(BankTransaction.transaction_type == "DEPOSIT")
+        )
+        if from_date:
+            txn_query = txn_query.filter(BankTransaction.transaction_date >= from_date)
+        if to_date:
+            txn_query = txn_query.filter(BankTransaction.transaction_date <= to_date)
+        deposits = db.scalars(txn_query.order_by(BankTransaction.transaction_date.asc())).all()
+
+        for dep in deposits:
+            bank_name = dep.bank_account.account_name if dep.bank_account else "Bank Account"
+            _append_voucher(
+                "Contra",
+                dep.transaction_date,
+                dep.remarks or "Cash deposited to bank",
+                bank_name,
+                "Cash",
+                Decimal(str(dep.amount)),
+            )
+
+        rough = ET.tostring(envelope, encoding="unicode")
+        return minidom.parseString(rough).toprettyxml(indent="  ")

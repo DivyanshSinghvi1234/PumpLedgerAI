@@ -115,3 +115,30 @@ async def import_tally_xml(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Import failed: {str(exc)}",
         )
+
+
+@router.post(
+    "/export-ledger-vouchers",
+)
+def export_tally_expenses_and_contra(
+    from_date: date | None = None,
+    to_date: date | None = None,
+    db: Session = Depends(get_db),
+):
+    """Export Expenses (Payment vouchers) and Bank Deposits (Contra vouchers) as Tally XML."""
+    try:
+        xml_content = service.generate_expenses_and_contra_xml(db, from_date, to_date)
+        filename = f"tally_expenses_contra_{date.today().strftime('%Y%m%d')}.xml"
+        return Response(
+            content=xml_content,
+            media_type="application/xml",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate expenses/contra XML: {str(exc)}",
+        )

@@ -61,6 +61,7 @@ class IncomeCreate(IncomeBase):
     # (uuid wins if both are given). See resolve_or_create_customer.
     customer_uuid: UUID | None = None
     customer_name: str | None = Field(default=None, max_length=200)
+    employee_uuid: UUID | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -71,6 +72,8 @@ class IncomeResponse(IncomeBase):
     # Flattened from the optional linked customer (None when unlinked).
     customer_uuid: UUID | None = None
     customer_name: str | None = None
+    employee_uuid: UUID | None = None
+    employee_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,6 +88,7 @@ class IncomeResponse(IncomeBase):
             return data
 
         customer = getattr(data, "customer", None)
+        employee = getattr(data, "employee", None)
 
         return {
             "uuid": data.uuid,
@@ -102,6 +106,8 @@ class IncomeResponse(IncomeBase):
             "items": getattr(data, "items", None),
             "customer_uuid": customer.uuid if customer else None,
             "customer_name": customer.name if customer else None,
+            "employee_uuid": employee.uuid if employee else None,
+            "employee_name": employee.full_name if employee else None,
         }
 
 

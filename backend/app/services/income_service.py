@@ -101,6 +101,13 @@ class IncomeService:
                 )
                 db.add(txn)
 
+        employee = None
+        if getattr(data, "employee_uuid", None):
+            from app.models.employee import Employee
+            employee = db.scalars(
+                select(Employee).where(Employee.uuid == str(data.employee_uuid))
+            ).first()
+
         income = Income(
             kind=data.kind,
             income_date=data.income_date,
@@ -116,6 +123,7 @@ class IncomeService:
             is_amount_mismatch=is_mismatch,
             items=items_dict,
             customer_id=customer.id if customer else None,
+            employee_id=employee.id if employee else None,
         )
 
 
@@ -141,6 +149,25 @@ class IncomeService:
             )
         else:
             income = self.repository.create(db, income)
+
+        if employee is not None and data.kind == IncomeKind.EXPENSE:
+            from app.models.staff_ledger_entry import StaffLedgerEntry
+
+            cat_or_desc = f"{data.category or ''} {data.description}".lower()
+            entry_type = "LOAN" if "loan" in cat_or_desc else "ADVANCE"
+            staff_entry = StaffLedgerEntry(
+                employee_id=employee.id,
+                entry_date=data.income_date,
+                entry_type=entry_type,
+                amount=data.amount,
+                signed_amount=data.amount,
+                remarks=f"{entry_type.title()} — {income.description}",
+                reference_type="INCOME",
+                reference_id=income.id,
+                pump_id=income.pump_id,
+            )
+            db.add(staff_entry)
+            db.commit()
 
         self.audit_service.log_action(
             db,

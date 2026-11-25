@@ -72,6 +72,18 @@ const menuItems: MenuGroup[] = [
         icon: Coins,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
+      {
+        title: "Staff & Payroll",
+        path: "/dashboard/staff",
+        icon: UserCog,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
+        title: "8 PM Settlement",
+        path: "/dashboard/shift-settlement",
+        icon: Wallet,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
     ],
   },
   {

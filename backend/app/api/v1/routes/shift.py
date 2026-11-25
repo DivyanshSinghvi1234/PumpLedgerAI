@@ -1,11 +1,21 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_current_user, get_db, require_roles
 from app.core.enums import UserRole
-from app.schemas.shift import ShiftStart, ShiftEnd, ShiftResponse
+from app.models.user import User
+from app.schemas.shift import (
+    SettleDigitalRequest,
+    ShiftEnd,
+    ShiftResponse,
+    ShiftSettlementCreate,
+    ShiftSettlementDefaultsResponse,
+    ShiftSettlementResponse,
+    ShiftStart,
+)
 from app.schemas.shift_timetable import ShiftTimetableCreate, ShiftTimetableResponse, ShiftTimetableUpdate
 from app.schemas.user import UserCreate, UserResponse
 from app.services.shift_service import ShiftService
@@ -214,4 +224,68 @@ def delete_timetable(
         raise HTTPException(status_code=404, detail="Schedule slot not found")
     db.delete(slot)
     db.commit()
+
+
+# ======================================================
+# 8:00 PM Daily Shift Settlements
+# ======================================================
+
+@router.get(
+    "/settlements/defaults",
+    response_model=ShiftSettlementDefaultsResponse,
+)
+def get_settlement_defaults(
+    settlement_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return service.get_settlement_defaults(db, settlement_date or date.today())
+
+
+@router.get(
+    "/settlements",
+    response_model=list[ShiftSettlementResponse],
+)
+def list_settlements(
+    db: Session = Depends(get_db),
+):
+    return service.list_settlements(db)
+
+
+@router.post(
+    "/settlements",
+    response_model=ShiftSettlementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_settlement(
+    data: ShiftSettlementCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return service.create_settlement(db, data, actor_id=current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/settlements/{uuid}/settle-digital",
+    response_model=ShiftSettlementResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def settle_digital_batch(
+    uuid: str,
+    data: SettleDigitalRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return service.settle_digital(
+            db,
+            settlement_uuid=uuid,
+            bank_account_uuid=str(data.bank_account_uuid),
+            settled_date=data.settled_date,
+            actor_id=current_user.id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -1,15 +1,27 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db, require_roles
+from app.core.dependencies import get_current_user, get_db, require_roles
 from app.core.enums import UserRole
 from app.core.exceptions import (
     DuplicateEmployeeEmailError,
     EmployeeNotFoundError,
 )
-from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.models.user import User
+from app.schemas.employee import (
+    EmployeeCreate,
+    EmployeeResponse,
+    EmployeeUpdate,
+    StaffLedgerEntryCreate,
+    StaffLedgerEntryResponse,
+    StaffLedgerSummaryResponse,
+    StaffPayrollPayRequest,
+    StaffPayrollPayResponse,
+    StaffPayrollPreviewResponse,
+)
 from app.services.employee_service import EmployeeService
 
 router = APIRouter(prefix="/employees", tags=["Employee Management"])
@@ -45,6 +57,20 @@ def create_employee(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+@router.get(
+    "/payroll/preview",
+    response_model=StaffPayrollPreviewResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def preview_payroll(
+    month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+):
+    """Preview monthly salary, commission, advances/shortage deductions, and net pay."""
+    billing_month = month or date.today().strftime("%Y-%m")
+    return service.payroll_preview(db, billing_month)
 
 
 @router.put(
@@ -84,6 +110,68 @@ def delete_employee(
     """Soft-delete an employee profile."""
     try:
         service.delete(db, uuid)
+    except EmployeeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{uuid}/ledger",
+    response_model=StaffLedgerSummaryResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def get_employee_ledger(
+    uuid: str,
+    db: Session = Depends(get_db),
+):
+    """Get an employee's advance/loan/shortage balance and ledger entries."""
+    try:
+        return service.get_ledger(db, uuid)
+    except EmployeeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{uuid}/ledger",
+    response_model=StaffLedgerEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def record_employee_ledger_entry(
+    uuid: str,
+    data: StaffLedgerEntryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Record an advance, loan, shift shortage, commission, or repayment for an employee."""
+    try:
+        return service.record_ledger_entry(db, uuid, data, actor_id=current_user.id)
+    except EmployeeNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{uuid}/pay-salary",
+    response_model=StaffPayrollPayResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def pay_employee_salary(
+    uuid: str,
+    data: StaffPayrollPayRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Settle monthly salary, auto-deduct advances/shortages, and record expense."""
+    try:
+        return service.pay_salary(db, uuid, data, actor_id=current_user.id)
     except EmployeeNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
