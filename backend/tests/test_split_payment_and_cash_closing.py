@@ -79,7 +79,7 @@ def test_split_payment_and_cash_in_day_closing(client, auth_headers):
 
     # 4. Verify Day Closing expected_cash includes the 3,000 cash part
     close_res = client.post(
-        f"{P}/day-closing",
+        f"{P}/day-closings",
         headers=auth_headers,
         json={
             "closing_date": test_day.isoformat(),
