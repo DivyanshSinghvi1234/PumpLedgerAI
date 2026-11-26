@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Menu, Building2, Calculator, Search, Fuel, X } from "lucide-react";
+import { LogOut, Menu, Building2, Calculator, Search, Fuel, X, HelpCircle } from "lucide-react";
 
 import { logout } from "../../features/auth/services/authService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { InstructorDrawer } from "@/features/guide/InstructorDrawer";
 import api from "@/api/client";
 import { formatCurrency } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
   const { lang, toggleLang, t } = useLanguage();
   const [lookupQuery, setLookupQuery] = useState("");
   const [cashCalcOpen, setCashCalcOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [calcNotes, setCalcNotes] = useState({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
 
   const { data: tanks = [] } = useQuery({
@@ -218,6 +220,17 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
             </div>
           )}
 
+          {/* Interactive Instructor / Tutorial Guide */}
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="inline-flex items-center gap-1 rounded-lg border border-fuel-amber/40 bg-fuel-amber/10 px-2.5 py-1.5 text-xs font-bold text-fuel-amber hover:bg-fuel-amber/20 transition cursor-pointer"
+            title={lang === "hi" ? "इंटरैक्टिव गाइड खोलें" : "Open Interactive Tutorial & Guide"}
+          >
+            <HelpCircle size={14} />
+            <span className="hidden sm:inline">{lang === "hi" ? "गाइड" : "Guide"}</span>
+          </button>
+
           {/* Language Switcher: English / हिन्दी */}
           <button
             type="button"
@@ -238,6 +251,7 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
             <span className="hidden sm:inline">{t("Logout")}</span>
           </button>
         </div>
+      <InstructorDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
     </header>
   );
 }
