@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
+import TableExportButton from "@/components/common/TableExportButton";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 
@@ -87,7 +88,7 @@ export default function PaymentListPage() {
   }
 
   if (isLoading) {
-    return <LoadingState />;
+    return <LoadingState variant="table" />;
   }
 
   if (isError) {
@@ -101,6 +102,19 @@ export default function PaymentListPage() {
       <PageHeader
         title="Payments"
         description="Receive and track customer payments."
+        action={
+          <TableExportButton
+            filename="payments"
+            rows={data?.items ?? []}
+            columns={[
+              { header: "Date", accessor: (p) => p.payment_date },
+              { header: "Customer", accessor: (p) => p.customer_name },
+              { header: "Mode", accessor: (p) => p.payment_mode },
+              { header: "Amount", accessor: (p) => p.amount },
+              { header: "Reference", accessor: (p) => p.reference_number },
+            ]}
+          />
+        }
       />
 
       <PaymentToolbar

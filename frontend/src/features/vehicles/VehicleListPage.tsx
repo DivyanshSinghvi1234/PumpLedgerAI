@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
+import TableExportButton from "@/components/common/TableExportButton";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 
@@ -91,7 +92,7 @@ export default function VehicleListPage() {
   }
 
   if (isLoading) {
-    return <LoadingState />;
+    return <LoadingState variant="table" />;
   }
 
   if (isError) {
@@ -105,6 +106,18 @@ export default function VehicleListPage() {
       <PageHeader
         title="Vehicles"
         description="Manage customer vehicles."
+        action={
+          <TableExportButton
+            filename="vehicles"
+            rows={data?.items ?? []}
+            columns={[
+              { header: "Vehicle Number", accessor: (v) => v.vehicle_number },
+              { header: "Vehicle Type", accessor: (v) => v.vehicle_type },
+              { header: "Customer", accessor: (v) => v.customer_name },
+              { header: "Outstanding", accessor: (v) => v.outstanding_balance },
+            ]}
+          />
+        }
       />
 
       <VehicleToolbar

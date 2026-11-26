@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
+import TableExportButton from "@/components/common/TableExportButton";
 
 import CustomerToolbar from "./components/CustomerToolbar";
 import CustomerTable from "./components/CustomerTable";
@@ -117,7 +118,7 @@ export default function CustomerListPage() {
   }
 
   if (isLoading) {
-    return <LoadingState />;
+    return <LoadingState variant="table" />;
   }
 
   if (isError) {
@@ -132,13 +133,26 @@ export default function CustomerListPage() {
         title="Customers"
         description="Manage petrol pump customers."
         action={
-          <button
-            onClick={() => setDigestOpen(true)}
-            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3.5 py-2 cursor-pointer transition-colors flex items-center gap-2 text-xs font-bold"
-          >
-            <MessageCircle size={16} />
-            Monthly WhatsApp Digest
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <TableExportButton
+              filename="customers"
+              rows={data?.items ?? []}
+              columns={[
+                { header: "Name", accessor: (c) => c.name },
+                { header: "Mobile", accessor: (c) => c.mobile },
+                { header: "Email", accessor: (c) => c.email },
+                { header: "GSTIN", accessor: (c) => c.gst_number },
+                { header: "Outstanding Balance", accessor: (c) => c.outstanding_balance },
+              ]}
+            />
+            <button
+              onClick={() => setDigestOpen(true)}
+              className="rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-3.5 py-2 cursor-pointer transition-colors flex items-center gap-2 text-xs font-bold"
+            >
+              <MessageCircle size={16} />
+              Monthly WhatsApp Digest
+            </button>
+          </div>
         }
       />
 

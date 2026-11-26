@@ -229,7 +229,7 @@ export default function AppLayout() {
             </div>
           )}
 
-          <div className="relative z-10 animate-fade-in-up pb-20 md:pb-0">
+          <div key={location.pathname} className="relative z-10 page-enter pb-20 md:pb-0">
             <Outlet />
           </div>
         </main>

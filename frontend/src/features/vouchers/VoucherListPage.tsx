@@ -6,6 +6,7 @@ import type { LubricantItem } from "@/features/inventory/components/LubricantsTa
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import EmptyState from "@/components/common/EmptyState";
+import TableExportButton from "@/components/common/TableExportButton";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 
@@ -144,7 +145,7 @@ export default function VoucherListPage() {
   }
 
   if (isLoading) {
-    return <LoadingState />;
+    return <LoadingState variant="table" />;
   }
 
   if (isError) {
@@ -161,6 +162,24 @@ export default function VoucherListPage() {
       <PageHeader
         title="Vouchers"
         description="Manage all fuel vouchers."
+        action={
+          <TableExportButton
+            filename="vouchers"
+            rows={data?.items ?? []}
+            columns={[
+              { header: "Invoice #", accessor: (v) => v.invoice_number },
+              { header: "Date", accessor: (v) => v.invoice_date },
+              { header: "Customer", accessor: (v) => v.customer_name },
+              { header: "Vehicle", accessor: (v) => v.vehicle_number },
+              { header: "Fuel", accessor: (v) => v.fuel_type },
+              { header: "Liters", accessor: (v) => v.quantity_liters },
+              { header: "Rate", accessor: (v) => v.rate_per_liter },
+              { header: "Total Amount", accessor: (v) => v.total_amount },
+              { header: "Payment Mode", accessor: (v) => v.payment_mode },
+              { header: "Status", accessor: (v) => v.verification_status },
+            ]}
+          />
+        }
       />
 
       <VoucherToolbar
