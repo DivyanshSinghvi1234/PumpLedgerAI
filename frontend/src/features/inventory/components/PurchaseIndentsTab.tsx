@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiAccountSelect from "@/components/common/UpiAccountSelect";
 import inventoryService from "../services/inventoryService";
 import type {
   PurchaseIndent,
@@ -37,6 +38,9 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
   const [orderedLiters, setOrderedLiters] = useState("");
   const [expectedDate, setExpectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [procurementCost, setProcurementCost] = useState("");
+  const [createPaymentMode, setCreatePaymentMode] = useState<"CREDIT" | "BANK" | "UPI">("CREDIT");
+  const [createBankUuid, setCreateBankUuid] = useState("");
+  const [createUpiUuid, setCreateUpiUuid] = useState("");
   const [createRemarks, setCreateRemarks] = useState("");
 
   // Form Fields - Dispatch
@@ -367,6 +371,8 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
                 ordered_liters: qty,
                 expected_delivery_date: expectedDate,
                 procurement_cost_per_liter: cost,
+                payment_mode: createPaymentMode,
+                bank_account_uuid: createPaymentMode !== "CREDIT" && createBankUuid ? createBankUuid : undefined,
                 remarks: createRemarks.trim() || undefined,
               });
             }}
@@ -453,6 +459,50 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-ink-muted">Payment Mode</Label>
+                <select
+                  value={createPaymentMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as "CREDIT" | "BANK" | "UPI";
+                    setCreatePaymentMode(mode);
+                    if (mode === "CREDIT") {
+                      setCreateBankUuid("");
+                      setCreateUpiUuid("");
+                    }
+                  }}
+                  className="w-full bg-surface-2 border border-hairline rounded-md px-3 py-2 text-xs text-ink outline-none"
+                >
+                  <option value="CREDIT">OMC Credit (Pay on Delivery)</option>
+                  <option value="BANK">Bank Transfer (Pre-pay Now)</option>
+                  <option value="UPI">UPI (Pre-pay Now)</option>
+                </select>
+              </div>
+              <BankAccountSelect
+                value={createBankUuid}
+                onChange={(uuid) => {
+                  setCreateBankUuid(uuid);
+                  if (uuid && createPaymentMode === "CREDIT") {
+                    setCreatePaymentMode("BANK");
+                  }
+                }}
+                label="Pre-pay From Bank (Optional)"
+              />
+            </div>
+
+            {createPaymentMode === "UPI" && (
+              <UpiAccountSelect
+                value={createUpiUuid}
+                onChange={(upiUuid, linkedBankUuid) => {
+                  setCreateUpiUuid(upiUuid);
+                  if (linkedBankUuid) {
+                    setCreateBankUuid(linkedBankUuid);
+                  }
+                }}
+              />
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-ink-muted">Remarks <span className="font-normal text-ink-subtle">(optional)</span></Label>

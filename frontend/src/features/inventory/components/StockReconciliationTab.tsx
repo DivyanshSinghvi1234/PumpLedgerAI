@@ -14,6 +14,7 @@ import api from "@/api/client";
 import type { FuelType, FuelTankCreate, DipReadingCreate, TankTransferCreate } from "../types";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
 import UpiAccountSelect from "@/components/common/UpiAccountSelect";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
 import TankVisualization from "./TankVisualization";
 
 
@@ -56,6 +57,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [stockPaymentMode, setStockPaymentMode] = useState<string>("CREDIT");
   const [stockBankUuid, setStockBankUuid] = useState<string>("");
   const [stockUpiUuid, setStockUpiUuid] = useState<string>("");
+  const [reverseDeliveryUuid, setReverseDeliveryUuid] = useState<string | null>(null);
   const [stockIgnoreCapacity, setStockIgnoreCapacity] = useState(false);
 
   // Inter-Tank Transfer states
@@ -847,11 +849,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                             <button
                               type="button"
                               disabled={deleteDeliveryMutation.isPending}
-                              onClick={() => {
-                                if (window.confirm("Reverse this delivery? Stock, expense, and bank debit will be rolled back.")) {
-                                  deleteDeliveryMutation.mutate(d.uuid);
-                                }
-                              }}
+                              onClick={() => setReverseDeliveryUuid(d.uuid)}
                               className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
                             >
                               Reverse
@@ -1536,6 +1534,23 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(reverseDeliveryUuid)}
+        onOpenChange={(open) => {
+          if (!open) setReverseDeliveryUuid(null);
+        }}
+        title="Reverse Tanker Delivery"
+        description="Reverse this delivery? Tank stock, procurement expense, and any linked bank debit will be rolled back."
+        confirmLabel="Reverse Delivery"
+        loading={deleteDeliveryMutation.isPending}
+        onConfirm={() => {
+          if (reverseDeliveryUuid) {
+            deleteDeliveryMutation.mutate(reverseDeliveryUuid);
+            setReverseDeliveryUuid(null);
+          }
+        }}
+      />
     </div>
   );
 }

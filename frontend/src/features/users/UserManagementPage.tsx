@@ -17,6 +17,7 @@ import api, { extractApiError } from "@/api/client";
 import userService from "./services/userService";
 
 import UserDialog from "./components/UserDialog";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
 import StationBrandingDialog from "@/features/settings/components/StationBrandingDialog";
 import { useUserList } from "./hooks/useUserList";
 
@@ -47,6 +48,7 @@ export default function UserManagementPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [brandingOpen, setBrandingOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User>();
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   const pageError = isError
     ? extractApiError(queryError, "Failed to load users.")
@@ -75,16 +77,20 @@ export default function UserManagementPage() {
   }
 
   /* ---- User Deletion ---- */
-  async function handleDelete(user: User) {
-    if (!window.confirm(`Are you sure you want to permanently delete user "${user.username}"?`)) {
-      return;
-    }
+  function handleDelete(user: User) {
+    setDeletingUser(user);
+  }
+
+  async function confirmDeleteUser() {
+    if (!deletingUser) return;
     try {
-      await userService.deleteUser(user.uuid);
+      await userService.deleteUser(deletingUser.uuid);
       toast.success("User deleted successfully.");
       queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch (err) {
       toast.error(extractApiError(err, "Failed to delete user."));
+    } finally {
+      setDeletingUser(null);
     }
   }
 
@@ -340,6 +346,16 @@ export default function UserManagementPage() {
       <StationBrandingDialog
         open={brandingOpen}
         onOpenChange={setBrandingOpen}
+      />
+      <ConfirmDialog
+        open={Boolean(deletingUser)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingUser(null);
+        }}
+        title="Delete User"
+        description={`Are you sure you want to permanently delete user "${deletingUser?.username ?? ""}"?`}
+        confirmLabel="Delete User"
+        onConfirm={confirmDeleteUser}
       />
     </div>
   );

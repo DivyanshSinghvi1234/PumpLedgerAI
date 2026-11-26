@@ -715,3 +715,107 @@ class BankAccountService:
             actor_id=actor_id,
             old_values={"name": upi.name, "provider": upi.provider},
         )
+
+    def get_upi_collection_summary(self, db: Session, pump_id: int, on_date: date) -> dict:
+        """Aggregate UPI receipts for a given date grouped by UPI handle / linked bank."""
+        upi_accounts = db.scalars(
+            select(UpiAccount)
+            .where(UpiAccount.pump_id == pump_id, UpiAccount.is_active.is_(True))
+            .order_by(UpiAccount.id.asc())
+        ).all()
+
+        # Bucket key -> {upi_uuid, name, provider, bank_name, bank_account_name, amount, txn_count}
+        buckets: dict[str, dict] = {}
+        bank_to_upi: dict[int, UpiAccount] = {}
+        for u in upi_accounts:
+            buckets[u.uuid] = {
+                "upi_uuid": u.uuid,
+                "name": u.name,
+                "provider": u.provider,
+                "bank_name": u.bank_account.bank_name if u.bank_account else "",
+                "bank_account_name": u.bank_account.account_name if u.bank_account else "",
+                "amount": Decimal("0.00"),
+                "txn_count": 0,
+            }
+            bank_to_upi.setdefault(u.bank_account_id, u)
+
+        unassigned = {
+            "upi_uuid": "unassigned",
+            "name": "General / Unassigned UPI",
+            "provider": "UPI",
+            "bank_name": "",
+            "bank_account_name": "",
+            "amount": Decimal("0.00"),
+            "txn_count": 0,
+        }
+
+        def _credit(bucket_key: str | None, amt: Decimal) -> None:
+            if amt <= Decimal("0.00"):
+                return
+            target = buckets[bucket_key] if bucket_key and bucket_key in buckets else unassigned
+            target["amount"] += amt
+            target["txn_count"] += 1
+
+        # 1. Vouchers (UPI or SPLIT upi_amount)
+        vouchers = db.scalars(
+            select(Voucher).where(
+                Voucher.pump_id == pump_id,
+                Voucher.invoice_date == on_date,
+                Voucher.is_active.is_(True),
+                Voucher.payment_mode.in_([PaymentMode.UPI, PaymentMode.SPLIT]),
+            )
+        ).all()
+        for v in vouchers:
+            amt = (
+                Decimal(str(v.total_amount or "0.00"))
+                if v.payment_mode == PaymentMode.UPI
+                else Decimal(str(v.upi_amount or "0.00"))
+            )
+            matched_upi = bank_to_upi.get(v.bank_account_id) if v.bank_account_id else None
+            _credit(matched_upi.uuid if matched_upi else None, amt)
+
+        # 2. Customer Payments (UPI or SPLIT bank_amount)
+        payments = db.scalars(
+            select(Payment).where(
+                Payment.pump_id == pump_id,
+                Payment.payment_date == on_date,
+                Payment.is_active.is_(True),
+                Payment.payment_mode.in_([PaymentMode.UPI, PaymentMode.SPLIT]),
+            )
+        ).all()
+        for p in payments:
+            amt = (
+                Decimal(str(p.amount or "0.00"))
+                if p.payment_mode == PaymentMode.UPI
+                else Decimal(str(p.bank_amount or "0.00"))
+            )
+            ref = (p.reference_number or "").strip()
+            matched_upi = next(
+                (u for u in upi_accounts if ref.startswith(f"{u.provider}:{u.name}")),
+                None,
+            )
+            if matched_upi is None and p.bank_account_id:
+                matched_upi = bank_to_upi.get(p.bank_account_id)
+            _credit(matched_upi.uuid if matched_upi else None, amt)
+
+        items = [
+            {
+                **b,
+                "amount": float(b["amount"].quantize(Decimal("0.01"))),
+            }
+            for b in buckets.values()
+        ]
+        if unassigned["txn_count"] > 0 or not items:
+            items.append(
+                {
+                    **unassigned,
+                    "amount": float(unassigned["amount"].quantize(Decimal("0.01"))),
+                }
+            )
+
+        total_upi = round(sum(i["amount"] for i in items), 2)
+        return {
+            "date": on_date.isoformat(),
+            "total_upi": total_upi,
+            "items": items,
+        }

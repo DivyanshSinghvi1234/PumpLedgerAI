@@ -23,6 +23,7 @@ interface Props {
   canManage?: boolean;
   onEdit(voucher: Voucher): void;
   onDelete(voucher: Voucher): void;
+  onSettle?(voucher: Voucher): void;
 }
 
 export default function VoucherTable({
@@ -30,6 +31,7 @@ export default function VoucherTable({
   canManage = true,
   onEdit,
   onDelete,
+  onSettle,
 }: Props) {
 
   const [imageVoucher, setImageVoucher] =
@@ -146,6 +148,16 @@ export default function VoucherTable({
 
             <TableCell>
               <div className="flex items-center gap-2">
+                {canManage && onSettle && voucher.payment_status !== "PAID" && (
+                  <button
+                    type="button"
+                    onClick={() => onSettle(voucher)}
+                    className="inline-flex items-center justify-center rounded-lg text-xs font-semibold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 h-8 px-2.5 transition-colors cursor-pointer"
+                    title="Settle this voucher now"
+                  >
+                    Settle
+                  </button>
+                )}
                 {voucher.customer_mobile && (
                   <a
                     href={`https://wa.me/${voucher.customer_mobile.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(

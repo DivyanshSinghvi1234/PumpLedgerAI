@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
 import api from "@/api/client";
 
@@ -75,6 +76,12 @@ export default function BankAccountsPage() {
   const [upiProvider, setUpiProvider] = useState("PHONEPE");
   const [upiId, setUpiId] = useState("");
   const [upiBankUuid, setUpiBankUuid] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const { data: upiAccounts } = useQuery({
     queryKey: ["upi-accounts"],
@@ -480,11 +487,17 @@ export default function BankAccountsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        if (window.confirm(`Delete bank account "${acc.account_name}"?`)) {
-                          deleteBankMutation.mutate(acc.uuid);
-                        }
-                      }}
+                      onClick={() =>
+                        setConfirmAction({
+                          title: "Delete Bank Account",
+                          description: `Deactivate "${acc.account_name}" (${acc.bank_name})? Existing transaction history will remain in the audit log.`,
+                          confirmLabel: "Delete Bank",
+                          onConfirm: () => {
+                            deleteBankMutation.mutate(acc.uuid);
+                            setConfirmAction(null);
+                          },
+                        })
+                      }
                       className="h-8 text-xs border-hairline text-rose-400 hover:bg-rose-500/10 cursor-pointer"
                     >
                       <Trash2 size={13} className="mr-1" /> Delete
@@ -572,11 +585,17 @@ export default function BankAccountsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      if (window.confirm(`Delete UPI account "${u.name}"?`)) {
-                        deleteUpiMutation.mutate(u.uuid);
-                      }
-                    }}
+                    onClick={() =>
+                      setConfirmAction({
+                        title: "Delete UPI Account",
+                        description: `Remove UPI handle "${u.name}" (${u.provider})?`,
+                        confirmLabel: "Delete UPI",
+                        onConfirm: () => {
+                          deleteUpiMutation.mutate(u.uuid);
+                          setConfirmAction(null);
+                        },
+                      })
+                    }
                     className="h-8 text-xs border-hairline text-rose-400 hover:bg-rose-500/10 cursor-pointer"
                   >
                     <Trash2 size={13} className="mr-1" /> Delete
@@ -643,11 +662,17 @@ export default function BankAccountsPage() {
                         <button
                           type="button"
                           disabled={reverseTxnMutation.isPending}
-                          onClick={() => {
-                            if (window.confirm("Reverse this bank transaction and restore the account balance?")) {
-                              reverseTxnMutation.mutate(t.uuid);
-                            }
-                          }}
+                          onClick={() =>
+                            setConfirmAction({
+                              title: "Reverse Bank Transaction",
+                              description: `Reverse ${t.transaction_type} of ${formatCurrency(t.amount)} and restore the bank account balance?`,
+                              confirmLabel: "Reverse Transaction",
+                              onConfirm: () => {
+                                reverseTxnMutation.mutate(t.uuid);
+                                setConfirmAction(null);
+                              },
+                            })
+                          }
                           className="text-[11px] font-semibold text-rose-500 hover:underline cursor-pointer"
                         >
                           Reverse
@@ -1245,6 +1270,17 @@ export default function BankAccountsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+        title={confirmAction?.title || "Confirm"}
+        description={confirmAction?.description || ""}
+        confirmLabel={confirmAction?.confirmLabel || "Confirm"}
+        onConfirm={() => confirmAction?.onConfirm()}
+      />
     </div>
   );
 }

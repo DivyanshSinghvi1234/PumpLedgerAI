@@ -28,6 +28,7 @@ const DashboardPage = lazyWithRetry(() => import("../features/dashboard/Dashboar
 const UploadPage = lazyWithRetry(() => import("../features/upload/UploadPage"));
 const OCRReviewPage = lazyWithRetry(() => import("../features/review/OCRReviewPage"));
 const VoucherListPage = lazyWithRetry(() => import("../features/vouchers/VoucherListPage"));
+const QuickEntryPage = lazyWithRetry(() => import("../features/vouchers/QuickEntryPage"));
 const CustomerListPage = lazyWithRetry(() => import("../features/customers/CustomerListPage"));
 const VehicleListPage = lazyWithRetry(() => import("../features/vehicles/VehicleListPage"));
 const VehicleLedgerPage = lazyWithRetry(() => import("../features/vehicles/VehicleLedgerPage"));
@@ -87,6 +88,10 @@ const router = createBrowserRouter([
       {
         path: "vouchers",
         element: <SuspenseWrapper><VoucherListPage /></SuspenseWrapper>,
+      },
+      {
+        path: "quick-entry",
+        element: <SuspenseWrapper><QuickEntryPage /></SuspenseWrapper>,
       },
       {
         path: "access-denied",

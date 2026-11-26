@@ -9,6 +9,7 @@ import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import PaymentToolbar from "./components/PaymentToolbar";
 import PaymentTable from "./components/PaymentTable";
 import ReceivePaymentDialog from "./components/ReceivePaymentDialog";
+import BulkPaymentDialog from "./components/BulkPaymentDialog";
 import DeletePaymentDialog from "./components/DeletePaymentDialog";
 
 import { usePaymentList } from "./hooks/usePaymentList";
@@ -25,6 +26,7 @@ export default function PaymentListPage() {
   const [page, setPage] = useState(1);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [selectedPayment, setSelectedPayment] =
@@ -97,6 +99,7 @@ export default function PaymentListPage() {
       <PaymentToolbar
         canCreate={canManage}
         onCreate={handleCreate}
+        onBulkCreate={() => setBulkOpen(true)}
         onSearch={(value) => {
           setSearch(value);
           setPage(1);
@@ -141,6 +144,11 @@ export default function PaymentListPage() {
             open={dialogOpen}
             onOpenChange={setDialogOpen}
             customerOptions={customerOptions}
+          />
+
+          <BulkPaymentDialog
+            open={bulkOpen}
+            onOpenChange={setBulkOpen}
           />
 
           <DeletePaymentDialog

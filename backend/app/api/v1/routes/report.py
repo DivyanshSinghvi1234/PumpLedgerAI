@@ -292,3 +292,15 @@ def pnl_report(
     db: Session = Depends(get_db),
 ):
     return service.pnl_report(db, from_date=from_date, to_date=to_date)
+
+
+@router.get(
+    "/cash-flow",
+    dependencies=manager,
+)
+def cash_flow_report(
+    from_date: date | None = Query(default=None),
+    to_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return service.cash_flow_report(db, from_date=from_date, to_date=to_date)

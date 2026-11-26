@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import api from "@/api/client";
 import PageHeader from "@/components/common/PageHeader";
+import UpiCollectionBreakdown from "@/components/common/UpiCollectionBreakdown";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import ShiftHandoverPanel from "./components/ShiftHandoverPanel";
 import staffService from "@/features/staff/services/staffService";
@@ -449,6 +450,7 @@ export default function ShiftSettlementPage() {
               <input type="number" value={cashNextShift} onChange={(e) => setCashNextShift(e.target.value)} className="mt-1 w-full rounded border border-border bg-background px-3 py-1.5 font-mono" />
             </div>
           </div>
+          <UpiCollectionBreakdown date={settlementDate} />
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">

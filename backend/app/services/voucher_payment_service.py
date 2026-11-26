@@ -296,6 +296,9 @@ class VoucherPaymentService:
         while still posting a single PAYMENT entry to the shared customer ledger.
         Returns the created Payment with all voucher settlements.
         """
+        from app.services.day_closing_service import DayClosingService
+        DayClosingService.ensure_day_open(db, payment_date)
+
         from app.common.normalization import normalize_vehicle_number
         from app.models.vehicle import Vehicle
 

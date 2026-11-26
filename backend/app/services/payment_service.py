@@ -36,6 +36,9 @@ class PaymentService:
         actor_id: int | None = None,
     ) -> Payment:
 
+        from app.services.day_closing_service import DayClosingService
+        DayClosingService.ensure_day_open(db, data.payment_date)
+
         customer = self.customer_repository.get_by_uuid(
             db,
             str(data.customer_uuid),
@@ -195,6 +198,9 @@ class PaymentService:
                 payment_uuid,
             )
 
+        from app.services.day_closing_service import DayClosingService
+        DayClosingService.ensure_day_open(db, payment.payment_date)
+
         return payment
 
     # -----------------------------------
@@ -217,6 +223,9 @@ class PaymentService:
             raise PaymentNotFoundError(
                 payment_uuid,
             )
+
+        from app.services.day_closing_service import DayClosingService
+        DayClosingService.ensure_day_open(db, payment.payment_date)
 
         # Capture old values for audit log
         old_values = {

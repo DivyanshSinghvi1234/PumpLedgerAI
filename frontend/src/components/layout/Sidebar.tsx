@@ -20,6 +20,7 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronRight,
+  Zap,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -48,6 +49,7 @@ const menuItems: MenuGroup[] = [
     section: "Daily Routine",
     items: [
       { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { title: "Quick Entry", path: "/dashboard/quick-entry", icon: Zap },
       { title: "Upload Invoice", path: "/dashboard/upload", icon: Upload },
       { title: "Vouchers", path: "/dashboard/vouchers", icon: FileText },
       {

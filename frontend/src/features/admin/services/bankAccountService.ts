@@ -115,6 +115,29 @@ class BankAccountService {
   async deleteUpiAccount(uuid: string): Promise<void> {
     await api.delete(`/v1/bank-accounts/upi/${uuid}`);
   }
+
+  async getUpiCollectionSummary(onDate: string): Promise<UpiCollectionSummary> {
+    const res = await api.get<UpiCollectionSummary>("/v1/bank-accounts/upi-summary", {
+      params: { on_date: onDate },
+    });
+    return res.data;
+  }
+}
+
+export interface UpiCollectionItem {
+  upi_uuid: string;
+  name: string;
+  provider: string;
+  bank_name: string;
+  bank_account_name: string;
+  amount: number;
+  txn_count: number;
+}
+
+export interface UpiCollectionSummary {
+  date: string;
+  total_upi: number;
+  items: UpiCollectionItem[];
 }
 
 export interface UpiAccount {

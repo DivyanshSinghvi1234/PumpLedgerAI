@@ -691,3 +691,103 @@ class ReportService:
             net_profit=net_profit,
             expense_by_category=expense_rows,
         )
+
+    def cash_flow_report(
+        self,
+        db: Session,
+        *,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> dict:
+        """One-screen Money In vs. Money Out summary across Cash and Bank."""
+        from sqlalchemy import func
+        from app.models.payment import Payment
+        from app.models.income import Income
+        from app.core.enums import IncomeKind, PaymentMode
+
+        today = date.today()
+        start = from_date or date(today.year, today.month, 1)
+        end = to_date or today
+
+        # Money In
+        vouchers = db.scalars(
+            select(Voucher).where(
+                Voucher.is_active.is_(True),
+                Voucher.invoice_date >= start,
+                Voucher.invoice_date <= end,
+            )
+        ).all()
+
+        cash_sales = Decimal("0.00")
+        digital_sales = Decimal("0.00")
+        for v in vouchers:
+            if v.payment_mode == PaymentMode.CASH:
+                cash_sales += Decimal(str(v.total_amount or "0.00"))
+            elif v.payment_mode in (PaymentMode.UPI, PaymentMode.CARD, PaymentMode.BANK):
+                digital_sales += Decimal(str(v.total_amount or "0.00"))
+            elif v.payment_mode == PaymentMode.SPLIT:
+                cash_sales += Decimal(str(v.cash_amount or "0.00"))
+                digital_sales += Decimal(str(v.upi_amount or "0.00")) + Decimal(str(v.card_amount or "0.00"))
+
+        customer_payments = db.scalar(
+            select(func.coalesce(func.sum(Payment.amount), Decimal("0.00"))).where(
+                Payment.is_active.is_(True),
+                Payment.payment_date >= start,
+                Payment.payment_date <= end,
+            )
+        ) or Decimal("0.00")
+
+        other_income = db.scalar(
+            select(func.coalesce(func.sum(Income.amount), Decimal("0.00"))).where(
+                Income.is_active.is_(True),
+                Income.kind == IncomeKind.INCOME,
+                Income.income_date >= start,
+                Income.income_date <= end,
+            )
+        ) or Decimal("0.00")
+
+        # Money Out
+        expenses = db.scalars(
+            select(Income).where(
+                Income.is_active.is_(True),
+                Income.kind == IncomeKind.EXPENSE,
+                Income.income_date >= start,
+                Income.income_date <= end,
+            )
+        ).all()
+
+        fuel_lube_purchases = Decimal("0.00")
+        staff_payroll = Decimal("0.00")
+        operating_expenses = Decimal("0.00")
+        for exp in expenses:
+            amt = Decimal(str(exp.amount or "0.00"))
+            cat = (exp.category or "").lower()
+            if cat in ("procurement", "lubricants & def", "fuel purchase"):
+                fuel_lube_purchases += amt
+            elif exp.employee_id is not None or "salary" in cat or "payroll" in cat:
+                staff_payroll += amt
+            else:
+                operating_expenses += amt
+
+        total_in = (cash_sales + digital_sales + Decimal(str(customer_payments)) + Decimal(str(other_income))).quantize(Decimal("0.01"))
+        total_out = (fuel_lube_purchases + staff_payroll + operating_expenses).quantize(Decimal("0.01"))
+        net_cash_flow = (total_in - total_out).quantize(Decimal("0.01"))
+
+        return {
+            "from_date": start.isoformat(),
+            "to_date": end.isoformat(),
+            "money_in": {
+                "cash_sales": float(cash_sales.quantize(Decimal("0.01"))),
+                "digital_sales": float(digital_sales.quantize(Decimal("0.01"))),
+                "customer_payments": float(Decimal(str(customer_payments)).quantize(Decimal("0.01"))),
+                "other_income": float(Decimal(str(other_income)).quantize(Decimal("0.01"))),
+            },
+            "money_out": {
+                "fuel_lube_purchases": float(fuel_lube_purchases.quantize(Decimal("0.01"))),
+                "staff_payroll": float(staff_payroll.quantize(Decimal("0.01"))),
+                "operating_expenses": float(operating_expenses.quantize(Decimal("0.01"))),
+            },
+            "total_in": float(total_in),
+            "total_out": float(total_out),
+            "net_cash_flow": float(net_cash_flow),
+        }

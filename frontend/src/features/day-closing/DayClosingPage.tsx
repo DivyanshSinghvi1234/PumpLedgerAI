@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiCollectionBreakdown from "@/components/common/UpiCollectionBreakdown";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import dayClosingService from "./services/dayClosingService";
@@ -598,6 +599,8 @@ export default function DayClosingPage() {
               </div>
             </div>
           </div>
+
+          <UpiCollectionBreakdown date={closingDate} />
 
           <div className="rounded-lg border border-hairline bg-surface-2 p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">

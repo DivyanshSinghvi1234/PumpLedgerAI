@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import api from "@/api/client";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiAccountSelect from "@/components/common/UpiAccountSelect";
 import settingService from "@/features/settings/services/settingService";
 
 export interface LubricantItem {
@@ -55,6 +56,7 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
   const [adjustCost, setAdjustCost] = useState<string>("");
   const [adjustPayMode, setAdjustPayMode] = useState<"CASH" | "BANK" | "UPI">("BANK");
   const [adjustBankUuid, setAdjustBankUuid] = useState<string>("");
+  const [adjustUpiUuid, setAdjustUpiUuid] = useState<string>("");
   const [syncToRegister, setSyncToRegister] = useState<boolean>(true);
 
   // Sync settings with backend
@@ -441,6 +443,17 @@ export default function LubricantsTab({ isAdminOrManager }: { isAdminOrManager: 
                       <option value="CASH">Cash Drawer</option>
                     </select>
                   </div>
+                  {adjustPayMode === "UPI" && (
+                    <UpiAccountSelect
+                      value={adjustUpiUuid}
+                      onChange={(upiUuid, linkedBankUuid) => {
+                        setAdjustUpiUuid(upiUuid);
+                        if (linkedBankUuid) {
+                          setAdjustBankUuid(linkedBankUuid);
+                        }
+                      }}
+                    />
+                  )}
                   {adjustPayMode !== "CASH" && (
                     <BankAccountSelect
                       value={adjustBankUuid}

@@ -8,8 +8,9 @@ import LedgerReportSection from "./components/LedgerReportSection";
 import DailySalesSection from "./components/DailySalesSection";
 import DebtorAgingSection from "./components/DebtorAgingSection";
 import ProfitLossSection from "./components/ProfitLossSection";
+import CashFlowSection from "./components/CashFlowSection";
 
-type Tab = "vouchers" | "customers" | "ledger" | "daily" | "aging" | "pnl";
+type Tab = "vouchers" | "customers" | "ledger" | "daily" | "aging" | "pnl" | "cashflow";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "vouchers", label: "Vouchers" },
@@ -18,6 +19,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "daily", label: "Daily Sales" },
   { key: "aging", label: "Debtor Aging" },
   { key: "pnl", label: "Profit & Loss" },
+  { key: "cashflow", label: "Cash Flow (In vs Out)" },
 ];
 
 export default function ReportsPage() {
@@ -52,6 +54,7 @@ export default function ReportsPage() {
       {tab === "daily" && <DailySalesSection />}
       {tab === "aging" && <DebtorAgingSection />}
       {tab === "pnl" && <ProfitLossSection />}
+      {tab === "cashflow" && <CashFlowSection />}
     </div>
   );
 }

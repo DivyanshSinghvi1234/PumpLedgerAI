@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import staffService from "@/features/staff/services/staffService";
 
 import {
   Dialog,
@@ -192,6 +194,7 @@ export default function AddEntryDialog({
       setLend(!!incomeToEdit?.customer_uuid);
       setCustomerName(incomeToEdit?.customer_name ?? "");
       setCustomerUuid(incomeToEdit?.customer_uuid ?? null);
+      setEmployeeUuid((incomeToEdit as any)?.employee_uuid ?? "");
       setCustomerError(null);
     } else {
       createMutation.reset();
@@ -216,6 +219,14 @@ export default function AddEntryDialog({
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
   };
+
+  const [employeeUuid, setEmployeeUuid] = useState<string>("");
+
+  const { data: employees } = useQuery({
+    queryKey: ["employees-list"],
+    queryFn: () => staffService.listEmployees(),
+    enabled: open && isExpense,
+  });
 
   async function submitForm(data: EntryFormData) {
     setCustomerError(null);
@@ -251,6 +262,7 @@ export default function AddEntryDialog({
       items: formattedItems.length > 0 ? formattedItems : null,
       customer_uuid: isExpense && lend ? customerUuid : null,
       customer_name: isExpense && lend && !customerUuid ? lendName : null,
+      employee_uuid: isExpense && employeeUuid ? employeeUuid : null,
     };
 
     try {
@@ -440,6 +452,24 @@ export default function AddEntryDialog({
                   }}
                 />
               )}
+
+              <div className="space-y-1 pt-1 border-t border-hairline/60">
+                <label className="text-xs font-semibold text-ink-muted block">
+                  Staff Advance / Recovery (Optional — deducts from Payroll)
+                </label>
+                <select
+                  value={employeeUuid}
+                  onChange={(e) => setEmployeeUuid(e.target.value)}
+                  className="w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-xs text-ink"
+                >
+                  <option value="">-- Not linked to staff --</option>
+                  {employees?.map((emp) => (
+                    <option key={emp.uuid} value={emp.uuid}>
+                      {emp.full_name} ({emp.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 

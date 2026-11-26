@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { getTodayDateString } from "@/lib/utils";
 import { Plus, Minus, Fuel, Landmark, Pencil, Trash2, Coins } from "lucide-react";
@@ -52,6 +53,7 @@ export default function IncomePage() {
   }, [date]);
 
   const queryClient = useQueryClient();
+  const [deletingIncome, setDeletingIncome] = useState<Income | null>(null);
   const { data: nozzleData } = useQuery({
     queryKey: ["nozzleReadingsBulkForm", apiDate],
     queryFn: () => inventoryService.getBulkReadingsForm(apiDate),
@@ -232,19 +234,14 @@ export default function IncomePage() {
     };
   }, [incomeData, paymentsData]);
 
-  async function handleDelete(income: Income) {
-    const noun = income.kind === "DEPOSIT" ? "deposit" : income.kind === "EXPENSE" ? "expense" : "revenue";
-    const loanNote = income.customer_name
-      ? ` This will remove ₹${formatMoney(income.amount)} from ${income.customer_name}'s outstanding balance.`
-      : "";
-    if (
-      !window.confirm(
-        `Delete ${noun} "${income.description}" of ₹${formatMoney(income.amount)}?${loanNote}`
-      )
-    ) {
-      return;
-    }
-    await deleteMutation.mutateAsync(income.uuid);
+  function handleDelete(income: Income) {
+    setDeletingIncome(income);
+  }
+
+  async function confirmDeleteIncome() {
+    if (!deletingIncome) return;
+    await deleteMutation.mutateAsync(deletingIncome.uuid);
+    setDeletingIncome(null);
   }
 
   const hsdTesting = getTestingFor("DIESEL");
@@ -560,6 +557,31 @@ export default function IncomePage() {
         open={saleOpen}
         onOpenChange={setSaleOpen}
         defaultDate={date}
+      />
+      <ConfirmDialog
+        open={Boolean(deletingIncome)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingIncome(null);
+        }}
+        title="Delete Entry"
+        description={
+          deletingIncome
+            ? `Delete ${
+                deletingIncome.kind === "DEPOSIT"
+                  ? "deposit"
+                  : deletingIncome.kind === "EXPENSE"
+                  ? "expense"
+                  : "revenue"
+              } "${deletingIncome.description}" of ₹${formatMoney(deletingIncome.amount)}?${
+                deletingIncome.customer_name
+                  ? ` This will remove ₹${formatMoney(deletingIncome.amount)} from ${deletingIncome.customer_name}'s outstanding balance.`
+                  : ""
+              }`
+            : ""
+        }
+        confirmLabel="Delete"
+        loading={deleteMutation.isPending}
+        onConfirm={confirmDeleteIncome}
       />
     </div>
   );

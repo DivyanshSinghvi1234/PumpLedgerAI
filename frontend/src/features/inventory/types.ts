@@ -246,6 +246,8 @@ export interface PurchaseIndentCreate {
   ordered_liters: number;
   expected_delivery_date: string;
   procurement_cost_per_liter?: number | null;
+  payment_mode?: "CREDIT" | "BANK" | "UPI";
+  bank_account_uuid?: string | null;
   remarks?: string | null;
 }
 

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import settingService from "@/features/settings/services/settingService";
+import type { LubricantItem } from "@/features/inventory/components/LubricantsTab";
 
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
@@ -11,6 +14,7 @@ import VoucherTable from "./components/VoucherTable";
 import VoucherPagination from "./components/VoucherPagination";
 import VoucherDialog from "./components/VoucherDialog";
 import DeleteVoucherDialog from "./components/DeleteVoucherDialog";
+import SettleVoucherDialog from "./components/SettleVoucherDialog";
 
 import { useVoucherList } from "./hooks/useVoucherList";
 import { useDeleteVoucher } from "./hooks/useDeleteVoucher";
@@ -20,6 +24,7 @@ import type { Voucher } from "@/types/voucher";
 export default function VoucherListPage() {
   const { hasRole } = useCurrentUser();
   const canManage = hasRole("ADMIN", "MANAGER");
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const [selectedFuelTypes, setSelectedFuelTypes] = useState<string[]>([]);
@@ -31,6 +36,7 @@ export default function VoucherListPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [settleVoucher, setSettleVoucher] = useState<Voucher | null>(null);
 
   const [selectedVoucher, setSelectedVoucher] =
     useState<Voucher>();
@@ -85,9 +91,35 @@ export default function VoucherListPage() {
   async function confirmDelete() {
     if (!selectedVoucher) return;
 
+    const deletedVoucher = selectedVoucher;
     await deleteMutation.mutateAsync(
-      selectedVoucher.uuid
+      deletedVoucher.uuid
     );
+
+    if (deletedVoucher.fuel_type === "LUBRICANT") {
+      try {
+        const items = await settingService.getSetting<LubricantItem[]>("lubricant_inventory");
+        if (items && items.length > 0) {
+          const qty = Number(deletedVoucher.quantity_liters || 0);
+          const rate = Number(deletedVoucher.rate_per_liter || 0);
+          const remarks = (deletedVoucher.remarks || "").toLowerCase();
+          const idx = items.findIndex(
+            (s) =>
+              (remarks && remarks.includes(s.name.toLowerCase())) ||
+              (rate > 0 && Math.abs(s.unit_price - rate) < 0.01)
+          );
+          if (idx >= 0 && qty > 0) {
+            const updated = items.map((s, i) =>
+              i === idx ? { ...s, stock_qty: s.stock_qty + qty } : s
+            );
+            await settingService.saveSetting("lubricant_inventory", updated);
+            queryClient.invalidateQueries({ queryKey: ["settings", "lubricant_inventory"] });
+          }
+        }
+      } catch {
+        // non-blocking
+      }
+    }
 
     setDeleteOpen(false);
     setSelectedVoucher(undefined);
@@ -153,6 +185,7 @@ export default function VoucherListPage() {
           canManage={canManage}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onSettle={(v) => setSettleVoucher(v)}
         />
       </div>
 
@@ -178,6 +211,11 @@ export default function VoucherListPage() {
             loading={deleteMutation.isPending}
             voucher={selectedVoucher}
             onConfirm={confirmDelete}
+          />
+
+          <SettleVoucherDialog
+            voucher={settleVoucher}
+            onOpenChange={(o) => !o && setSettleVoucher(null)}
           />
         </>
       )}

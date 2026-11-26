@@ -13,6 +13,8 @@ class PurchaseIndentCreate(BaseModel):
     ordered_liters: float
     expected_delivery_date: date
     procurement_cost_per_liter: float | None = None
+    payment_mode: str = "CREDIT"
+    bank_account_uuid: str | None = None
     remarks: str | None = None
 
 

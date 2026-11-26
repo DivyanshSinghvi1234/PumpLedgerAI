@@ -255,6 +255,19 @@ def reverse_bank_transaction(
 
 
 @router.get(
+    "/upi-summary",
+)
+def get_upi_collection_summary(
+    on_date: date | None = None,
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    pump_id = _get_active_pump_id(db)
+    target_date = on_date or date.today()
+    return service.get_upi_collection_summary(db, pump_id, target_date)
+
+
+@router.get(
     "/upi",
     response_model=Sequence[UpiAccountResponse],
 )

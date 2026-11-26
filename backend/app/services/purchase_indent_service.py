@@ -32,6 +32,8 @@ class PurchaseIndentService:
         ordered_liters: float,
         expected_delivery_date: date,
         procurement_cost_per_liter: float | None = None,
+        payment_mode: str = "CREDIT",
+        bank_account_uuid: str | None = None,
         remarks: str | None = None,
         pump_id: int | None = None,
         actor_id: int | None = None,
@@ -58,12 +60,37 @@ class PurchaseIndentService:
             ordered_liters=ordered_liters,
             expected_delivery_date=expected_delivery_date,
             procurement_cost_per_liter=procurement_cost_per_liter,
+            payment_mode=payment_mode or "CREDIT",
+            bank_account_uuid=bank_account_uuid,
             remarks=remarks.strip() if remarks else None,
             status=IndentStatus.INDENTED,
             pump_id=pump_id,
         )
         db.add(indent)
         db.flush()
+
+        # Optional pre-payment at indent placement (RTGS/NEFT/UPI)
+        if (
+            indent.payment_mode in ("BANK", "UPI")
+            and indent.bank_account_uuid
+            and procurement_cost_per_liter
+            and procurement_cost_per_liter > 0
+        ):
+            from decimal import Decimal
+            from app.services.bank_account_service import BankAccountService
+
+            prepay_amt = Decimal(str(round(ordered_liters * procurement_cost_per_liter, 2)))
+            if prepay_amt > Decimal("0.00"):
+                BankAccountService().sync_from_entity(
+                    db,
+                    bank_account_uuid=indent.bank_account_uuid,
+                    amount=prepay_amt,
+                    transaction_type="EXPENSE",
+                    transaction_date=date.today(),
+                    reference_number=f"IND-{indent.id}",
+                    remarks=f"OMC Indent Pre-Payment #{indent_num} ({omc_company.value} · {ordered_liters}L)",
+                    pump_id=pump_id or 1,
+                )
 
 
         self.audit_service.log_action(
@@ -218,23 +245,27 @@ class PurchaseIndentService:
 
             if indent.payment_mode in ("BANK", "UPI") and indent.bank_account_uuid and invoice_total > 0:
                 from decimal import Decimal
-                from app.models.bank_account import BankAccount
+                from app.models.bank_account import BankAccount, BankTransaction
                 from app.services.bank_account_service import BankAccountService
 
-                ba = db.scalars(
-                    select(BankAccount).where(BankAccount.uuid == indent.bank_account_uuid)
-                ).first()
-                if ba is not None:
-                    BankAccountService().adjust_bank_balance(
-                        db,
-                        bank_account_id=ba.id,
-                        amount=Decimal(str(invoice_total)).quantize(Decimal("0.01")),
-                        transaction_type="EXPENSE",
-                        transaction_date=indent.actual_delivery_date,
-                        reference_number=indent.invoice_number or indent.indent_number,
-                        remarks=f"Tanker Delivery {indent.omc_company.value} ({indent.ordered_liters}L)",
-                        pump_id=ba.pump_id,
-                    )
+                already_prepaid = db.scalar(
+                    select(BankTransaction.id).where(BankTransaction.reference_number == f"IND-{indent.id}")
+                )
+                if already_prepaid is None:
+                    ba = db.scalars(
+                        select(BankAccount).where(BankAccount.uuid == indent.bank_account_uuid)
+                    ).first()
+                    if ba is not None:
+                        BankAccountService().adjust_bank_balance(
+                            db,
+                            bank_account_id=ba.id,
+                            amount=Decimal(str(invoice_total)).quantize(Decimal("0.01")),
+                            transaction_type="EXPENSE",
+                            transaction_date=indent.actual_delivery_date,
+                            reference_number=indent.invoice_number or indent.indent_number,
+                            remarks=f"Tanker Delivery {indent.omc_company.value} ({indent.ordered_liters}L)",
+                            pump_id=ba.pump_id,
+                        )
 
         db.flush()
         self.audit_service.log_action(
@@ -252,6 +283,9 @@ class PurchaseIndentService:
         indent = db.scalar(select(PurchaseIndent).where(PurchaseIndent.uuid == indent_uuid))
         if not indent:
             raise ValueError(f"Purchase indent '{indent_uuid}' not found.")
+
+        from app.services.bank_account_service import BankAccountService
+        BankAccountService().reverse_by_reference(db, f"IND-{indent.id}")
 
         indent.is_active = False
         indent.status = IndentStatus.CANCELLED
