@@ -22,6 +22,9 @@ import {
   ChevronRight,
   Zap,
   Star,
+  Map as MapIcon,
+  TabletSmartphone,
+  Sparkles,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -52,6 +55,7 @@ const menuItems: MenuGroup[] = [
     section: "Daily Routine",
     items: [
       { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { title: "POS Kiosk", path: "/dashboard/pos", icon: TabletSmartphone },
       { title: "Quick Entry", path: "/dashboard/quick-entry", icon: Zap },
       { title: "Upload Invoice", path: "/dashboard/upload", icon: Upload },
       { title: "Vouchers", path: "/dashboard/vouchers", icon: FileText },
@@ -68,6 +72,12 @@ const menuItems: MenuGroup[] = [
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
+        title: "Close Day Wizard",
+        path: "/dashboard/close-day",
+        icon: Sparkles,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
+      {
         title: "Day Closing",
         path: "/dashboard/day-closing",
         icon: Moon,
@@ -79,6 +89,12 @@ const menuItems: MenuGroup[] = [
     section: "Stock & Customers",
     allowedRoles: ["ADMIN", "MANAGER"],
     items: [
+      {
+        title: "Station Twin",
+        path: "/dashboard/forecourt-twin",
+        icon: MapIcon,
+        allowedRoles: ["ADMIN", "MANAGER"],
+      },
       {
         title: "Inventory",
         path: "/dashboard/inventory",

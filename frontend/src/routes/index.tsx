@@ -29,6 +29,7 @@ const UploadPage = lazyWithRetry(() => import("../features/upload/UploadPage"));
 const OCRReviewPage = lazyWithRetry(() => import("../features/review/OCRReviewPage"));
 const VoucherListPage = lazyWithRetry(() => import("../features/vouchers/VoucherListPage"));
 const QuickEntryPage = lazyWithRetry(() => import("../features/vouchers/QuickEntryPage"));
+const ForecourtPOSPage = lazyWithRetry(() => import("../features/vouchers/ForecourtPOSPage"));
 const CustomerListPage = lazyWithRetry(() => import("../features/customers/CustomerListPage"));
 const VehicleListPage = lazyWithRetry(() => import("../features/vehicles/VehicleListPage"));
 const VehicleLedgerPage = lazyWithRetry(() => import("../features/vehicles/VehicleLedgerPage"));
@@ -38,6 +39,7 @@ const CustomerStatementPrint = lazyWithRetry(() => import("../features/ledger/Cu
 const ReportsPage = lazyWithRetry(() => import("../features/reports/ReportsPage"));
 const TallyExportPage = lazyWithRetry(() => import("../features/tally/TallyExportPage"));
 const InventoryPage = lazyWithRetry(() => import("../features/inventory/InventoryPage"));
+const ForecourtTwinPage = lazyWithRetry(() => import("../features/inventory/ForecourtTwinPage"));
 const IncomePage = lazyWithRetry(() => import("../features/income/IncomePage"));
 const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage"));
 const AuditLogPage = lazyWithRetry(() => import("../features/audit/AuditLogPage"));
@@ -46,6 +48,7 @@ const BankAccountsPage = lazyWithRetry(() => import("../features/admin/BankAccou
 const StaffPayrollPage = lazyWithRetry(() => import("../features/staff/StaffPayrollPage"));
 const ShiftSettlementPage = lazyWithRetry(() => import("../features/shifts/ShiftSettlementPage"));
 const DayClosingPage = lazyWithRetry(() => import("../features/day-closing/DayClosingPage"));
+const CloseDayWizardPage = lazyWithRetry(() => import("../features/day-closing/CloseDayWizardPage"));
 const CommandCenterPage = lazyWithRetry(() => import("../features/command-center/CommandCenterPage"));
 
 const AccessDeniedPage = lazyWithRetry(() => import("../components/auth/AccessDeniedPage"));
@@ -94,6 +97,10 @@ const router = createBrowserRouter([
         element: <SuspenseWrapper><QuickEntryPage /></SuspenseWrapper>,
       },
       {
+        path: "pos",
+        element: <SuspenseWrapper><ForecourtPOSPage /></SuspenseWrapper>,
+      },
+      {
         path: "access-denied",
         element: <SuspenseWrapper><AccessDeniedPage /></SuspenseWrapper>,
       },
@@ -135,6 +142,10 @@ const router = createBrowserRouter([
             element: <SuspenseWrapper><InventoryPage /></SuspenseWrapper>,
           },
           {
+            path: "forecourt-twin",
+            element: <SuspenseWrapper><ForecourtTwinPage /></SuspenseWrapper>,
+          },
+          {
             path: "income",
             element: <SuspenseWrapper><IncomePage /></SuspenseWrapper>,
           },
@@ -161,6 +172,10 @@ const router = createBrowserRouter([
           {
             path: "day-closing",
             element: <SuspenseWrapper><DayClosingPage /></SuspenseWrapper>,
+          },
+          {
+            path: "close-day",
+            element: <SuspenseWrapper><CloseDayWizardPage /></SuspenseWrapper>,
           },
           {
             path: "command-center",

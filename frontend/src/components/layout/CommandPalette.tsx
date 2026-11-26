@@ -10,6 +10,9 @@ import { formatCurrency } from "@/lib/utils";
 
 const QUICK_NAV = [
   { label: "Dashboard", path: "/dashboard" },
+  { label: "Forecourt POS Kiosk", path: "/dashboard/pos" },
+  { label: "Interactive Station Twin", path: "/dashboard/forecourt-twin" },
+  { label: "Guided Close-the-Day Wizard", path: "/dashboard/close-day" },
   { label: "Quick Entry", path: "/dashboard/quick-entry" },
   { label: "Vouchers", path: "/dashboard/vouchers" },
   { label: "Payments", path: "/dashboard/payments" },

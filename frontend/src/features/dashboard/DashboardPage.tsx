@@ -13,6 +13,7 @@ import { FivePointAuditBanner } from "@/features/pipeline/components/FivePointAu
 import { getTodayDateString } from "@/lib/utils";
 
 import StatCards from "./components/StatCards";
+import ExecutiveBentoCockpit from "./components/ExecutiveBentoCockpit";
 import DailyRoutineGuide from "./components/DailyRoutineGuide";
 import FuelDistributionCard from "./components/FuelDistributionCard";
 import RecentVouchers from "./components/RecentVouchers";
@@ -152,6 +153,10 @@ export default function DashboardPage() {
           )}
           <FivePointAuditBanner targetDate={todayStr} />
         </div>
+      )}
+
+      {isAdminOrManager && (
+        <ExecutiveBentoCockpit dashboard={data} snapshot={snapshot} />
       )}
 
       <DailyRoutineGuide />
