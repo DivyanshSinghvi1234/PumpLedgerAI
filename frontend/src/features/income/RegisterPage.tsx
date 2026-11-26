@@ -51,6 +51,7 @@ const DENOMINATIONS = [
 type LeftEntryMode =
   | "CREDIT"
   | "CASH"
+  | "INC_CASH"
   | "UPI"
   | "CARD"
   | "EXP_CASH"
@@ -262,6 +263,12 @@ export default function RegisterPage() {
   const { data: upiAccounts } = useQuery({
     queryKey: ["upi-accounts"],
     queryFn: () => bankAccountService.getUpiAccounts(),
+    enabled: !isOperator,
+  });
+
+  const { data: upiSummaryData } = useQuery({
+    queryKey: ["upi-collection-summary", date],
+    queryFn: () => bankAccountService.getUpiCollectionSummary(date),
     enabled: !isOperator,
   });
 
@@ -520,6 +527,20 @@ export default function RegisterPage() {
       }
       const desc = leftParticulars.trim();
 
+      if (leftMode === "INC_CASH") {
+        if (!desc) {
+          throw new Error("Enter description for cash income.");
+        }
+        return incomeService.createIncome({
+          kind: "INCOME",
+          income_date: date,
+          description: desc,
+          amount: amt,
+          category: "Other Income",
+          payment_mode: "CASH",
+        });
+      }
+
       if (leftMode === "EXP_CASH" || leftMode === "EXP_BANK" || leftMode === "LEND_CASH") {
         if (!desc) {
           throw new Error(
@@ -587,13 +608,17 @@ export default function RegisterPage() {
       });
     },
     onSuccess: () => {
-      const nextCount = sortedVouchers.length + realExpenses.length + 1;
-      const nextLastPage = Math.max(0, Math.ceil(nextCount / ROWS_PER_PAGE) - 1);
-      if (nextLastPage > currentPageIndex) {
-        setPageIndex(nextLastPage);
-        toast.success(`Saved! Sheet full — moved to Sheet ${nextLastPage + 1}.`);
+      if (leftMode === "INC_CASH" || leftMode === "CASH") {
+        toast.success("Added to Cash Income below nozzle readings on Right Page!");
       } else {
-        toast.success("Entry added to register!");
+        const nextCount = combinedLeftRows.length + 1;
+        const nextLastPage = Math.max(0, Math.ceil(nextCount / ROWS_PER_PAGE) - 1);
+        if (nextLastPage > currentPageIndex) {
+          setPageIndex(nextLastPage);
+          toast.success(`Saved! Sheet full — moved to Sheet ${nextLastPage + 1}.`);
+        } else {
+          toast.success("Entry added to register!");
+        }
       }
       setLeftQty("");
       setLeftParticulars("");
@@ -939,6 +964,7 @@ export default function RegisterPage() {
     .map((item) => ({
       uuid: item.uuid,
       kind: "EXPENSE" as const,
+      typeLabel: Boolean(item.customer_uuid || item.category === "Customer Loan") ? "Loan" : "Exp",
       quantity_liters: 0,
       customer_name: item.customer_name
         ? `${item.description} (${item.customer_name})`
@@ -961,26 +987,52 @@ export default function RegisterPage() {
     ? vouchersData.items.map((v) => ({
         uuid: v.uuid,
         kind: "VOUCHER" as const,
+        paymentMode: v.payment_mode,
+        typeLabel:
+          v.payment_mode === "CREDIT"
+            ? "Credit"
+            : v.payment_mode === "CARD"
+            ? "Card"
+            : v.payment_mode === "UPI"
+            ? "UPI"
+            : "Cash",
         quantity_liters: Number(v.quantity_liters ?? 0),
         customer_name:
           (v.customer_name || "Cash Customer") +
-          (v.vehicle_number ? ` (${v.vehicle_number})` : "") +
-          (v.payment_mode === "UPI" && v.remarks ? ` [${v.remarks}]` : v.payment_mode ? ` [${v.payment_mode}]` : ""),
+          (v.vehicle_number ? ` (${v.vehicle_number})` : ""),
         amount: Number(v.total_amount ?? 0),
         isLoan: false,
       }))
     : [];
 
-  const totalVouchersAmount = activeVouchers.reduce((sum, item) => sum + item.amount, 0);
+  // Auto-grouped per-UPI-account rows (e.g. Paytm = 10,020, PhonePe = 2,000)
+  const autoUpiRows = (upiSummaryData?.items ?? [])
+    .filter((u) => Number(u.amount ?? 0) > 0)
+    .map((u) => ({
+      uuid: `upi-sum-${u.upi_uuid}`,
+      kind: "UPI_SUMMARY" as const,
+      typeLabel: "UPI",
+      quantity_liters: 0,
+      customer_name: `${u.name} (${u.provider}${u.bank_name ? ` → ${u.bank_name}` : ""}) [${u.txn_count} txns]`,
+      amount: Number(u.amount ?? 0),
+      isLoan: false,
+    }));
 
-  const paymentRank = (name: string) =>
-    /\[CREDIT\]/i.test(name) ? 0 : /\[UPI|Paytm|PhonePe|GPay|BHIM/i.test(name) ? 1 : /\[CARD\]/i.test(name) ? 2 : 3;
-  const sortedVouchers = [...activeVouchers].sort(
-    (a, b) => paymentRank(a.customer_name) - paymentRank(b.customer_name)
+  const nonUpiVouchers = activeVouchers.filter(
+    (v) => v.paymentMode !== "UPI" && v.paymentMode !== "CASH"
+  );
+  const totalNonUpiVouchers = nonUpiVouchers.reduce((sum, item) => sum + item.amount, 0);
+  const totalAutoUpiAmount = autoUpiRows.reduce((sum, item) => sum + item.amount, 0);
+  const totalVouchersAndUpi = totalNonUpiVouchers + totalAutoUpiAmount;
+
+  const paymentRank = (mode: string) =>
+    mode === "CREDIT" ? 0 : mode === "CARD" ? 1 : 2;
+  const sortedNonUpiVouchers = [...nonUpiVouchers].sort(
+    (a, b) => paymentRank(a.paymentMode) - paymentRank(b.paymentMode)
   );
 
-  // Unified Left-Page pagination across Vouchers + Expenses (14 rows per sheet)
-  const combinedLeftRows = [...sortedVouchers, ...realExpenses];
+  // Unified Left-Page pagination across Vouchers + Auto UPI Account Summaries + Expenses
+  const combinedLeftRows = [...sortedNonUpiVouchers, ...autoUpiRows, ...realExpenses];
   const totalPages = Math.max(1, Math.ceil(combinedLeftRows.length / ROWS_PER_PAGE));
   const currentPageIndex = Math.min(pageIndex, totalPages - 1);
   const visibleLeftRows = combinedLeftRows.slice(
@@ -1028,7 +1080,7 @@ export default function RegisterPage() {
   }
 
   const grandTotalLeft =
-    totalCashCounted + totalVouchersAmount + totalExpensesAmount + cashHome + prevDeposit;
+    totalCashCounted + totalVouchersAndUpi + totalExpensesAmount + cashHome + prevDeposit;
 
   // Map Nozzles using live editable drafts (Opening, Closing, Net)
   const activeNozzles = nozzleData?.items?.length
@@ -1585,22 +1637,26 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Transactions & Particulars grid */}
+              {/* Transactions & Particulars grid (Type before Qty) */}
               <div className="text-xs space-y-0 flex-1">
-                <div className="grid grid-cols-[65px_1fr_95px] border-b-2 border-[#A33A32] pl-handwritten-red font-bold h-[20px] items-center">
-                  <div className="text-center pr-2 border-r border-[#A33A32]/25">Qty (L)</div>
-                  <div className="pl-4">Particulars / Customer Accounts</div>
+                <div className="grid grid-cols-[62px_54px_1fr_92px] border-b-2 border-[#A33A32] pl-handwritten-red font-bold h-[20px] items-center">
+                  <div className="text-center pr-1 border-r border-[#A33A32]/25">Type</div>
+                  <div className="text-center pr-1 border-r border-[#A33A32]/25">Qty (L)</div>
+                  <div className="pl-3">Particulars / Customer Accounts</div>
                   <div className="text-right">Amount (₹)</div>
                 </div>
 
                 <div className="space-y-[0px]">
                   {visibleLeftRows.map((row) =>
                     row.kind === "VOUCHER" ? (
-                      <div key={row.uuid} className="group grid grid-cols-[65px_1fr_95px] h-[20px] items-center">
-                        <div className="text-center pl-handwritten pr-2 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px]">
+                      <div key={row.uuid} className="group grid grid-cols-[62px_54px_1fr_92px] h-[20px] items-center">
+                        <div className="text-center pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[10px] font-mono font-semibold text-[#103F91]">
+                          {row.typeLabel}
+                        </div>
+                        <div className="text-center pl-handwritten pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px]">
                           {row.quantity_liters > 0 ? row.quantity_liters.toFixed(2) : "—"}
                         </div>
-                        <div className="pl-4 truncate pr-2 h-full flex items-center justify-between">
+                        <div className="pl-3 truncate pr-2 h-full flex items-center justify-between">
                           <span className="pl-handwritten-strong truncate">{row.customer_name}</span>
                           {!isLocked && (
                             <button
@@ -1617,15 +1673,33 @@ export default function RegisterPage() {
                           {formatLedgerAmount(row.amount)}
                         </div>
                       </div>
+                    ) : row.kind === "UPI_SUMMARY" ? (
+                      <div key={row.uuid} className="grid grid-cols-[62px_54px_1fr_92px] h-[20px] items-center">
+                        <div className="text-center pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[10px] font-mono font-bold text-emerald-800">
+                          UPI
+                        </div>
+                        <div className="text-center pl-handwritten pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px] text-neutral-500">
+                          —
+                        </div>
+                        <div className="pl-3 truncate pr-2 h-full flex items-center">
+                          <span className="pl-handwritten-strong text-emerald-900 truncate">{row.customer_name}</span>
+                        </div>
+                        <div className="text-right font-bold pr-1 pl-handwritten-strong text-emerald-900 h-full flex items-center justify-end text-[13px]">
+                          {formatLedgerAmount(row.amount)}
+                        </div>
+                      </div>
                     ) : (
                       <div
                         key={row.uuid}
-                        className="group grid grid-cols-[65px_1fr_95px] h-[20px] items-center rotate-[-0.1deg]"
+                        className="group grid grid-cols-[62px_54px_1fr_92px] h-[20px] items-center rotate-[-0.1deg]"
                       >
-                        <div className="text-center pr-2 border-r border-[#A33A32]/25 text-neutral-500 h-full flex items-center justify-center text-[11px]">
-                          {row.isLoan ? "Loan" : "Exp"}
+                        <div className="text-center pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[10px] font-mono font-bold text-[#A33A32]">
+                          {row.typeLabel}
                         </div>
-                        <div className="pl-4 truncate h-full flex items-center justify-between pr-1">
+                        <div className="text-center pr-1 border-r border-[#A33A32]/25 text-neutral-500 h-full flex items-center justify-center text-[11px]">
+                          —
+                        </div>
+                        <div className="pl-3 truncate h-full flex items-center justify-between pr-1">
                           <span className="pl-handwritten-red truncate">{row.customer_name}</span>
                           {!isLocked && (
                             <button
@@ -1645,11 +1719,29 @@ export default function RegisterPage() {
                     )
                   )}
 
-                  {/* Unified Inline Entry Row: Qty -> Particulars + Mode/UPI -> Amount (Enter to save & auto-paginate) */}
+                  {/* Unified Inline Entry Row: Type (Income/Expense) -> Qty -> Particulars -> Amount */}
                   {!isLocked && (
                     <div className="pt-1 space-y-1 no-print">
-                      <div className="grid grid-cols-[65px_1fr_95px] h-[22px] items-center">
-                        <div className="pr-2 border-r border-[#A33A32]/25 h-full flex items-center">
+                      <div className="grid grid-cols-[62px_54px_1fr_92px] h-[22px] items-center">
+                        <div className="pr-1 border-r border-[#A33A32]/25 h-full flex items-center">
+                          <select
+                            value={leftMode}
+                            onChange={(e) => setLeftMode(e.target.value as LeftEntryMode)}
+                            title="Select Income / Expense / Credit / UPI / Loan"
+                            className="w-full h-5 rounded border border-[#A33A32]/30 bg-white/80 px-0.5 text-[10px] font-sans font-bold text-neutral-800 outline-none"
+                          >
+                            <option value="CREDIT">Credit</option>
+                            <option value="CASH">Cash Slip</option>
+                            <option value="INC_CASH">Inc ₹</option>
+                            <option value="UPI">UPI</option>
+                            <option value="CARD">Card</option>
+                            <option value="EXP_CASH">Exp ₹</option>
+                            <option value="EXP_BANK">Exp Bk</option>
+                            <option value="LEND_CASH">Loan</option>
+                          </select>
+                        </div>
+
+                        <div className="pr-1 border-r border-[#A33A32]/25 h-full flex items-center">
                           <input
                             ref={leftQtyRef}
                             type="number"
@@ -1657,6 +1749,7 @@ export default function RegisterPage() {
                             value={leftQty}
                             placeholder="Qty"
                             disabled={
+                              leftMode === "INC_CASH" ||
                               leftMode === "EXP_CASH" ||
                               leftMode === "EXP_BANK" ||
                               leftMode === "LEND_CASH"
@@ -1672,7 +1765,7 @@ export default function RegisterPage() {
                           />
                         </div>
 
-                        <div className="pl-4 pr-1 h-full flex items-center">
+                        <div className="pl-3 pr-1 h-full flex items-center">
                           <input
                             ref={leftParticularsRef}
                             type="text"
@@ -1680,6 +1773,8 @@ export default function RegisterPage() {
                             placeholder={
                               leftMode === "LEND_CASH"
                                 ? "Customer name (Loan)..."
+                                : leftMode === "INC_CASH"
+                                ? "Cash income (Lube, Scrap)..."
                                 : leftMode === "EXP_CASH" || leftMode === "EXP_BANK"
                                 ? "Expense (Tea, Repair)..."
                                 : "Customer / Particulars..."
@@ -1722,22 +1817,8 @@ export default function RegisterPage() {
                         </div>
                       </div>
 
-                      {/* Inline Payment Mode + Fuel + Individual UPI Handle selector */}
-                      <div className="pl-[69px] pr-1 flex flex-wrap items-center gap-1.5 text-[10px] font-sans">
-                        <select
-                          value={leftMode}
-                          onChange={(e) => setLeftMode(e.target.value as LeftEntryMode)}
-                          className="h-5 rounded border border-[#A33A32]/30 bg-white/70 px-1 text-neutral-800 font-semibold outline-none"
-                        >
-                          <option value="CREDIT">Credit (Udhaar)</option>
-                          <option value="CASH">Cash Slip</option>
-                          <option value="UPI">UPI</option>
-                          <option value="CARD">Card EDC</option>
-                          <option value="EXP_CASH">Expense (Cash)</option>
-                          <option value="EXP_BANK">Expense (Bank)</option>
-                          <option value="LEND_CASH">Money Lended (Loan)</option>
-                        </select>
-
+                      {/* Sub-row: Fuel + Individual UPI Handle selector + Add button */}
+                      <div className="pl-[66px] pr-1 flex flex-wrap items-center gap-1.5 text-[10px] font-sans">
                         {(leftMode === "CREDIT" ||
                           leftMode === "CASH" ||
                           leftMode === "UPI" ||
@@ -1762,7 +1843,7 @@ export default function RegisterPage() {
                               const matched = upiAccounts.find((u) => u.uuid === uuid);
                               setLeftUpiBankUuid(matched?.bank_account_uuid || "");
                             }}
-                            className="h-5 max-w-[165px] rounded border border-emerald-700/35 bg-white/80 px-1 text-emerald-900 font-semibold outline-none"
+                            className="h-5 max-w-[180px] rounded border border-emerald-700/35 bg-white/80 px-1 text-emerald-900 font-semibold outline-none"
                           >
                             {upiAccounts.map((u) => (
                               <option key={u.uuid} value={u.uuid}>
@@ -1835,7 +1916,7 @@ export default function RegisterPage() {
                   <div className="grid grid-cols-[1fr_auto] items-center gap-1 border-b border-[#A33A32]/25 h-[20px]">
                     <span className="text-[#A33A32] truncate">Slips &amp; Expenses:</span>
                     <span className="pl-handwritten-strong font-bold text-neutral-800 text-[13px] text-right">
-                      {(totalVouchersAmount + totalExpensesAmount).toLocaleString("en-IN")}
+                      {(totalVouchersAndUpi + totalExpensesAmount).toLocaleString("en-IN")}
                     </span>
                   </div>
 
@@ -1920,7 +2001,7 @@ export default function RegisterPage() {
                       <div className="relative">
                         <div className="absolute -left-[68px] top-0 w-[64px] text-right pl-handwritten-strong font-bold text-[#A33A32] text-[11px] h-[80px] flex flex-col justify-center items-end select-none z-20 leading-tight">
                           <span>{dispName}</span>
-                          <span className="text-[9px] font-normal text-neutral-500">Close / Open / Net</span>
+                          <span className="text-[9px] font-normal text-neutral-500">Open / Close / Net</span>
                         </div>
 
                         {/* Row 1: Nozzle Names */}
@@ -1935,7 +2016,78 @@ export default function RegisterPage() {
                           ))}
                         </div>
 
-                        {/* Row 2: Editable Closing Readings */}
+                        {/* Row 2 (Upper): Editable Opening Readings */}
+                        <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten text-[#103F91]">
+                          {dispNozzles.map((noz) => (
+                            <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
+                              <input
+                                ref={(el) => {
+                                  openingInputRefs.current[noz.idx] = el;
+                                }}
+                                type="number"
+                                step="0.01"
+                                disabled={isLocked}
+                                value={noz.opening_str}
+                                placeholder="Opening"
+                                title="Opening reading (Enter → next nozzle opening)"
+                                onChange={(e) =>
+                                  handleNozzleFieldChange(
+                                    noz.nozzle_uuid,
+                                    "opening",
+                                    e.target.value,
+                                    noz.opening_reading,
+                                    noz.meter_capacity
+                                  )
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key !== "Enter") return;
+                                  e.preventDefault();
+                                  const nextEl = openingInputRefs.current[noz.idx + 1];
+                                  if (nextEl) {
+                                    nextEl.focus();
+                                    nextEl.select();
+                                  }
+                                }}
+                                className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#103F91]/25 text-center text-[#103F91] outline-none focus:bg-yellow-50/70 focus:border-solid pl-handwritten text-[12px] select-text"
+                              />
+                            </div>
+                          ))}
+                          {Array.from({ length: Math.max(0, 4 - dispNozzles.length) }).map((_, i) => (
+                            <div key={`ph3-${i}`} className="h-full" />
+                          ))}
+                        </div>
+
+                        {/* Optional Row: 6 AM Interim Reading */}
+                        {rateChanged6am && (
+                          <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten text-[#A33A32] text-[11px]">
+                            {dispNozzles.map((noz) => (
+                              <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  disabled={isLocked}
+                                  value={noz.interim_str}
+                                  placeholder="6 AM"
+                                  onChange={(e) =>
+                                    handleNozzleFieldChange(
+                                      noz.nozzle_uuid,
+                                      "interim6am",
+                                      e.target.value,
+                                      noz.opening_reading,
+                                      noz.meter_capacity
+                                    )
+                                  }
+                                  className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#A33A32]/40 text-center text-[#A33A32] outline-none focus:bg-yellow-50/70 text-[11px] select-text"
+                                />
+                              </div>
+                            ))}
+                            {Array.from({ length: Math.max(0, 4 - dispNozzles.length) }).map((_, i) => (
+                              <div key={`ph6-${i}`} className="h-full" />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Row 3 (Below Opening): Editable Closing Readings */}
                         <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten-strong text-[#103F91] font-bold">
                           {dispNozzles.map((noz) => (
                             <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
@@ -1978,78 +2130,7 @@ export default function RegisterPage() {
                           ))}
                         </div>
 
-                        {/* Optional Row: 6 AM Interim Reading */}
-                        {rateChanged6am && (
-                          <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten text-[#A33A32] text-[11px]">
-                            {dispNozzles.map((noz) => (
-                              <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  disabled={isLocked}
-                                  value={noz.interim_str}
-                                  placeholder="6 AM"
-                                  onChange={(e) =>
-                                    handleNozzleFieldChange(
-                                      noz.nozzle_uuid,
-                                      "interim6am",
-                                      e.target.value,
-                                      noz.opening_reading,
-                                      noz.meter_capacity
-                                    )
-                                  }
-                                  className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#A33A32]/40 text-center text-[#A33A32] outline-none focus:bg-yellow-50/70 text-[11px] select-text"
-                                />
-                              </div>
-                            ))}
-                            {Array.from({ length: Math.max(0, 4 - dispNozzles.length) }).map((_, i) => (
-                              <div key={`ph6-${i}`} className="h-full" />
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Row 3: Editable Opening Readings (Enter -> next Opening) */}
-                        <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten text-[#103F91]">
-                          {dispNozzles.map((noz) => (
-                            <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
-                              <input
-                                ref={(el) => {
-                                  openingInputRefs.current[noz.idx] = el;
-                                }}
-                                type="number"
-                                step="0.01"
-                                disabled={isLocked}
-                                value={noz.opening_str}
-                                placeholder="Opening"
-                                title="Opening reading (Enter → next nozzle opening)"
-                                onChange={(e) =>
-                                  handleNozzleFieldChange(
-                                    noz.nozzle_uuid,
-                                    "opening",
-                                    e.target.value,
-                                    noz.opening_reading,
-                                    noz.meter_capacity
-                                  )
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key !== "Enter") return;
-                                  e.preventDefault();
-                                  const nextEl = openingInputRefs.current[noz.idx + 1];
-                                  if (nextEl) {
-                                    nextEl.focus();
-                                    nextEl.select();
-                                  }
-                                }}
-                                className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#103F91]/25 text-center text-[#103F91] outline-none focus:bg-yellow-50/70 focus:border-solid pl-handwritten text-[12px] select-text"
-                              />
-                            </div>
-                          ))}
-                          {Array.from({ length: Math.max(0, 4 - dispNozzles.length) }).map((_, i) => (
-                            <div key={`ph3-${i}`} className="h-full" />
-                          ))}
-                        </div>
-
-                        {/* Row 4: Editable Net Liters Sold (auto-fills Closing if Closing empty, Enter -> next Net) */}
+                        {/* Row 4: Editable Net Liters Sold */}
                         <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten-strong text-[#103F91] font-bold">
                           {dispNozzles.map((noz) => (
                             <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
@@ -2142,10 +2223,10 @@ export default function RegisterPage() {
                 {/* Cash Income, Recoveries & Inline Cash Income / Money Lended */}
                 <div className="border-t border-[#A33A32]/30">
                   {activeVouchers
-                    .filter((row) => !/\[(CREDIT|UPI|CARD|Paytm|PhonePe|GPay|BHIM)/i.test(row.customer_name))
+                    .filter((row) => row.paymentMode === "CASH")
                     .map((row) => (
                       <div key={row.uuid} className="flex items-center h-[20px] pl-handwritten text-[12px]">
-                        <span className="truncate flex-1 pr-2">{row.customer_name}</span>
+                        <span className="truncate flex-1 pr-2">{row.customer_name} [CASH]</span>
                         <span className="pl-handwritten-strong font-bold text-[13px] pr-1 shrink-0">
                           {formatLedgerAmount(row.amount)}
                         </span>
