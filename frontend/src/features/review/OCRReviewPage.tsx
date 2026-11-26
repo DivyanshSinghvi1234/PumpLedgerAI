@@ -82,7 +82,7 @@ export default function OCRReviewPage() {
         return;
       }
     }
-    navigate("/dashboard/vouchers");
+    navigate("/dashboard/slips?tab=list");
   }
 
   function handleSaved() {
@@ -97,7 +97,7 @@ export default function OCRReviewPage() {
     if (reviewIndex + 1 < total) {
       setReviewIndex(reviewIndex + 1);
     } else {
-      navigate("/dashboard/vouchers");
+      navigate("/dashboard/slips?tab=list");
     }
   }
 

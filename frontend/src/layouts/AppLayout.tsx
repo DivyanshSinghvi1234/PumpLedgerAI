@@ -234,64 +234,64 @@ export default function AppLayout() {
           </div>
         </main>
 
-        {/* Mobile Bottom Dock with Raised + Quick Slip FAB */}
+        {/* Mobile Bottom Dock matching the 5-page app */}
         {!focusMode && (
           <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-hairline bg-canvas/95 backdrop-blur-md py-1.5 px-2 no-print">
             <NavLink
               to="/dashboard"
               end
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2.5 py-1 ${
+                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
                   isActive ? "text-fuel-amber" : "text-ink-muted"
                 }`
               }
             >
               <Home size={18} />
-              <span>{t("Home")}</span>
+              <span>{t("Register")}</span>
             </NavLink>
 
             <NavLink
-              to="/dashboard/vouchers"
+              to="/dashboard/customers"
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2.5 py-1 ${
+                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
                   isActive ? "text-fuel-amber" : "text-ink-muted"
                 }`
               }
             >
               <FileText size={18} />
-              <span>{t("Vouchers")}</span>
+              <span>{t("Customers")}</span>
             </NavLink>
 
             <NavLink
-              to="/dashboard/quick-entry"
+              to="/dashboard/slips"
               className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-fuel-amber text-canvas shadow-lg shadow-fuel-amber/30 border-4 border-canvas"
-              title="Quick Slip"
+              title="Scan or Add Slip"
             >
               <Plus size={22} strokeWidth={2.5} />
             </NavLink>
 
             <NavLink
-              to="/dashboard/quick-entry"
+              to="/dashboard/inventory"
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2.5 py-1 ${
+                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
                   isActive ? "text-fuel-amber" : "text-ink-muted"
                 }`
               }
             >
               <Zap size={18} />
-              <span>{t("Quick Entry")}</span>
+              <span>{t("Inventory")}</span>
             </NavLink>
 
             <NavLink
-              to="/dashboard/day-closing"
+              to="/dashboard/money"
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2.5 py-1 ${
+                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
                   isActive ? "text-fuel-amber" : "text-ink-muted"
                 }`
               }
             >
               <Moon size={18} />
-              <span>{t("Day Close")}</span>
+              <span>{t("Money")}</span>
             </NavLink>
           </nav>
         )}

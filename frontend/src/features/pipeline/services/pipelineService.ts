@@ -54,6 +54,16 @@ export interface DailySnapshot {
     total_variance: number;
     latest_uuid: string | null;
   };
+  profit?: {
+    fuel_revenue: number;
+    fuel_liters: number;
+    fuel_gross_margin: number;
+    commission_profit: number;
+    margin_source: string;
+    other_income: number;
+    total_expenses: number;
+    net_profit: number;
+  };
   bank_reconciliation: Array<{
     bank_account_uuid: string;
     bank_name: string;

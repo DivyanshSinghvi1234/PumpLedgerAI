@@ -328,6 +328,83 @@ class DayClosingService:
             warnings=warnings,
         )
 
+    def ensure_unbilled_cash_voucher(
+        self,
+        db: Session,
+        target_date: date,
+        pump_id: int | None = None,
+        actor_id: int | None = None,
+    ) -> dict[str, object]:
+        """Post or update the daily walk-in Cash Summary voucher for unbilled meter sales."""
+        from app.core.enums import FuelType, PaymentStatus, VerificationStatus
+
+        draft = self.compute_draft(db, target_date)
+        gap = (draft.gross_meter_sales - draft.total_voucher_sales).quantize(Decimal("0.01"))
+        if gap <= Decimal("0.00"):
+            return {
+                "created": False,
+                "voucher": None,
+                "amount": Decimal("0.00"),
+                "message": "No unbilled cash gap to post.",
+            }
+
+        inv_num = f"CASH-SUM-{target_date.strftime('%Y%m%d')}"
+        stmt = select(Voucher).where(
+            Voucher.invoice_number == inv_num,
+            Voucher.is_active.is_(True),
+        )
+        if pump_id is not None:
+            stmt = stmt.where(Voucher.pump_id == pump_id)
+        existing_v = db.scalar(stmt)
+
+        if existing_v is not None:
+            existing_v.total_amount = (Decimal(str(existing_v.total_amount)) + gap).quantize(Decimal("0.01"))
+            existing_v.amount_paid = existing_v.total_amount
+            existing_v.cash_amount = existing_v.total_amount
+            db.flush()
+            voucher = existing_v
+        else:
+            fuel_type = "DIESEL"
+            rate = Decimal("90.00")
+            if draft.nozzle_lines:
+                top_line = max(draft.nozzle_lines, key=lambda n: n.amount)
+                fuel_type = top_line.fuel_type
+                rate = Decimal(str(top_line.rate or 0)).quantize(Decimal("0.01")) or Decimal("90.00")
+            qty = (gap / rate).quantize(Decimal("0.01")) if rate > Decimal("0.00") else Decimal("0.00")
+            voucher = Voucher(
+                pump_id=pump_id,
+                invoice_number=inv_num,
+                invoice_date=target_date,
+                customer_name="Walk-in Cash Summary",
+                fuel_type=FuelType(fuel_type),
+                quantity_liters=qty,
+                rate_per_liter=rate,
+                total_amount=gap,
+                payment_mode=PaymentMode.CASH,
+                cash_amount=gap,
+                amount_paid=gap,
+                payment_status=PaymentStatus.PAID,
+                verification_status=VerificationStatus.VERIFIED,
+                remarks="Auto-balanced unbilled cash fuel from Day Closing",
+            )
+            db.add(voucher)
+            db.flush()
+
+        self.audit_service.log_action(
+            db,
+            action="Auto-Balanced Unbilled Cash",
+            target_table="vouchers",
+            target_id=str(voucher.uuid),
+            actor_id=actor_id,
+            new_values={"date": target_date.isoformat(), "amount": str(gap)},
+        )
+        return {
+            "created": True,
+            "voucher": voucher,
+            "amount": gap,
+            "message": f"Posted Summary Cash Sale of ₹{gap:,.2f}.",
+        }
+
     def save_closing(
         self,
         db: Session,
@@ -346,6 +423,17 @@ class DayClosingService:
                 db,
                 payload.closing_date,
                 physical_dips=payload.tank_dips,
+                actor_id=actor_id,
+            )
+
+        # Auto-post walk-in cash fuel summary so Cash-in-Hand, P&L, and Tally stay connected
+        if payload.auto_balance_cash:
+            from app.database.scoping import active_pump_id
+            resolved_pump_id = existing.pump_id if existing else active_pump_id.get()
+            self.ensure_unbilled_cash_voucher(
+                db,
+                payload.closing_date,
+                pump_id=resolved_pump_id,
                 actor_id=actor_id,
             )
 
@@ -636,6 +724,20 @@ class DayClosingService:
         if not closing:
             raise ValueError("Day closing record not found.")
         self._reverse_synced_bank_txns(db, closing)
+
+        # Deactivate auto-balanced cash summary voucher if present so user can edit & re-close cleanly
+        inv_num = f"CASH-SUM-{closing.closing_date.strftime('%Y%m%d')}"
+        auto_cash_voucher = db.scalar(
+            select(Voucher).where(
+                Voucher.pump_id == closing.pump_id,
+                Voucher.invoice_number == inv_num,
+                Voucher.is_active.is_(True),
+                Voucher.remarks == "Auto-balanced unbilled cash fuel from Day Closing",
+            )
+        )
+        if auto_cash_voucher is not None:
+            auto_cash_voucher.is_active = False
+
         closing.status = "DRAFT"
         db.commit()
         db.refresh(closing)

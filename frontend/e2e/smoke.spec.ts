@@ -21,10 +21,13 @@ test.describe("PumpLedgerAI Pre-Deploy Smoke Suite", () => {
     // Core navigation smoke checks
     const routes: Array<{ path: string; heading: RegExp }> = [
       { path: "/dashboard/inventory", heading: /Inventory & Pricing/i },
+      { path: "/dashboard/forecourt-twin", heading: /Interactive Forecourt & Tank Twin/i },
       { path: "/dashboard/vouchers", heading: /Vouchers/i },
+      { path: "/dashboard/pos", heading: /Forecourt POS Kiosk/i },
       { path: "/dashboard/payments", heading: /Payments/i },
       { path: "/dashboard/bank-accounts", heading: /Bank & Cash Accounts/i },
       { path: "/dashboard/day-closing", heading: /Day Closing/i },
+      { path: "/dashboard/close-day", heading: /Guided Close-the-Day Wizard/i },
     ];
 
     for (const r of routes) {

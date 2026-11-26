@@ -45,6 +45,7 @@ const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
   { label: "Cash", value: "CASH" },
   { label: "UPI", value: "UPI" },
   { label: "Card", value: "CARD" },
+  { label: "Bank", value: "BANK" },
   { label: "Credit", value: "CREDIT" },
 ];
 
@@ -58,7 +59,7 @@ const entrySchema = z.object({
   // Optional free-text category.
   category: z.string().optional(),
 
-  payment_mode: z.enum(["CASH", "UPI", "CARD", "CREDIT"]),
+  payment_mode: z.enum(["CASH", "UPI", "CARD", "BANK", "CREDIT"]),
 
   fuel_type: z.string().optional(),
 

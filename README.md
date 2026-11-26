@@ -70,11 +70,11 @@ The frontend expects the backend at `http://127.0.0.1:8000` (see
 5. **Customer Credit, Risk Scoring & Duplicate Merge:** Comprehensive customer ledgers, selective invoice payment, 1-click full-due & round-off settlement, Red/Amber/Green risk scoring, Day 15/30 WhatsApp reminders, and 1-click duplicate customer merge.
 6. **Fuel Inventory, 6 AM Price Split & Margin Analytics:** Tank dip logs, animated liquid tank gauges, nozzle meter readings with yesterday's closing/7-day average sanity guards, 6 AM price-change stock gain/loss alerts, and tank-wise profit cards.
 7. **Forecourt Quick Entry & Offline Mode:** Offline slip queue with auto-sync, Exact Amount vs. Round Liters toggle, large numeric keypad, vehicle plate auto-formatter, `Cmd+Enter` speed mode, and 8-second Undo toast.
-8. **Multilingual & Modern App Experience:** `EN / हिं / Hinglish` language switcher, interactive per-page Guide/Tutorial drawer, `Cmd+K` Spotlight Command Palette, mini icon-rail sidebar with pinned favorites, mobile bottom dock with `+` Quick Slip FAB, Sunlight High-Contrast & Easy-Read modes, and Cashflow Waterfall What-If Simulator.
+8. **Multilingual & Modern App Experience (Design System 2.0):** `EN / हिं / Hinglish` language switcher, customizable **Executive Bento Cockpit** with SVG collection mix & live tank telemetry, interactive **2D Forecourt & Tank Twin** (`/dashboard/forecourt-twin`), **5-Step Guided Close-the-Day Wizard** (`/dashboard/close-day`), **Touch-First Forecourt POS Kiosk** (`/dashboard/pos`), unified **CSV Export** & table skeletons, interactive per-page Guide/Tutorial drawer, `Cmd+K` Spotlight Command Palette, mini icon-rail sidebar with pinned favorites, mobile bottom dock with `+` Quick Slip FAB, Sunlight High-Contrast & Easy-Read modes, and Cashflow Waterfall What-If Simulator.
 9. **Audit Trail, Tally Sync & Reports:** Detailed action logging, Pre-Export Data Integrity Audit, financial statements, and Tally-compatible XML exports.
 
 ## Testing & Quality Assurance
 
 - **Backend:** 93 automated unit and integration tests (`cd backend && .venv/bin/pytest`).
-- **Frontend:** Strict TypeScript type-checking (`tsc -b`) and PWA production bundling with Vite (`cd frontend && npm run build`).
+- **Frontend:** Strict TypeScript type-checking (`tsc -b`), PWA production bundling with Vite (`cd frontend && npm run build`), unit tests (`cd frontend && npm test`), and Playwright E2E smoke suite (`cd frontend && npm run test:e2e`).
 

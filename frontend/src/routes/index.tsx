@@ -1,11 +1,10 @@
 import { lazy, Suspense } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import AppLayout from "../layouts/AppLayout";
 import AppErrorPage from "../components/common/AppErrorPage";
 import LoadingState from "../components/common/LoadingState";
 
-// Helper for dynamic chunk loading with automatic cache-buster refresh
 const lazyWithRetry = (componentImport: () => Promise<any>) =>
   lazy(async () => {
     const pageRefreshed = sessionStorage.getItem("chunk_retry_refreshed");
@@ -22,37 +21,41 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
     }
   });
 
-// Code-split page components for fast section & tab switching
 const LoginPage = lazyWithRetry(() => import("../features/auth/LoginPage"));
-const DashboardPage = lazyWithRetry(() => import("../features/dashboard/DashboardPage"));
-const UploadPage = lazyWithRetry(() => import("../features/upload/UploadPage"));
-const OCRReviewPage = lazyWithRetry(() => import("../features/review/OCRReviewPage"));
-const VoucherListPage = lazyWithRetry(() => import("../features/vouchers/VoucherListPage"));
-const QuickEntryPage = lazyWithRetry(() => import("../features/vouchers/QuickEntryPage"));
-const ForecourtPOSPage = lazyWithRetry(() => import("../features/vouchers/ForecourtPOSPage"));
-const CustomerListPage = lazyWithRetry(() => import("../features/customers/CustomerListPage"));
-const VehicleListPage = lazyWithRetry(() => import("../features/vehicles/VehicleListPage"));
-const VehicleLedgerPage = lazyWithRetry(() => import("../features/vehicles/VehicleLedgerPage"));
-const PaymentListPage = lazyWithRetry(() => import("../features/payments/PaymentListPage"));
-const CustomerLedgerPage = lazyWithRetry(() => import("../features/ledger/CustomerLedgerPage"));
-const CustomerStatementPrint = lazyWithRetry(() => import("../features/ledger/CustomerStatementPrint"));
-const ReportsPage = lazyWithRetry(() => import("../features/reports/ReportsPage"));
-const TallyExportPage = lazyWithRetry(() => import("../features/tally/TallyExportPage"));
-const InventoryPage = lazyWithRetry(() => import("../features/inventory/InventoryPage"));
-const ForecourtTwinPage = lazyWithRetry(() => import("../features/inventory/ForecourtTwinPage"));
-const IncomePage = lazyWithRetry(() => import("../features/income/IncomePage"));
-const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage"));
-const AuditLogPage = lazyWithRetry(() => import("../features/audit/AuditLogPage"));
-const UserManagementPage = lazyWithRetry(() => import("../features/users/UserManagementPage"));
-const BankAccountsPage = lazyWithRetry(() => import("../features/admin/BankAccountsPage"));
-const StaffPayrollPage = lazyWithRetry(() => import("../features/staff/StaffPayrollPage"));
-const ShiftSettlementPage = lazyWithRetry(() => import("../features/shifts/ShiftSettlementPage"));
-const DayClosingPage = lazyWithRetry(() => import("../features/day-closing/DayClosingPage"));
-const CloseDayWizardPage = lazyWithRetry(() => import("../features/day-closing/CloseDayWizardPage"));
-const CommandCenterPage = lazyWithRetry(() => import("../features/command-center/CommandCenterPage"));
 
-const AccessDeniedPage = lazyWithRetry(() => import("../components/auth/AccessDeniedPage"));
-const ProtectedRoute = lazyWithRetry(() => import("../components/auth/ProtectedRoute"));
+// Core 5-page app
+const UnifiedDailyRegisterPage = lazyWithRetry(
+  () => import("../features/register/UnifiedDailyRegisterPage")
+);
+const SlipsHubPage = lazyWithRetry(() => import("../features/slips/SlipsHubPage"));
+const OCRReviewPage = lazyWithRetry(() => import("../features/review/OCRReviewPage"));
+const CustomersHubPage = lazyWithRetry(
+  () => import("../features/customers/CustomersHubPage")
+);
+const InventoryPage = lazyWithRetry(() => import("../features/inventory/InventoryPage"));
+const MoneyProfitHubPage = lazyWithRetry(
+  () => import("../features/money/MoneyProfitHubPage")
+);
+const MoreToolsPage = lazyWithRetry(() => import("../features/settings/MoreToolsPage"));
+
+// Detail & print views linked from within the 5 core pages
+const CustomerLedgerPage = lazyWithRetry(
+  () => import("../features/ledger/CustomerLedgerPage")
+);
+const CustomerStatementPrint = lazyWithRetry(
+  () => import("../features/ledger/CustomerStatementPrint")
+);
+const VehicleLedgerPage = lazyWithRetry(
+  () => import("../features/vehicles/VehicleLedgerPage")
+);
+const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage"));
+
+const AccessDeniedPage = lazyWithRetry(
+  () => import("../components/auth/AccessDeniedPage")
+);
+const ProtectedRoute = lazyWithRetry(
+  () => import("../components/auth/ProtectedRoute")
+);
 const RatingPage = lazyWithRetry(() => import("../components/public/RatingPage"));
 
 const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -62,12 +65,20 @@ const SuspenseWrapper = ({ children }: { children: React.ReactNode }) => (
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <SuspenseWrapper><LoginPage /></SuspenseWrapper>,
+    element: (
+      <SuspenseWrapper>
+        <LoginPage />
+      </SuspenseWrapper>
+    ),
     errorElement: <AppErrorPage />,
   },
   {
     path: "/login",
-    element: <SuspenseWrapper><LoginPage /></SuspenseWrapper>,
+    element: (
+      <SuspenseWrapper>
+        <LoginPage />
+      </SuspenseWrapper>
+    ),
     errorElement: <AppErrorPage />,
   },
   {
@@ -75,124 +86,130 @@ const router = createBrowserRouter([
     element: <AppLayout />,
     errorElement: <AppErrorPage />,
     children: [
-      /* ─── Open to ALL authenticated roles ─── */
+      /* ─── 1. Daily Register (Home) & 2. Slips / OCR (Open to all roles) ─── */
       {
         index: true,
-        element: <SuspenseWrapper><DashboardPage /></SuspenseWrapper>,
+        element: (
+          <SuspenseWrapper>
+            <UnifiedDailyRegisterPage />
+          </SuspenseWrapper>
+        ),
       },
       {
-        path: "upload",
-        element: <SuspenseWrapper><UploadPage /></SuspenseWrapper>,
+        path: "slips",
+        element: (
+          <SuspenseWrapper>
+            <SlipsHubPage />
+          </SuspenseWrapper>
+        ),
       },
       {
         path: "review",
-        element: <SuspenseWrapper><OCRReviewPage /></SuspenseWrapper>,
-      },
-      {
-        path: "vouchers",
-        element: <SuspenseWrapper><VoucherListPage /></SuspenseWrapper>,
-      },
-      {
-        path: "quick-entry",
-        element: <SuspenseWrapper><QuickEntryPage /></SuspenseWrapper>,
-      },
-      {
-        path: "pos",
-        element: <SuspenseWrapper><ForecourtPOSPage /></SuspenseWrapper>,
+        element: (
+          <SuspenseWrapper>
+            <OCRReviewPage />
+          </SuspenseWrapper>
+        ),
       },
       {
         path: "access-denied",
-        element: <SuspenseWrapper><AccessDeniedPage /></SuspenseWrapper>,
+        element: (
+          <SuspenseWrapper>
+            <AccessDeniedPage />
+          </SuspenseWrapper>
+        ),
       },
 
-      /* ─── Manager + Admin ─── */
+      /* ─── Legacy slip paths redirected cleanly ─── */
+      { path: "upload", element: <Navigate to="/dashboard/slips" replace /> },
+      { path: "quick-entry", element: <Navigate to="/dashboard/slips?tab=quick" replace /> },
+      { path: "pos", element: <Navigate to="/dashboard/slips?tab=quick" replace /> },
+      { path: "vouchers", element: <Navigate to="/dashboard/slips?tab=list" replace /> },
+
+      /* ─── 3. Customers & Vehicles, 4. Inventory, 5. Money & Profit, Settings (Manager + Admin) ─── */
       {
         element: <ProtectedRoute allowedRoles={["ADMIN", "MANAGER"]} />,
         children: [
           {
             path: "customers",
-            element: <SuspenseWrapper><CustomerListPage /></SuspenseWrapper>,
+            element: (
+              <SuspenseWrapper>
+                <CustomersHubPage />
+              </SuspenseWrapper>
+            ),
           },
           {
             path: "customers/:customerUuid/ledger",
-            element: <SuspenseWrapper><CustomerLedgerPage /></SuspenseWrapper>,
-          },
-          {
-            path: "vehicles",
-            element: <SuspenseWrapper><VehicleListPage /></SuspenseWrapper>,
+            element: (
+              <SuspenseWrapper>
+                <CustomerLedgerPage />
+              </SuspenseWrapper>
+            ),
           },
           {
             path: "vehicles/:vehicleUuid/ledger",
-            element: <SuspenseWrapper><VehicleLedgerPage /></SuspenseWrapper>,
-          },
-          {
-            path: "payments",
-            element: <SuspenseWrapper><PaymentListPage /></SuspenseWrapper>,
-          },
-          {
-            path: "reports",
-            element: <SuspenseWrapper><ReportsPage /></SuspenseWrapper>,
-          },
-          {
-            path: "tally",
-            element: <SuspenseWrapper><TallyExportPage /></SuspenseWrapper>,
+            element: (
+              <SuspenseWrapper>
+                <VehicleLedgerPage />
+              </SuspenseWrapper>
+            ),
           },
           {
             path: "inventory",
-            element: <SuspenseWrapper><InventoryPage /></SuspenseWrapper>,
+            element: (
+              <SuspenseWrapper>
+                <InventoryPage />
+              </SuspenseWrapper>
+            ),
           },
           {
-            path: "forecourt-twin",
-            element: <SuspenseWrapper><ForecourtTwinPage /></SuspenseWrapper>,
+            path: "money",
+            element: (
+              <SuspenseWrapper>
+                <MoneyProfitHubPage />
+              </SuspenseWrapper>
+            ),
           },
           {
-            path: "income",
-            element: <SuspenseWrapper><IncomePage /></SuspenseWrapper>,
+            path: "settings",
+            element: (
+              <SuspenseWrapper>
+                <MoreToolsPage />
+              </SuspenseWrapper>
+            ),
           },
           {
-            path: "register",
-            element: <SuspenseWrapper><RegisterPage /></SuspenseWrapper>,
+            path: "register-sheet",
+            element: (
+              <SuspenseWrapper>
+                <RegisterPage />
+              </SuspenseWrapper>
+            ),
           },
-          {
-            path: "audit",
-            element: <SuspenseWrapper><AuditLogPage /></SuspenseWrapper>,
-          },
-          {
-            path: "bank-accounts",
-            element: <SuspenseWrapper><BankAccountsPage /></SuspenseWrapper>,
-          },
-          {
-            path: "staff",
-            element: <SuspenseWrapper><StaffPayrollPage /></SuspenseWrapper>,
-          },
-          {
-            path: "shift-settlement",
-            element: <SuspenseWrapper><ShiftSettlementPage /></SuspenseWrapper>,
-          },
-          {
-            path: "day-closing",
-            element: <SuspenseWrapper><DayClosingPage /></SuspenseWrapper>,
-          },
-          {
-            path: "close-day",
-            element: <SuspenseWrapper><CloseDayWizardPage /></SuspenseWrapper>,
-          },
-          {
-            path: "command-center",
-            element: <SuspenseWrapper><CommandCenterPage /></SuspenseWrapper>,
-          },
+
+          /* ─── Legacy overlapping routes redirected cleanly ─── */
+          { path: "day-closing", element: <Navigate to="/dashboard" replace /> },
+          { path: "close-day", element: <Navigate to="/dashboard" replace /> },
+          { path: "shift-settlement", element: <Navigate to="/dashboard" replace /> },
+          { path: "register", element: <Navigate to="/dashboard" replace /> },
+          { path: "income", element: <Navigate to="/dashboard" replace /> },
+          { path: "command-center", element: <Navigate to="/dashboard/money?tab=profit" replace /> },
+          { path: "vehicles", element: <Navigate to="/dashboard/customers?tab=vehicles" replace /> },
+          { path: "payments", element: <Navigate to="/dashboard/customers?tab=payments" replace /> },
+          { path: "bank-accounts", element: <Navigate to="/dashboard/money" replace /> },
+          { path: "reports", element: <Navigate to="/dashboard/money?tab=reports" replace /> },
+          { path: "forecourt-twin", element: <Navigate to="/dashboard/inventory" replace /> },
+          { path: "staff", element: <Navigate to="/dashboard/settings?tab=staff" replace /> },
+          { path: "tally", element: <Navigate to="/dashboard/settings?tab=tally" replace /> },
+          { path: "audit", element: <Navigate to="/dashboard/settings?tab=audit" replace /> },
         ],
       },
-
 
       /* ─── Admin only ─── */
       {
         element: <ProtectedRoute allowedRoles={["ADMIN"]} />,
         children: [
-          {
-            path: "users",
-            element: <SuspenseWrapper><UserManagementPage /></SuspenseWrapper>,
-          },
+          { path: "users", element: <Navigate to="/dashboard/settings?tab=users" replace /> },
         ],
       },
 
@@ -215,13 +232,21 @@ const router = createBrowserRouter([
     children: [
       {
         path: "",
-        element: <SuspenseWrapper><CustomerStatementPrint /></SuspenseWrapper>,
+        element: (
+          <SuspenseWrapper>
+            <CustomerStatementPrint />
+          </SuspenseWrapper>
+        ),
       },
     ],
   },
   {
     path: "/public/rate/:token",
-    element: <SuspenseWrapper><RatingPage /></SuspenseWrapper>,
+    element: (
+      <SuspenseWrapper>
+        <RatingPage />
+      </SuspenseWrapper>
+    ),
     errorElement: <AppErrorPage />,
   },
   {

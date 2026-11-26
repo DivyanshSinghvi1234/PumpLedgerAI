@@ -1,30 +1,16 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Upload,
-  FileText,
-  Users,
-  Truck,
-  Wallet,
-  BarChart3,
-  Fuel,
-  FileCode,
-  History,
-  X,
-  UserCog,
-  Coins,
   BookOpen,
+  Camera,
+  Users,
+  Fuel,
   Landmark,
-  Moon,
-  TrendingUp,
+  Settings,
+  X,
   ChevronDown,
   ChevronRight,
-  Zap,
   Star,
-  Map as MapIcon,
-  TabletSmartphone,
-  Sparkles,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -52,47 +38,14 @@ interface MenuGroup {
 
 const menuItems: MenuGroup[] = [
   {
-    section: "Daily Routine",
+    section: "Pump Operations",
     items: [
-      { title: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-      { title: "POS Kiosk", path: "/dashboard/pos", icon: TabletSmartphone },
-      { title: "Quick Entry", path: "/dashboard/quick-entry", icon: Zap },
-      { title: "Upload Invoice", path: "/dashboard/upload", icon: Upload },
-      { title: "Vouchers", path: "/dashboard/vouchers", icon: FileText },
+      { title: "Daily Register", path: "/dashboard", icon: BookOpen },
+      { title: "Slips & OCR", path: "/dashboard/slips", icon: Camera },
       {
-        title: "Payments",
-        path: "/dashboard/payments",
-        icon: Wallet,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "8 PM Settlement",
-        path: "/dashboard/shift-settlement",
-        icon: Wallet,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Close Day Wizard",
-        path: "/dashboard/close-day",
-        icon: Sparkles,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Day Closing",
-        path: "/dashboard/day-closing",
-        icon: Moon,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-    ],
-  },
-  {
-    section: "Stock & Customers",
-    allowedRoles: ["ADMIN", "MANAGER"],
-    items: [
-      {
-        title: "Station Twin",
-        path: "/dashboard/forecourt-twin",
-        icon: MapIcon,
+        title: "Customers & Vehicles",
+        path: "/dashboard/customers",
+        icon: Users,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
@@ -102,83 +55,22 @@ const menuItems: MenuGroup[] = [
         allowedRoles: ["ADMIN", "MANAGER"],
       },
       {
-        title: "Customers",
-        path: "/dashboard/customers",
-        icon: Users,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Vehicles",
-        path: "/dashboard/vehicles",
-        icon: Truck,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-    ],
-  },
-  {
-    section: "Money & Staff",
-    allowedRoles: ["ADMIN", "MANAGER"],
-    items: [
-      {
-        title: "Bank & Cash Accounts",
-        path: "/dashboard/bank-accounts",
+        title: "Money & Profit",
+        path: "/dashboard/money",
         icon: Landmark,
         allowedRoles: ["ADMIN", "MANAGER"],
       },
-      {
-        title: "Revenue / Expenses",
-        path: "/dashboard/income",
-        icon: Coins,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Staff & Payroll",
-        path: "/dashboard/staff",
-        icon: UserCog,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
     ],
   },
   {
-    section: "Reports & Admin",
+    section: "More",
     allowedRoles: ["ADMIN", "MANAGER"],
-    defaultCollapsed: true,
     items: [
       {
-        title: "Command Center",
-        path: "/dashboard/command-center",
-        icon: TrendingUp,
+        title: "Settings & Tools",
+        path: "/dashboard/settings",
+        icon: Settings,
         allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Daily Register",
-        path: "/dashboard/register",
-        icon: BookOpen,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Reports",
-        path: "/dashboard/reports",
-        icon: BarChart3,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Tally Sync",
-        path: "/dashboard/tally",
-        icon: FileCode,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "Audit Trail",
-        path: "/dashboard/audit",
-        icon: History,
-        allowedRoles: ["ADMIN", "MANAGER"],
-      },
-      {
-        title: "User Management",
-        path: "/dashboard/users",
-        icon: UserCog,
-        allowedRoles: ["ADMIN"],
       },
     ],
   },

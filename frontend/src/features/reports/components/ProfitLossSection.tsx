@@ -16,6 +16,9 @@ interface PnLReportResponse {
   fuel_liters: number;
   fuel_cogs: number;
   fuel_gross_margin: number;
+  commission_profit?: number;
+  margin_source?: string;
+  commission_rates?: Record<string, number>;
   other_income: number;
   total_expenses: number;
   shift_variance: number;
@@ -105,9 +108,22 @@ export default function ProfitLossSection() {
                 <span className="font-mono text-red-600">-{formatCurrency(data.fuel_cogs)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50 font-medium">
-                <span>Gross Fuel Margin</span>
+                <span>
+                  Gross Fuel Margin
+                  {data.margin_source && (
+                    <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                      ({data.margin_source.toLowerCase()})
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono">{formatCurrency(data.fuel_gross_margin)}</span>
               </div>
+              {Number(data.commission_profit ?? 0) > 0 && (
+                <div className="flex justify-between py-1 border-b border-border/50 text-xs">
+                  <span className="text-muted-foreground">Commission Profit (₹/L)</span>
+                  <span className="font-mono text-emerald-600">{formatCurrency(data.commission_profit ?? 0)}</span>
+                </div>
+              )}
               <div className="flex justify-between py-1 border-b border-border/50">
                 <span className="text-muted-foreground">Plus: Other Income</span>
                 <span className="font-mono text-emerald-600">+{formatCurrency(data.other_income)}</span>

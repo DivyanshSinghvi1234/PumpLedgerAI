@@ -9,25 +9,18 @@ import api from "@/api/client";
 import { formatCurrency } from "@/lib/utils";
 
 const QUICK_NAV = [
-  { label: "Dashboard", path: "/dashboard" },
-  { label: "Forecourt POS Kiosk", path: "/dashboard/pos" },
-  { label: "Interactive Station Twin", path: "/dashboard/forecourt-twin" },
-  { label: "Guided Close-the-Day Wizard", path: "/dashboard/close-day" },
-  { label: "Quick Entry", path: "/dashboard/quick-entry" },
-  { label: "Vouchers", path: "/dashboard/vouchers" },
-  { label: "Payments", path: "/dashboard/payments" },
-  { label: "Day Closing", path: "/dashboard/day-closing" },
-  { label: "8 PM Settlement", path: "/dashboard/shift-settlement" },
-  { label: "Inventory & Meter Readings", path: "/dashboard/inventory" },
-  { label: "Customers", path: "/dashboard/customers" },
-  { label: "Vehicles", path: "/dashboard/vehicles" },
-  { label: "Bank & Cash Accounts", path: "/dashboard/bank-accounts" },
-  { label: "Daily Register", path: "/dashboard/register" },
-  { label: "Revenue / Expenses", path: "/dashboard/income" },
-  { label: "Staff & Payroll", path: "/dashboard/staff" },
-  { label: "Command Center", path: "/dashboard/command-center" },
-  { label: "Reports", path: "/dashboard/reports" },
-  { label: "Tally Sync", path: "/dashboard/tally" },
+  { label: "Daily Register (Home)", path: "/dashboard" },
+  { label: "Scan Invoice / OCR Slips", path: "/dashboard/slips" },
+  { label: "Quick Manual Slip", path: "/dashboard/slips?tab=quick" },
+  { label: "Stored Slips & Invoices", path: "/dashboard/slips?tab=list" },
+  { label: "Customers & Dues", path: "/dashboard/customers" },
+  { label: "Vehicles", path: "/dashboard/customers?tab=vehicles" },
+  { label: "Payments Received", path: "/dashboard/customers?tab=payments" },
+  { label: "Inventory (Tanks & Deliveries)", path: "/dashboard/inventory" },
+  { label: "Money: Cash & Bank Balances", path: "/dashboard/money" },
+  { label: "Money: Commission & Profit", path: "/dashboard/money?tab=profit" },
+  { label: "Money: Detailed Reports", path: "/dashboard/money?tab=reports" },
+  { label: "Settings & Tools (Payroll, Tally, Users)", path: "/dashboard/settings" },
 ];
 
 interface Props {
@@ -105,24 +98,24 @@ export function CommandPalette({ open, onOpenChange }: Props) {
             <div className="grid grid-cols-2 gap-1">
               <button
                 type="button"
-                onClick={() => go("/dashboard/quick-entry")}
+                onClick={() => go("/dashboard/slips")}
                 className="flex items-center gap-2 rounded-lg px-2.5 py-2 hover:bg-muted text-left cursor-pointer"
               >
-                <Zap size={14} className="text-fuel-amber" /> New Quick Slip
+                <Zap size={14} className="text-fuel-amber" /> Scan / Add Slip
               </button>
               <button
                 type="button"
-                onClick={() => go("/dashboard/day-closing")}
+                onClick={() => go("/dashboard")}
                 className="flex items-center gap-2 rounded-lg px-2.5 py-2 hover:bg-muted text-left cursor-pointer"
               >
-                <Moon size={14} className="text-indigo-400" /> Close Business Day
+                <Moon size={14} className="text-indigo-400" /> Open Daily Register
               </button>
               <button
                 type="button"
-                onClick={() => go("/dashboard/bank-accounts")}
+                onClick={() => go("/dashboard/money")}
                 className="flex items-center gap-2 rounded-lg px-2.5 py-2 hover:bg-muted text-left cursor-pointer"
               >
-                <Landmark size={14} className="text-emerald-500" /> Deposit Cash to Bank
+                <Landmark size={14} className="text-emerald-500" /> Cash, Bank &amp; Profit
               </button>
               <button
                 type="button"

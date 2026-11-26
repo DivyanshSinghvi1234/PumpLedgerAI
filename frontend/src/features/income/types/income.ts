@@ -2,6 +2,7 @@ export type PaymentMode =
   | "CASH"
   | "UPI"
   | "CARD"
+  | "BANK"
   | "CREDIT";
 
 export type FuelType =
@@ -34,6 +35,8 @@ export interface Income {
   category: string | null;
 
   payment_mode: PaymentMode;
+
+  bank_account_uuid?: string | null;
 
   fuel_type?: FuelType | null;
 
@@ -82,6 +85,8 @@ export interface CreateIncomeRequest {
   category?: string | null;
 
   payment_mode: PaymentMode;
+
+  bank_account_uuid?: string | null;
 
   fuel_type?: FuelType | null;
 

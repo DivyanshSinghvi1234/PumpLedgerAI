@@ -76,6 +76,7 @@ class DayClosingCreate(BaseModel):
     upi_bank_account_uuid: str | None = None
     card_bank_account_uuid: str | None = None
     cash_deposited_to_bank: Decimal = Field(default=Decimal("0.00"), ge=0)
+    auto_balance_cash: bool = False
     notes: str | None = Field(default=None, max_length=500)
 
 

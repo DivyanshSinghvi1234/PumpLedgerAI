@@ -6,6 +6,7 @@ import { Zap, Camera, Fuel, CheckCircle2, Moon, AlertTriangle, CloudOff, Hand, C
 import BankAccountSelect from "@/components/common/BankAccountSelect";
 import { usePreferences } from "@/lib/preferences";
 import { evalMathExpression, formatVehiclePlate, numberToIndianWords, playSaveChime } from "@/lib/formatters";
+import { enqueueOfflineTransaction, getOfflineQueue, subscribeOfflineQueue } from "@/lib/offlineQueue";
 
 import PageHeader from "@/components/common/PageHeader";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
@@ -64,39 +65,10 @@ export default function QuickEntryPage() {
   const [entryFocus, setEntryFocus] = useState<"AMOUNT" | "LITERS">("AMOUNT");
   const [keypadOpen, setKeypadOpen] = useState(false);
   const [saveFlash, setSaveFlash] = useState(false);
-  const [offlineQueue, setOfflineQueue] = useState<any[]>(() => {
-    try {
-      const raw = localStorage.getItem("pumpledger_offline_slips");
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [offlineCount, setOfflineCount] = useState<number>(() => getOfflineQueue().length);
 
-  // Auto-sync offline slips when back online
   useEffect(() => {
-    const syncQueue = async () => {
-      const raw = localStorage.getItem("pumpledger_offline_slips");
-      const items: any[] = raw ? JSON.parse(raw) : [];
-      if (items.length === 0 || !navigator.onLine) return;
-      const remaining: any[] = [];
-      for (const item of items) {
-        try {
-          await voucherService.createVoucher(item);
-        } catch {
-          remaining.push(item);
-        }
-      }
-      localStorage.setItem("pumpledger_offline_slips", JSON.stringify(remaining));
-      setOfflineQueue(remaining);
-      if (remaining.length < items.length) {
-        toast.success(`Synced ${items.length - remaining.length} offline slip(s)!`);
-        queryClient.invalidateQueries({ queryKey: ["vouchers"] });
-      }
-    };
-    window.addEventListener("online", syncQueue);
-    syncQueue();
-    return () => window.removeEventListener("online", syncQueue);
+    return subscribeOfflineQueue((q) => setOfflineCount(q.length));
   }, []);
 
   const { data: schedules } = useQuery({
@@ -203,18 +175,14 @@ export default function QuickEntryPage() {
         bank_account_uuid: paymentMode === "UPI" && bankUuid ? bankUuid : undefined,
       };
       if (!navigator.onLine) {
-        const nextQ = [...offlineQueue, payload];
-        localStorage.setItem("pumpledger_offline_slips", JSON.stringify(nextQ));
-        setOfflineQueue(nextQ);
+        enqueueOfflineTransaction("VOUCHER", "/v1/vouchers", payload, `Quick slip ${payload.invoice_number}`);
         return { ...payload, uuid: "", __offline: true } as any;
       }
       try {
         return await voucherService.createVoucher(payload);
       } catch (err: any) {
         if (!err?.response) {
-          const nextQ = [...offlineQueue, payload];
-          localStorage.setItem("pumpledger_offline_slips", JSON.stringify(nextQ));
-          setOfflineQueue(nextQ);
+          enqueueOfflineTransaction("VOUCHER", "/v1/vouchers", payload, `Quick slip ${payload.invoice_number}`);
           return { ...payload, uuid: "", __offline: true } as any;
         }
         throw err;
@@ -308,9 +276,9 @@ export default function QuickEntryPage() {
               <Zap size={16} className="text-fuel-amber" /> New Forecourt Slip
             </CardTitle>
             <div className="flex items-center gap-1.5">
-              {offlineQueue.length > 0 && (
+              {offlineCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500">
-                  <CloudOff size={10} /> {offlineQueue.length} waiting
+                  <CloudOff size={10} /> {offlineCount} waiting
                 </span>
               )}
               <button

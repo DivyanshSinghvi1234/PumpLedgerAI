@@ -67,6 +67,7 @@ export interface DayClosingCreate {
   upi_bank_account_uuid?: string | null;
   card_bank_account_uuid?: string | null;
   cash_deposited_to_bank?: number;
+  auto_balance_cash?: boolean;
   notes?: string | null;
 }
 

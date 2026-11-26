@@ -584,10 +584,15 @@ class ReportService:
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> PnLReportResponse:
+        from datetime import datetime, timezone
         from app.core.enums import IncomeKind
         from app.models.fuel_tank import FuelTank, TankerDelivery
         from app.models.income import Income
+        from app.models.nozzle import Nozzle
+        from app.models.nozzle_reading import NozzleReading
         from app.models.shift_settlement import ShiftSettlement
+        from app.services.price_schedule_service import PriceScheduleService
+        from app.services.pump_setting_service import PumpSettingService
 
         today = date.today()
         start = from_date or date(today.year, today.month, 1)
@@ -620,9 +625,20 @@ class ReportService:
             if ftype not in proc_rates and proc_rate is not None:
                 proc_rates[ftype] = Decimal(str(proc_rate))
 
-        fuel_revenue = Decimal("0.00")
-        fuel_liters = Decimal("0.00")
-        fuel_cogs = Decimal("0.00")
+        # Dealer commission per liter configured in PumpSettings
+        raw_comm = PumpSettingService().get_setting(db, "fuel_commission_rates") or {}
+        commission_rates: dict[str, Decimal] = {}
+        if isinstance(raw_comm, dict):
+            for k, v in raw_comm.items():
+                try:
+                    val = Decimal(str(v or 0)).quantize(Decimal("0.01"))
+                    if val > Decimal("0.00"):
+                        commission_rates[str(k).upper()] = val
+                except Exception:
+                    continue
+
+        voucher_liters_by_fuel: dict[str, Decimal] = {}
+        voucher_rev_by_fuel: dict[str, Decimal] = {}
 
         for v in vouchers:
             entries = v.items if getattr(v, "items", None) else [v]
@@ -630,12 +646,84 @@ class ReportService:
                 ftype = it.fuel_type.value if hasattr(it.fuel_type, "value") else str(it.fuel_type)
                 qty = Decimal(str(it.quantity_liters or 0))
                 amt = Decimal(str(it.total_amount or 0))
-                fuel_revenue += amt
-                fuel_liters += qty
-                if ftype in proc_rates:
-                    fuel_cogs += (qty * proc_rates[ftype]).quantize(Decimal("0.01"))
+                voucher_liters_by_fuel[ftype] = voucher_liters_by_fuel.get(ftype, Decimal("0.00")) + qty
+                voucher_rev_by_fuel[ftype] = voucher_rev_by_fuel.get(ftype, Decimal("0.00")) + amt
+
+        # Include meter-recorded fuel sales so unbilled walk-in cash fuel is never invisible in P&L
+        meter_liters_by_fuel: dict[str, Decimal] = {}
+        meter_rev_by_fuel: dict[str, Decimal] = {}
+        price_service = PriceScheduleService()
+        meter_rows = db.execute(
+            select(NozzleReading, Nozzle.fuel_type)
+            .join(Nozzle, NozzleReading.nozzle_id == Nozzle.id)
+            .where(
+                NozzleReading.reading_date >= start,
+                NozzleReading.reading_date <= end,
+            )
+        ).all()
+        rate_cache: dict[tuple[str, date], Decimal] = {}
+        for reading, raw_ftype in meter_rows:
+            ftype = raw_ftype.value if hasattr(raw_ftype, "value") else str(raw_ftype)
+            qty = Decimal(str(reading.sales or 0))
+            if qty <= Decimal("0.00"):
+                continue
+            cache_key = (ftype, reading.reading_date)
+            if cache_key not in rate_cache:
+                eod = datetime(
+                    reading.reading_date.year,
+                    reading.reading_date.month,
+                    reading.reading_date.day,
+                    23,
+                    59,
+                    59,
+                    tzinfo=timezone.utc,
+                )
+                rate_cache[cache_key] = price_service.get_active_rate(db, raw_ftype, eod) or Decimal("0.00")
+            rate = rate_cache[cache_key]
+            meter_liters_by_fuel[ftype] = meter_liters_by_fuel.get(ftype, Decimal("0.00")) + qty
+            meter_rev_by_fuel[ftype] = meter_rev_by_fuel.get(ftype, Decimal("0.00")) + (qty * rate).quantize(Decimal("0.01"))
+
+        fuel_revenue = Decimal("0.00")
+        fuel_liters = Decimal("0.00")
+        fuel_cogs = Decimal("0.00")
+        commission_profit = Decimal("0.00")
+        used_proc = False
+        used_comm = False
+
+        all_fuels = set(voucher_liters_by_fuel.keys()) | set(meter_liters_by_fuel.keys())
+        for ftype in all_fuels:
+            v_qty = voucher_liters_by_fuel.get(ftype, Decimal("0.00"))
+            v_rev = voucher_rev_by_fuel.get(ftype, Decimal("0.00"))
+            m_qty = meter_liters_by_fuel.get(ftype, Decimal("0.00"))
+            m_rev = meter_rev_by_fuel.get(ftype, Decimal("0.00"))
+
+            qty = max(v_qty, m_qty)
+            amt = max(v_rev, m_rev) if m_qty > v_qty else v_rev
+
+            fuel_revenue += amt
+            fuel_liters += qty
+
+            comm_rate = commission_rates.get(ftype, Decimal("0.00"))
+            if comm_rate > Decimal("0.00"):
+                commission_profit += (qty * comm_rate).quantize(Decimal("0.01"))
+
+            if ftype in proc_rates:
+                fuel_cogs += (qty * proc_rates[ftype]).quantize(Decimal("0.01"))
+                used_proc = True
+            elif comm_rate > Decimal("0.00"):
+                margin_amt = (qty * comm_rate).quantize(Decimal("0.01"))
+                fuel_cogs += max(Decimal("0.00"), amt - margin_amt).quantize(Decimal("0.01"))
+                used_comm = True
 
         fuel_gross_margin = (fuel_revenue - fuel_cogs).quantize(Decimal("0.01"))
+        if used_proc and used_comm:
+            margin_source = "MIXED"
+        elif used_comm:
+            margin_source = "COMMISSION"
+        elif used_proc:
+            margin_source = "PROCUREMENT"
+        else:
+            margin_source = "UNCONFIGURED"
 
         incomes = db.scalars(
             select(Income).where(
@@ -685,6 +773,9 @@ class ReportService:
             fuel_liters=fuel_liters.quantize(Decimal("0.01")),
             fuel_cogs=fuel_cogs.quantize(Decimal("0.01")),
             fuel_gross_margin=fuel_gross_margin,
+            commission_profit=commission_profit.quantize(Decimal("0.01")),
+            margin_source=margin_source,
+            commission_rates=commission_rates,
             other_income=other_income.quantize(Decimal("0.01")),
             total_expenses=total_expenses.quantize(Decimal("0.01")),
             shift_variance=shift_variance.quantize(Decimal("0.01")),

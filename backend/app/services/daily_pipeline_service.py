@@ -248,9 +248,11 @@ class DailyPipelineService:
             _q(draft.gross_meter_sales) - _q(draft.total_voucher_sales),
         ).quantize(Decimal("0.01"))
 
+        # Include unbilled walk-in cash fuel in live drawer expectation before Day Lock
         expected_drawer_cash = (
             _q(draft.opening_float)
             + _q(draft.cash_sales)
+            + unbilled_cash_fuel
             + cash_other_income
             + cash_payments
             - _q(draft.cash_expenses)
@@ -316,6 +318,12 @@ class DailyPipelineService:
                 }
             )
 
+        from app.services.report_service import ReportService
+
+        pnl_today = ReportService().pnl_report(
+            db, from_date=target_date, to_date=target_date
+        )
+
         return {
             "date": target_date.isoformat(),
             "is_locked": closing is not None and closing.status in ("CLOSED", "LOCKED"),
@@ -346,7 +354,7 @@ class DailyPipelineService:
             },
             "cash_proof": {
                 "opening_float": float(_q(draft.opening_float)),
-                "cash_fuel_sales": float(_q(draft.cash_sales)),
+                "cash_fuel_sales": float((_q(draft.cash_sales) + unbilled_cash_fuel).quantize(Decimal("0.01"))),
                 "cash_other_income": float(cash_other_income),
                 "cash_payments_received": float(cash_payments),
                 "cash_expenses": float(_q(draft.cash_expenses)),
@@ -376,6 +384,16 @@ class DailyPipelineService:
                 "count": len(shift_settlements),
                 "total_variance": float(shift_variance_total),
                 "latest_uuid": str(latest_shift.uuid) if latest_shift else None,
+            },
+            "profit": {
+                "fuel_revenue": float(_q(pnl_today.fuel_revenue)),
+                "fuel_liters": float(_q(pnl_today.fuel_liters)),
+                "fuel_gross_margin": float(_q(pnl_today.fuel_gross_margin)),
+                "commission_profit": float(_q(pnl_today.commission_profit)),
+                "margin_source": pnl_today.margin_source,
+                "other_income": float(_q(pnl_today.other_income)),
+                "total_expenses": float(_q(pnl_today.total_expenses)),
+                "net_profit": float(_q(pnl_today.net_profit)),
             },
             "bank_reconciliation": bank_rows,
         }
@@ -636,83 +654,23 @@ class DailyPipelineService:
         self, db: Session, target_date: date, pump_id: int, actor_id: int | None = None
     ) -> dict[str, Any]:
         DayClosingService.ensure_day_open(db, target_date)
-        draft = self.day_closing_service.compute_draft(db, target_date)
-        gap = (_q(draft.gross_meter_sales) - _q(draft.total_voucher_sales)).quantize(
-            Decimal("0.01")
+        res = self.day_closing_service.ensure_unbilled_cash_voucher(
+            db, target_date, pump_id=pump_id, actor_id=actor_id
         )
-        if gap <= Decimal("0.00"):
+        if not res["created"]:
             return {
                 "created": False,
-                "message": "No unbilled cash gap to post.",
+                "message": res["message"],
                 "amount": 0.0,
             }
-
-        inv_num = f"CASH-SUM-{target_date.strftime('%Y%m%d')}"
-        existing = db.scalar(
-            select(Voucher).where(
-                Voucher.pump_id == pump_id,
-                Voucher.invoice_number == inv_num,
-                Voucher.is_active.is_(True),
-            )
-        )
-        if existing is not None:
-            existing.total_amount = (_q(existing.total_amount) + gap).quantize(
-                Decimal("0.01")
-            )
-            existing.amount_paid = existing.total_amount
-            existing.cash_amount = existing.total_amount
-            db.flush()
-            voucher = existing
-        else:
-            # Pick dominant fuel type from nozzle lines
-            fuel_type = "DIESEL"
-            rate = Decimal("90.00")
-            if draft.nozzle_lines:
-                top_line = max(draft.nozzle_lines, key=lambda n: n.amount)
-                fuel_type = top_line.fuel_type
-                rate = _q(top_line.rate) or Decimal("90.00")
-
-            qty = (
-                (gap / rate).quantize(Decimal("0.01"))
-                if rate > Decimal("0.00")
-                else Decimal("0.00")
-            )
-            from app.core.enums import FuelType
-
-            voucher = Voucher(
-                pump_id=pump_id,
-                invoice_number=inv_num,
-                invoice_date=target_date,
-                customer_name="Walk-in Cash Summary",
-                fuel_type=FuelType(fuel_type),
-                quantity_liters=qty,
-                rate_per_liter=rate,
-                total_amount=gap,
-                payment_mode=PaymentMode.CASH,
-                cash_amount=gap,
-                amount_paid=gap,
-                payment_status=PaymentStatus.PAID,
-                verification_status=VerificationStatus.VERIFIED,
-                remarks="Auto-balanced unbilled cash fuel from Day Closing",
-            )
-            db.add(voucher)
-            db.flush()
-
-        self.audit_service.log_action(
-            db,
-            action="Auto-Balanced Unbilled Cash",
-            target_table="vouchers",
-            target_id=str(voucher.uuid),
-            actor_id=actor_id,
-            new_values={"date": target_date.isoformat(), "amount": str(gap)},
-        )
+        voucher = res["voucher"]
         db.commit()
         return {
             "created": True,
             "voucher_uuid": str(voucher.uuid),
             "invoice_number": voucher.invoice_number,
-            "amount": float(gap),
-            "message": f"Posted Summary Cash Sale of ₹{gap:,.2f}.",
+            "amount": float(res["amount"]),
+            "message": res["message"],
         }
 
     # ------------------------------------------------------------------

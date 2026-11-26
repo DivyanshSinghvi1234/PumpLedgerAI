@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import (
     FuelType,
@@ -236,6 +236,9 @@ class PnLReportResponse(BaseModel):
     fuel_liters: Decimal
     fuel_cogs: Decimal
     fuel_gross_margin: Decimal
+    commission_profit: Decimal = Decimal("0.00")
+    margin_source: str = "PROCUREMENT"
+    commission_rates: dict[str, Decimal] = Field(default_factory=dict)
     other_income: Decimal
     total_expenses: Decimal
     shift_variance: Decimal
