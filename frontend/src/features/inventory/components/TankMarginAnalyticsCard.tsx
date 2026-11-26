@@ -79,7 +79,8 @@ export function TankMarginAnalyticsCard() {
     },
     onSuccess: (res) => {
       toast.success(
-        `Tanker Auto-Pilot complete! Stock: ${res.new_tank_stock}L, Avg Cost: ₹${res.new_avg_cost_per_liter}/L${res.matched_indent_number ? ` (Matched ${res.matched_indent_number})` : ""
+        `Tanker Auto-Pilot complete! Stock: ${res.new_tank_stock}L, Avg Cost: ₹${res.new_avg_cost_per_liter}/L${
+          res.matched_indent_number ? ` (Matched ${res.matched_indent_number})` : ""
         }`
       );
       setAutopilotOpen(false);
@@ -307,12 +308,13 @@ export function TankMarginAnalyticsCard() {
                 {/* Animated Liquid Tank Level Bar */}
                 <div className="h-2.5 w-full rounded-full bg-surface-3 overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-700 ${t.fill_percent < 20 || t.fill_percent > 95
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      t.fill_percent < 20 || t.fill_percent > 95
                         ? "bg-rose-500"
                         : t.fill_percent < 35
-                          ? "bg-amber-500"
-                          : "bg-emerald-500"
-                      }`}
+                        ? "bg-amber-500"
+                        : "bg-emerald-500"
+                    }`}
                     style={{ width: `${Math.min(100, Math.max(4, t.fill_percent))}%` }}
                   />
                 </div>
@@ -329,8 +331,9 @@ export function TankMarginAnalyticsCard() {
                   <span className="text-right">{Number(t.today_net_sales_liters ?? 0).toFixed(1)} L</span>
                   <span className="text-ink-muted">Dip Variance:</span>
                   <span
-                    className={`text-right ${Number(t.today_dip_variance_liters ?? 0) < 0 ? "text-rose-500" : "text-emerald-500"
-                      }`}
+                    className={`text-right ${
+                      Number(t.today_dip_variance_liters ?? 0) < 0 ? "text-rose-500" : "text-emerald-500"
+                    }`}
                   >
                     {Number(t.today_dip_variance_liters ?? 0) >= 0 ? "+" : ""}
                     {Number(t.today_dip_variance_liters ?? 0).toFixed(1)} L
