@@ -1,145 +1,106 @@
 import { useState } from "react";
-import { Fuel, Truck, Gauge, Package, Tag, Wrench, History } from "lucide-react";
+import { Fuel, Package, Tag, Truck } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import DispenserTab from "./components/DispenserTab";
-import MeterReadingsTab from "./components/MeterReadingsTab";
-import MeterLogsTab from "./components/MeterLogsTab";
 import PriceSchedulesTab from "./components/PriceSchedulesTab";
 import StockReconciliationTab from "./components/StockReconciliationTab";
 import { TankMarginAnalyticsCard } from "./components/TankMarginAnalyticsCard";
 import LubricantsTab from "./components/LubricantsTab";
 import PurchaseIndentsTab from "./components/PurchaseIndentsTab";
 
+type InventoryTab = "tanks" | "deliveries" | "setup";
+
 export default function InventoryPage() {
   const { hasRole } = useCurrentUser();
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
 
-  const [activeTab, setActiveTab] = useState<"dips" | "indents" | "readings" | "prices" | "dispensers" | "history" | "lubricants">("dips");
+  const [activeTab, setActiveTab] = useState<InventoryTab>("tanks");
+  const [showLubricants, setShowLubricants] = useState(false);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <PageHeader
-          title="Inventory & Pricing"
-          description="Configure storage tanks, bulk meter entries, packaged lubricants & DEF, OMC purchase indents, fuel rates, and dispensers."
-          helpText="Start in Fuel Storage to add tanks and record tanker deliveries (which can auto-deduct your selected Bank Account). Use Meter Readings daily, Price Schedules when rates change, and Lube & DEF Stock for packaged items."
-        />
-      </div>
+      <PageHeader
+        title="Inventory"
+        description="Manage underground fuel tanks, tanker deliveries, selling prices, and pump nozzles. Daily meter entry lives on the Daily Register."
+      />
 
-      {/* Tabs Layout */}
+      {/* 3 Clear Tabs */}
       <div className="flex border-b border-hairline gap-4 overflow-x-auto">
         <button
-          onClick={() => setActiveTab("dips")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "dips"
+          type="button"
+          onClick={() => setActiveTab("tanks")}
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+            activeTab === "tanks"
               ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
+              : "border-transparent text-ink-muted hover:text-ink font-medium"
           }`}
         >
           <Fuel className="h-4 w-4 shrink-0" />
-          Fuel Storage
+          Tanks &amp; Stock
         </button>
+
         <button
-          onClick={() => setActiveTab("indents")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "indents"
+          type="button"
+          onClick={() => setActiveTab("deliveries")}
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+            activeTab === "deliveries"
               ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
+              : "border-transparent text-ink-muted hover:text-ink font-medium"
           }`}
         >
           <Truck className="h-4 w-4 shrink-0" />
-          OMC Indents & TTs
+          Tanker Deliveries
         </button>
+
         <button
-          onClick={() => setActiveTab("readings")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "readings"
+          type="button"
+          onClick={() => setActiveTab("setup")}
+          className={`inline-flex items-center gap-1.5 pb-3 text-sm tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
+            activeTab === "setup"
               ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
-          }`}
-        >
-          <Gauge className="h-4 w-4 shrink-0" />
-          Meter Readings
-        </button>
-        <button
-          onClick={() => setActiveTab("lubricants")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "lubricants"
-              ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
-          }`}
-        >
-          <Package className="h-4 w-4 shrink-0" />
-          Lube & DEF Stock
-        </button>
-        <button
-          onClick={() => setActiveTab("prices")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "prices"
-              ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
+              : "border-transparent text-ink-muted hover:text-ink font-medium"
           }`}
         >
           <Tag className="h-4 w-4 shrink-0" />
-          Price Schedules
-        </button>
-        <button
-          onClick={() => setActiveTab("dispensers")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "dispensers"
-              ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
-          }`}
-        >
-          <Wrench className="h-4 w-4 shrink-0" />
-          Fuel Dispensers
-        </button>
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`inline-flex items-center gap-1.5 pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all px-2 cursor-pointer whitespace-nowrap ${
-            activeTab === "history"
-              ? "border-fuel-amber text-ink font-bold"
-              : "border-transparent text-ink-muted hover:text-ink"
-          }`}
-        >
-          <History className="h-4 w-4 shrink-0" />
-          Meter Logs
+          Prices &amp; Nozzles
         </button>
       </div>
 
       {/* Tab Panels */}
-      {activeTab === "dips" && (
+      {activeTab === "tanks" && (
         <div className="space-y-6">
           <StockReconciliationTab isAdminOrManager={isAdminOrManager} />
           {isAdminOrManager && <TankMarginAnalyticsCard />}
+
+          <div className="rounded-xl border border-hairline bg-surface-1 p-4">
+            <button
+              type="button"
+              onClick={() => setShowLubricants((prev) => !prev)}
+              className="flex items-center gap-2 text-xs font-semibold text-ink-muted hover:text-ink cursor-pointer"
+            >
+              <Package className="h-4 w-4 text-fuel-amber" />
+              {showLubricants ? "Hide Packaged Lube & DEF Stock" : "Show Packaged Lube & DEF Stock"}
+            </button>
+            {showLubricants && (
+              <div className="mt-4">
+                <LubricantsTab isAdminOrManager={isAdminOrManager} />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {activeTab === "indents" && (
+      {activeTab === "deliveries" && (
         <PurchaseIndentsTab isAdminOrManager={isAdminOrManager} />
       )}
 
-      {activeTab === "readings" && (
-        <MeterReadingsTab isAdminOrManager={isAdminOrManager} />
-      )}
-
-      {activeTab === "lubricants" && (
-        <LubricantsTab isAdminOrManager={isAdminOrManager} />
-      )}
-
-      {activeTab === "prices" && (
-        <PriceSchedulesTab isAdminOrManager={isAdminOrManager} />
-      )}
-
-      {activeTab === "dispensers" && (
-        <DispenserTab isAdminOrManager={isAdminOrManager} />
-      )}
-
-      {activeTab === "history" && (
-        <MeterLogsTab />
+      {activeTab === "setup" && (
+        <div className="space-y-8">
+          <PriceSchedulesTab isAdminOrManager={isAdminOrManager} />
+          <DispenserTab isAdminOrManager={isAdminOrManager} />
+        </div>
       )}
     </div>
   );
 }
-

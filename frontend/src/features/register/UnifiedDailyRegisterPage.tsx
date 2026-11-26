@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -10,9 +10,12 @@ import {
   Calendar,
   Camera,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Fuel,
   Landmark,
   Lock,
+  MessageCircle,
   Plus,
   Trash2,
   TrendingUp,
@@ -32,6 +35,7 @@ import type { IncomeKind, PaymentMode } from "@/features/income/types/income";
 import inventoryService from "@/features/inventory/services/inventoryService";
 import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
+import { getWhatsAppShareUrl } from "@/lib/whatsapp";
 
 const NOTES = [
   { key: "n500", label: "₹500", value: 500 },
@@ -46,16 +50,21 @@ type NoteKey = (typeof NOTES)[number]["key"];
 
 export default function UnifiedDailyRegisterPage() {
   const queryClient = useQueryClient();
-  const { user, hasRole } = useCurrentUser();
+  const { user, activePump, hasRole } = useCurrentUser();
   const isAdmin = hasRole("ADMIN");
   const isOperator = user?.role === "OPERATOR";
 
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const closingInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Nozzle meter input state (keyed by nozzle_uuid)
   const [nozzleEdits, setNozzleEdits] = useState<
     Record<string, { closing: string; testing: string }>
   >({});
+
+  // Optional Tank Dip check
+  const [showDips, setShowDips] = useState(false);
+  const [tankDips, setTankDips] = useState<Record<string, string>>({});
 
   // Quick 1-line income/expense form
   const [entryKind, setEntryKind] = useState<IncomeKind>("EXPENSE");
@@ -136,6 +145,23 @@ export default function UnifiedDailyRegisterPage() {
     }
     setNozzleEdits(next);
   }, [bulkForm]);
+
+  // Seed tank dips from draft
+  useEffect(() => {
+    if (!draft?.tank_dips) return;
+    const next: Record<string, string> = {};
+    let hasAny = false;
+    for (const td of draft.tank_dips) {
+      if (td.physical_dip != null) {
+        next[td.tank_uuid] = String(td.physical_dip);
+        hasAny = true;
+      } else {
+        next[td.tank_uuid] = "";
+      }
+    }
+    setTankDips(next);
+    if (hasAny) setShowDips(true);
+  }, [draft?.closing_date, draft?.tank_dips]);
 
   // Seed note counts from snapshot
   useEffect(() => {
@@ -257,6 +283,36 @@ export default function UnifiedDailyRegisterPage() {
     return Math.round((notesSum + (Number(coins) || 0)) * 100) / 100;
   }, [noteCounts, coins]);
 
+  const parsedTankDips = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(tankDips)) {
+      if (v !== "" && !Number.isNaN(Number(v))) {
+        out[k] = Number(v);
+      }
+    }
+    return out;
+  }, [tankDips]);
+
+  const saveDipsMutation = useMutation({
+    mutationFn: async () => {
+      const dips = Object.entries(parsedTankDips).map(([tank_uuid, physical_dip]) => ({
+        tank_uuid,
+        physical_dip,
+      }));
+      if (dips.length === 0) {
+        throw new Error("Enter at least one physical tank dip reading.");
+      }
+      return dayClosingService.recordDips(selectedDate, dips);
+    },
+    onSuccess: () => {
+      toast.success("Tank dips saved & variance updated!");
+      invalidateAll();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || "Failed to save tank dips");
+    },
+  });
+
   const closeDayMutation = useMutation({
     mutationFn: async () => {
       return dayClosingService.closeDay({
@@ -272,7 +328,7 @@ export default function UnifiedDailyRegisterPage() {
         cash_to_next_day: Number(cashToNextDay) || 0,
         cash_deposited_to_bank: Number(cashDeposited) || 0,
         settlement_bank_account_uuid: settlementBankUuid || null,
-        tank_dips: {},
+        tank_dips: parsedTankDips,
         auto_balance_cash: true,
         notes: closingNotes.trim() || null,
       });
@@ -382,6 +438,30 @@ export default function UnifiedDailyRegisterPage() {
     const d = new Date(selectedDate + "T00:00:00");
     d.setDate(d.getDate() + deltaDays);
     setSelectedDate(d.toISOString().split("T")[0]);
+  };
+
+  const handleSendWhatsAppSummary = () => {
+    const pumpTitle = activePump?.name || "Petrol Pump";
+    const creditTotal = snapshot?.vouchers?.credit_sales ?? 0;
+    const digitalTotal =
+      (snapshot?.vouchers?.upi_sales ?? 0) + (snapshot?.vouchers?.card_sales ?? 0);
+    const expensesTotal = snapshot?.cash_proof?.cash_expenses ?? 0;
+    const varianceStr = `${liveVariance >= 0 ? "+" : ""}${formatCurrency(liveVariance)}`;
+    const lines = [
+      `*${pumpTitle} — 8 PM Daily Closing (${selectedDate})*`,
+      `• Fuel Sold: ${(snapshot?.meters?.total_liters ?? totalMeterLitersLive).toFixed(1)} L (${formatCurrency(snapshot?.meters?.gross_meter_sales ?? 0)})`,
+      `• Credit Slips: ${formatCurrency(creditTotal)}`,
+      `• UPI / Card: ${formatCurrency(digitalTotal)}`,
+      `• Cash Expenses: ${formatCurrency(expensesTotal)}`,
+      `• Bank Deposit: ${formatCurrency(bankDepositAmt)}`,
+      `• Cash in Drawer: ${formatCurrency(countedCashTotal)} (Expected ${formatCurrency(liveExpectedCash)} | ${varianceStr})`,
+      `• Net Profit: ${formatCurrency(profit?.net_profit ?? 0)}`,
+    ];
+    if (isLocked) {
+      lines.push(`Status: CLOSED & LOCKED`);
+    }
+    const url = getWhatsAppShareUrl(null, lines.join("\n"));
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -526,7 +606,7 @@ export default function UnifiedDailyRegisterPage() {
           <div>
             <h2 className="text-base font-bold text-ink">1. Fuel Sold (Meter Readings)</h2>
             <p className="text-xs text-ink-muted">
-              Opening carries over automatically. Enter closing reading → saves sales, deducts Tank Stock, and calculates profit.
+              Opening carries over automatically. Type closing reading &amp; press <kbd className="rounded border border-hairline px-1 py-0.5 text-[10px]">Enter</kbd> to jump to next nozzle.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -565,7 +645,7 @@ export default function UnifiedDailyRegisterPage() {
                 </tr>
               </thead>
               <tbody>
-                {bulkForm.items.map((item) => {
+                {bulkForm.items.map((item, idx) => {
                   const edit = nozzleEdits[item.nozzle_uuid] ?? { closing: "", testing: "0" };
                   const closeVal = Number(edit.closing);
                   const testVal = Number(edit.testing || 0);
@@ -594,6 +674,9 @@ export default function UnifiedDailyRegisterPage() {
                       </td>
                       <td className="py-2 px-2">
                         <Input
+                          ref={(el) => {
+                            closingInputRefs.current[idx] = el;
+                          }}
                           type="number"
                           step="0.01"
                           disabled={isLocked}
@@ -605,6 +688,17 @@ export default function UnifiedDailyRegisterPage() {
                               [item.nozzle_uuid]: { ...edit, closing: e.target.value },
                             }))
                           }
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            const nextInput = closingInputRefs.current[idx + 1];
+                            if (nextInput) {
+                              nextInput.focus();
+                              nextInput.select();
+                            } else if (!isLocked && !saveReadingsMutation.isPending) {
+                              saveReadingsMutation.mutate();
+                            }
+                          }}
                           className="h-8 w-36 font-mono text-sm"
                         />
                       </td>
@@ -635,6 +729,81 @@ export default function UnifiedDailyRegisterPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Collapsible Optional Tank Dip Check */}
+        {(draft?.tank_dips?.length ?? 0) > 0 && (
+          <div className="border-t border-hairline/60 pt-3">
+            <button
+              type="button"
+              onClick={() => setShowDips((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-ink cursor-pointer"
+            >
+              {showDips ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              Tank Dip Check (Optional — catch underground fuel shortage)
+            </button>
+
+            {showDips && (
+              <div className="mt-3 space-y-3 rounded-lg bg-surface-2/40 border border-hairline p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {draft!.tank_dips.map((td) => {
+                    const dipStr = tankDips[td.tank_uuid] ?? "";
+                    const dipNum = Number(dipStr);
+                    const hasDip = dipStr !== "" && !Number.isNaN(dipNum);
+                    const varL = hasDip
+                      ? Math.round((dipNum - td.book_stock) * 10) / 10
+                      : td.variance_liters;
+
+                    return (
+                      <div key={td.tank_uuid} className="rounded-md border border-hairline bg-surface-1 p-2.5 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between font-semibold text-ink">
+                          <span>{td.tank_name} ({td.fuel_type})</span>
+                          <span className="text-ink-muted font-mono">
+                            Book: {td.book_stock.toFixed(0)} L
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="1"
+                            disabled={isLocked}
+                            placeholder="Physical dip (L)"
+                            value={dipStr}
+                            onChange={(e) =>
+                              setTankDips((prev) => ({ ...prev, [td.tank_uuid]: e.target.value }))
+                            }
+                            className="h-8 font-mono text-xs"
+                          />
+                          {varL != null && (
+                            <span
+                              className={`font-mono font-semibold whitespace-nowrap ${
+                                varL < -50 ? "text-rose-500" : "text-emerald-500"
+                              }`}
+                            >
+                              {varL >= 0 ? "+" : ""}
+                              {varL.toFixed(0)} L
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!isLocked && (
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={saveDipsMutation.isPending}
+                      onClick={() => saveDipsMutation.mutate()}
+                    >
+                      {saveDipsMutation.isPending ? "Saving Dips..." : "Save Dips"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -910,13 +1079,13 @@ export default function UnifiedDailyRegisterPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Input
               disabled={isLocked}
               placeholder="Optional note..."
               value={closingNotes}
               onChange={(e) => setClosingNotes(e.target.value)}
-              className="h-9 w-44 text-xs"
+              className="h-9 w-40 text-xs"
             />
             <Button
               disabled={isLocked || closeDayMutation.isPending}
@@ -929,6 +1098,15 @@ export default function UnifiedDailyRegisterPage() {
                 : closeDayMutation.isPending
                 ? "Closing..."
                 : "Save & Lock Day"}
+            </Button>
+            <Button
+              type="button"
+              variant={isLocked ? "default" : "outline"}
+              onClick={handleSendWhatsAppSummary}
+              className={`h-9 ${isLocked ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+            >
+              <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+              Send 8 PM WhatsApp
             </Button>
           </div>
         </div>
