@@ -761,8 +761,8 @@ export default function RegisterPage() {
         p.payment_mode === "CASH"
           ? Number(p.amount ?? 0)
           : p.payment_mode === "SPLIT"
-            ? Number(p.cash_amount ?? 0)
-            : 0;
+          ? Number(p.cash_amount ?? 0)
+          : 0;
       return {
         uuid: p.uuid,
         customer_name: p.customer_name,
@@ -795,13 +795,13 @@ export default function RegisterPage() {
   // Map vouchers
   const activeVouchers = vouchersData?.items?.length
     ? vouchersData.items.map((v) => ({
-      quantity_liters: Number(v.quantity_liters ?? 0),
-      customer_name:
-        (v.customer_name || "Cash Customer") +
-        (v.vehicle_number ? ` (${v.vehicle_number})` : "") +
-        (v.payment_mode ? ` [${v.payment_mode}]` : ""),
-      amount: Number(v.total_amount ?? 0),
-    }))
+        quantity_liters: Number(v.quantity_liters ?? 0),
+        customer_name:
+          (v.customer_name || "Cash Customer") +
+          (v.vehicle_number ? ` (${v.vehicle_number})` : "") +
+          (v.payment_mode ? ` [${v.payment_mode}]` : ""),
+        amount: Number(v.total_amount ?? 0),
+      }))
     : [];
 
   const totalVouchersAmount = activeVouchers.reduce((sum, item) => sum + item.amount, 0);
@@ -866,31 +866,31 @@ export default function RegisterPage() {
   // Map Nozzles using live editable drafts so right-page equations update instantly as you type
   const activeNozzles = nozzleData?.items?.length
     ? nozzleData.items.map((item, idx) => {
-      const draftItem = nozzleDrafts[item.nozzle_uuid];
-      const closingStr =
-        draftItem?.closing ?? (item.closing_reading != null ? String(item.closing_reading) : "");
-      const closingNum = closingStr !== "" && !Number.isNaN(Number(closingStr)) ? Number(closingStr) : null;
-      const testingNum =
-        draftItem?.testing !== undefined
-          ? Number(draftItem.testing) || 0
-          : Number(item.testing) || 0;
-      const interimStr =
-        draftItem?.interim6am ??
-        (item.interim_6am_reading != null ? String(item.interim_6am_reading) : "");
-      return {
-        idx,
-        nozzle_uuid: item.nozzle_uuid,
-        nozzle_name: item.nozzle_name,
-        dispenser_name: item.dispenser_name,
-        fuel_type: item.fuel_type,
-        opening_reading: Number(item.opening_reading) || 0,
-        closing_reading: closingNum,
-        closing_str: closingStr,
-        interim_str: interimStr,
-        meter_capacity: Number(item.meter_capacity) || 999999,
-        testing: testingNum,
-      };
-    })
+        const draftItem = nozzleDrafts[item.nozzle_uuid];
+        const closingStr =
+          draftItem?.closing ?? (item.closing_reading != null ? String(item.closing_reading) : "");
+        const closingNum = closingStr !== "" && !Number.isNaN(Number(closingStr)) ? Number(closingStr) : null;
+        const testingNum =
+          draftItem?.testing !== undefined
+            ? Number(draftItem.testing) || 0
+            : Number(item.testing) || 0;
+        const interimStr =
+          draftItem?.interim6am ??
+          (item.interim_6am_reading != null ? String(item.interim_6am_reading) : "");
+        return {
+          idx,
+          nozzle_uuid: item.nozzle_uuid,
+          nozzle_name: item.nozzle_name,
+          dispenser_name: item.dispenser_name,
+          fuel_type: item.fuel_type,
+          opening_reading: Number(item.opening_reading) || 0,
+          closing_reading: closingNum,
+          closing_str: closingStr,
+          interim_str: interimStr,
+          meter_capacity: Number(item.meter_capacity) || 999999,
+          testing: testingNum,
+        };
+      })
     : [];
 
   const gridItems = activeNozzles.map((noz) => {
@@ -1087,8 +1087,8 @@ export default function RegisterPage() {
             {saveReadingsMutation.isPending
               ? "Saving..."
               : hasUnsavedReadings
-                ? "Save Readings *"
-                : "Save Readings"}
+              ? "Save Readings *"
+              : "Save Readings"}
           </Button>
 
           <Button size="sm" variant="outline" onClick={() => window.print()}>
@@ -1122,15 +1122,15 @@ export default function RegisterPage() {
           <div className="text-lg font-bold text-ink mt-0.5">
             {formatCurrency(
               (pipelineSnapshot?.vouchers?.credit_sales ?? 0) +
-              (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
-              (pipelineSnapshot?.vouchers?.card_sales ?? 0)
+                (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
+                (pipelineSnapshot?.vouchers?.card_sales ?? 0)
             )}
           </div>
           <div className="text-[11px] text-ink-muted">
             Credit {formatCurrency(pipelineSnapshot?.vouchers?.credit_sales ?? 0)} · Digital{" "}
             {formatCurrency(
               (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
-              (pipelineSnapshot?.vouchers?.card_sales ?? 0)
+                (pipelineSnapshot?.vouchers?.card_sales ?? 0)
             )}
           </div>
         </div>
@@ -1150,12 +1150,13 @@ export default function RegisterPage() {
             {formatCurrency(totalCashCounted)}
           </div>
           <div
-            className={`text-[11px] font-medium ${Math.abs(cashVariance) <= 10
+            className={`text-[11px] font-medium ${
+              Math.abs(cashVariance) <= 10
                 ? "text-emerald-500"
                 : cashVariance < 0
-                  ? "text-rose-500"
-                  : "text-amber-500"
-              }`}
+                ? "text-rose-500"
+                : "text-amber-500"
+            }`}
           >
             Expected {formatCurrency(expectedCash)} ({cashVariance >= 0 ? "+" : ""}
             {formatCurrency(cashVariance)})
@@ -1168,8 +1169,9 @@ export default function RegisterPage() {
             <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
           </div>
           <div
-            className={`text-lg font-bold mt-0.5 ${(profit?.net_profit ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500"
-              }`}
+            className={`text-lg font-bold mt-0.5 ${
+              (profit?.net_profit ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500"
+            }`}
           >
             {formatCurrency(profit?.net_profit ?? 0)}
           </div>
@@ -1393,8 +1395,9 @@ export default function RegisterPage() {
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
-        className={`pl-register-container overflow-x-auto min-w-[768px] ${isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
-          }`}
+        className={`pl-register-container overflow-x-auto min-w-[768px] ${
+          isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
+        }`}
       >
         {/* Book Outer Spine layout */}
         <div className="pl-book-shell relative min-w-[1000px] w-full max-w-[1250px] mx-auto min-h-[820px] rounded-2xl overflow-hidden border border-amber-950/30 touch-pan-y">
