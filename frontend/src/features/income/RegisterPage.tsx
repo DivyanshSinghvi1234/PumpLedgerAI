@@ -91,7 +91,7 @@ export default function RegisterPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const [mobileBookView, setMobileBookView] = useState<"right" | "left" | "book">("right");
+  const [mobileBookView, setMobileBookView] = useState<"right" | "left" | "book">("book");
   const [isCompactViewport, setIsCompactViewport] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 1024 : false
   );
@@ -102,6 +102,17 @@ export default function RegisterPage() {
     onChange();
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    const onTourView = (e: Event) => {
+      const view = (e as CustomEvent).detail;
+      if (view === "left" || view === "right" || view === "book") {
+        setMobileBookView((prev) => (prev === "book" ? "book" : view));
+      }
+    };
+    window.addEventListener("pumpledger:tour-register-view", onTourView);
+    return () => window.removeEventListener("pumpledger:tour-register-view", onTourView);
   }, []);
 
   // Nozzle inline editing + Enter navigation across Opening / Closing / Net rows
@@ -1254,7 +1265,7 @@ export default function RegisterPage() {
           description="Type directly inside the register: Opening / Closing / Net readings & Slips / UPI / Cash."
         />
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="register-actions" className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => {
@@ -1473,7 +1484,7 @@ export default function RegisterPage() {
                 autoSelectDefault
               />
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div data-tour="register-lock-whatsapp" className="flex items-center gap-2 w-full sm:w-auto">
               {isLocked && isAdmin ? (
                 <Button
                   size="sm"
@@ -1573,6 +1584,18 @@ export default function RegisterPage() {
         <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-hairline bg-surface-1 p-1 text-xs">
           <button
             type="button"
+            onClick={() => setMobileBookView("book")}
+            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
+              mobileBookView === "book"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+            }`}
+          >
+            <span>Full Book ↔</span>
+            <span className="text-[10px] opacity-85 font-mono">2-Page View</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setMobileBookView("right")}
             className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
               mobileBookView === "right"
@@ -1598,18 +1621,6 @@ export default function RegisterPage() {
             <span className="text-[10px] opacity-85 font-mono">
               ₹{Math.round(totalVouchersAndUpi + totalCashCounted).toLocaleString("en-IN")}
             </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileBookView("book")}
-            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
-              mobileBookView === "book"
-                ? "bg-fuel-amber text-canvas shadow-sm"
-                : "text-ink-muted hover:text-ink hover:bg-surface-2"
-            }`}
-          >
-            <span>Full Book ↔</span>
-            <span className="text-[10px] opacity-85 font-mono">2-Page View</span>
           </button>
         </div>
         {mobileBookView === "book" && (
@@ -1823,7 +1834,7 @@ export default function RegisterPage() {
 
                   {/* Unified Inline Entry Row: Type (Income/Expense) -> Qty -> Particulars -> Amount */}
                   {!isLocked && (
-                    <div className="pt-1.5 space-y-1.5 no-print">
+                    <div data-tour="register-left-entry" className="pt-1.5 space-y-1.5 no-print">
                       <div className={`grid ${leftGridCols} h-8 sm:h-[22px] items-center`}>
                         <div className="pr-1 border-r border-[#A33A32]/25 h-full flex items-center">
                           <select
@@ -1977,6 +1988,7 @@ export default function RegisterPage() {
 
               {/* Bottom Cash Denomination Breakdown */}
               <div
+                data-tour="register-denominations"
                 className={`mt-4 sm:mt-2 border-t-2 border-[#A33A32]/50 pt-2 grid gap-4 text-[#2B2621] ${
                   isWideLayout ? "grid-cols-[1.25fr_1fr]" : "grid-cols-1 sm:grid-cols-[1.25fr_1fr]"
                 }`}
@@ -2112,7 +2124,7 @@ export default function RegisterPage() {
               </div>
 
               {/* Editable Nozzle Readings inside the book lines */}
-              <div className="text-[12px] relative mt-[0px]">
+              <div data-tour="register-nozzles" className="text-[12px] relative mt-[0px]">
                 {activeNozzles.length === 0 ? (
                   <div className="py-8 text-center text-xs text-neutral-600 font-sans">
                     No nozzles configured yet.{" "}

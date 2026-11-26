@@ -18,6 +18,7 @@ import Navbar from "../components/layout/Navbar";
 import OfflineBanner from "../components/layout/OfflineBanner";
 import { CommandPalette } from "../components/layout/CommandPalette";
 import { PinLockOverlay } from "../components/layout/PinLockOverlay";
+import { OnboardingTourWizard } from "../features/guide/OnboardingTourWizard";
 import { isAuthenticated } from "../features/auth/services/authService";
 import { useCurrentUser } from "../features/auth/hooks/useCurrentUser";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -272,6 +273,7 @@ export default function AppLayout() {
 
             <NavLink
               to="/dashboard/slips"
+              data-tour="nav-slips"
               className="-mt-5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-fuel-amber text-canvas shadow-lg shadow-fuel-amber/30 border-4 border-canvas"
               title="Scan or Add Slip"
             >
@@ -311,6 +313,7 @@ export default function AppLayout() {
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
       <PinLockOverlay locked={pinLocked} onUnlock={() => setPinLocked(false)} />
+      <OnboardingTourWizard />
     </div>
   );
 }

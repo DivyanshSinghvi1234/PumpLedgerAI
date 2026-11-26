@@ -241,6 +241,7 @@ export default function Sidebar({ isOpen, isMini = false, onClose }: SidebarProp
                             key={item.path}
                             to={item.path}
                             end={item.path === "/dashboard"}
+                            data-tour={item.path === "/dashboard/slips" ? "nav-slips" : undefined}
                             onClick={handleNavClick}
                             className={({ isActive }) =>
                               `group flex items-center gap-3 py-2 px-3 text-[13px] font-medium rounded-lg transition-all duration-150 ${

@@ -264,6 +264,7 @@ export default function Navbar({
           {/* Interactive Instructor / Tutorial Guide */}
           <button
             type="button"
+            data-tour="navbar-guide"
             onClick={() => setGuideOpen(true)}
             className="inline-flex items-center gap-1 rounded-lg border border-fuel-amber/40 bg-fuel-amber/10 p-2 sm:px-2.5 sm:py-1.5 text-xs font-bold text-fuel-amber hover:bg-fuel-amber/20 transition cursor-pointer"
             title={lang === "hi" ? "इंटरैक्टिव गाइड खोलें" : "Open Interactive Tutorial & Guide"}

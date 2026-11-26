@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, ChevronDown, ChevronRight, Compass } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Compass, Play } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,15 +41,30 @@ export function InstructorDrawer({ open, onClose }: Props) {
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0">
         <DialogHeader className="px-5 py-4 border-b border-hairline shrink-0">
-          <DialogTitle className="text-base font-bold flex items-center gap-2">
-            <Compass size={18} className="text-fuel-amber" />
-            {isHi ? "इंटरैक्टिव गाइड / ट्यूटोरियल" : "Interactive Guide & Tutorial"}
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            {isHi
-              ? "किसी भी सेक्शन या हेडर पर क्लिक करके उसकी जानकारी देखें"
-              : "Click any page or header below to learn how it works"}
-          </DialogDescription>
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
+            <div>
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <Compass size={18} className="text-fuel-amber" />
+                {isHi ? "इंटरैक्टिव गाइड / ट्यूटोरियल" : "Interactive Guide & Tutorial"}
+              </DialogTitle>
+              <DialogDescription className="text-xs mt-0.5">
+                {isHi
+                  ? "किसी भी सेक्शन या हेडर पर क्लिक करके उसकी जानकारी देखें"
+                  : "Click any page or header below to learn how it works"}
+              </DialogDescription>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(new CustomEvent("pumpledger:start-tour"));
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-fuel-amber hover:bg-fuel-orange px-3 py-1.5 text-xs font-bold text-canvas transition cursor-pointer shadow-sm"
+            >
+              <Play size={12} className="fill-current" />
+              {isHi ? "तीर डेमो चलाएं" : "Start Arrow Tour"}
+            </button>
+          </div>
         </DialogHeader>
 
         {/* Page Switcher Pills */}

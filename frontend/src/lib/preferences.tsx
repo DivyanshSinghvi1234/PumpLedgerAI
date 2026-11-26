@@ -10,6 +10,7 @@ interface PreferencesState {
   demoMode: boolean;
   soundEnabled: boolean;
   leftHanded: boolean;
+  hasCompletedTour: boolean;
   favorites: string[];
   pinCode: string;
 }
@@ -22,6 +23,7 @@ interface PreferencesContextValue extends PreferencesState {
   setDemoMode: (v: boolean) => void;
   setSoundEnabled: (v: boolean) => void;
   setLeftHanded: (v: boolean) => void;
+  setHasCompletedTour: (v: boolean) => void;
   toggleFavorite: (path: string) => void;
   setPinCode: (pin: string) => void;
 }
@@ -36,6 +38,7 @@ const DEFAULT_PREFS: PreferencesState = {
   demoMode: false,
   soundEnabled: true,
   leftHanded: false,
+  hasCompletedTour: false,
   favorites: ["/dashboard/quick-entry", "/dashboard/vouchers", "/dashboard/day-closing"],
   pinCode: "1234",
 };
@@ -49,6 +52,7 @@ const PreferencesContext = createContext<PreferencesContextValue>({
   setDemoMode: () => {},
   setSoundEnabled: () => {},
   setLeftHanded: () => {},
+  setHasCompletedTour: () => {},
   toggleFavorite: () => {},
   setPinCode: () => {},
 });
@@ -103,6 +107,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
         setDemoMode: (v) => update("demoMode", v),
         setSoundEnabled: (v) => update("soundEnabled", v),
         setLeftHanded: (v) => update("leftHanded", v),
+        setHasCompletedTour: (v) => update("hasCompletedTour", v),
         toggleFavorite,
         setPinCode: (p) => update("pinCode", p),
       }}
