@@ -438,6 +438,28 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
 
   const isDisabled = hasSavedReadings && !isEditingSaved;
 
+  const handleGridEnter = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    prefix: string,
+    idx: number
+  ) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      for (let next = idx + 1; next < sortedBulkItems.length; next++) {
+        const el = document.getElementById(`${prefix}-${next}`) as HTMLInputElement | null;
+        if (el && !el.disabled) {
+          el.focus();
+          el.select();
+          break;
+        }
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header toolbar */}
@@ -696,6 +718,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                           </TableCell>
                           <TableCell className="py-2.5">
                             <Input
+                              id={`opening-input-${idx}`}
                               type="number"
                               step="0.001"
                               placeholder="0.000"
@@ -719,11 +742,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                 });
                               }}
                               onWheel={(e) => e.currentTarget.blur()}
-                              onKeyDown={(e) => {
-                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                }
-                              }}
+                              onKeyDown={(e) => handleGridEnter(e, "opening-input", idx)}
                               className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                           </TableCell>
@@ -749,11 +768,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                       }));
                                     }}
                                     onWheel={(e) => e.currentTarget.blur()}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                                        e.preventDefault();
-                                      }
-                                    }}
+                                    onKeyDown={(e) => handleGridEnter(e, "interim-input", idx)}
                                     disabled={isDisabled}
                                     className="w-36 pl-6 bg-fuel-amber/5 border-fuel-amber/30 outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                                   />
@@ -823,19 +838,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                 });
                               }}
                               onWheel={(e) => e.currentTarget.blur()}
-                              onKeyDown={(e) => {
-                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                }
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  const nextInput = document.getElementById(`closing-input-${idx + 1}`) as HTMLInputElement | null;
-                                  if (nextInput) {
-                                    nextInput.focus();
-                                    nextInput.select();
-                                  }
-                                }
-                              }}
+                              onKeyDown={(e) => handleGridEnter(e, "closing-input", idx)}
                               disabled={isDisabled || isMaintenance}
                               className="w-36 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
@@ -883,6 +886,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
 
                           <TableCell className="py-2.5">
                             <Input
+                              id={`testing-input-${idx}`}
                               type="number"
                               step="0.001"
                               placeholder="0.000"
@@ -910,11 +914,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                 });
                               }}
                               onWheel={(e) => e.currentTarget.blur()}
-                              onKeyDown={(e) => {
-                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                }
-                              }}
+                              onKeyDown={(e) => handleGridEnter(e, "testing-input", idx)}
                               disabled={isDisabled}
                               className="w-24 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
@@ -924,6 +924,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                 closing = opening + sales + testing. closing stays the source
                                 of truth, so this input just derives from/writes to it. */}
                             <Input
+                              id={`sales-input-${idx}`}
                               type="number"
                               step="0.001"
                               placeholder="0.000"
@@ -961,11 +962,7 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                                 });
                               }}
                               onWheel={(e) => e.currentTarget.blur()}
-                              onKeyDown={(e) => {
-                                if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                                  e.preventDefault();
-                                }
-                              }}
+                              onKeyDown={(e) => handleGridEnter(e, "sales-input", idx)}
                               disabled={isDisabled}
                               title={isNegative ? "Sales cannot be negative — closing is below opening." : undefined}
                               className={`w-28 text-right bg-surface-2 border-hairline outline-none text-xs py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed ${isNegative ? "border-red-400/60 text-red-400 font-bold" : "text-ink"}`}
