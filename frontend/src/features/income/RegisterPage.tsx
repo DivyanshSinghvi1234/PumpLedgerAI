@@ -20,12 +20,12 @@ import {
   Minimize2,
   Printer,
   RefreshCw,
+  RotateCw,
   Save,
   Sparkles,
   Trash2,
   TrendingUp,
   Unlock,
-  X,
 } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
@@ -98,6 +98,8 @@ export default function RegisterPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [mobileBookView, setMobileBookView] = useState<"right" | "left" | "book">("book");
   const [isBookFullscreen, setIsBookFullscreen] = useState(false);
+  const [isRegisterMinimized, setIsRegisterMinimized] = useState(false);
+  const [isRotatedLandscape, setIsRotatedLandscape] = useState(false);
   const [fitToScreen, setFitToScreen] = useState(true);
   const [fsViewport, setFsViewport] = useState(() => ({
     w: typeof window !== "undefined" ? window.innerWidth : 1024,
@@ -128,12 +130,25 @@ export default function RegisterPage() {
   const toggleFullscreenBook = () => {
     setIsBookFullscreen((prev) => {
       const next = !prev;
+      setIsRotatedLandscape(false);
       if (next) {
         setFitToScreen(true);
+        setIsRegisterMinimized(false);
       }
       return next;
     });
   };
+
+  useEffect(() => {
+    if (!isBookFullscreen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsBookFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isBookFullscreen]);
 
   useEffect(() => {
     const onTourView = (e: Event) => {
@@ -1291,7 +1306,9 @@ export default function RegisterPage() {
   const bookBaseH = 840;
   const availW = Math.max(260, fsViewport.w - 16);
   const availH = Math.max(260, fsViewport.h - 56);
-  const fsScale = Math.min(availW / bookBaseW, availH / bookBaseH, 1.25);
+  const fsScale = isRotatedLandscape
+    ? Math.min(availH / bookBaseW, availW / bookBaseH, 1.35)
+    : Math.min(availW / bookBaseW, availH / bookBaseH, 1.25);
 
   return (
     <div className="space-y-3 sm:space-y-4 min-w-0 print-container">
@@ -1376,6 +1393,27 @@ export default function RegisterPage() {
 
           <Button
             size="sm"
+            type="button"
+            variant="outline"
+            onClick={() => setIsRegisterMinimized((p) => !p)}
+            className="h-9"
+            title={isRegisterMinimized ? "Expand Register" : "Minimize Register"}
+          >
+            {isRegisterMinimized ? (
+              <>
+                <Maximize2 size={14} className="mr-1.5" />
+                <span>{t("Expand")}</span>
+              </>
+            ) : (
+              <>
+                <Minimize2 size={14} className="mr-1.5" />
+                <span>{t("Minimize")}</span>
+              </>
+            )}
+          </Button>
+
+          <Button
+            size="sm"
             variant="outline"
             onClick={() => window.print()}
             className="h-9"
@@ -1386,6 +1424,26 @@ export default function RegisterPage() {
         </div>
       </div>
 
+      {/* Minimized Register Banner OR Bound Book */}
+      {isRegisterMinimized && !isBookFullscreen ? (
+        <div className="rounded-xl border border-amber-900/30 bg-[#F7F1E3] text-[#2B2621] px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-sm no-print">
+          <div className="text-xs font-medium flex flex-wrap items-center gap-3">
+            <span className="font-bold text-[#A33A32] font-mono">{formattedDateHeader}</span>
+            <span>Fuel: <strong>{formatCurrency(totalCalculatedFuelSales)}</strong></span>
+            <span>Slips/UPI: <strong>{formatCurrency(totalVouchersAndUpi)}</strong></span>
+            <span>Cash: <strong>{formatCurrency(totalCashCounted)}</strong></span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setIsRegisterMinimized(false)} className="h-8 bg-white text-black border-[#A33A32]/30">
+              <Maximize2 size={13} className="mr-1.5" /> {t("Show Register")}
+            </Button>
+            <Button size="sm" onClick={() => toggleFullscreenBook()} className="h-8 bg-[#A33A32] text-white hover:bg-[#8c2e27]">
+              <Maximize2 size={13} className="mr-1.5" /> {t("Full Screen")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Mobile Register Page Switcher (< lg, Full Book default) */}
       {!isBookFullscreen && (
         <div className="lg:hidden space-y-1.5 no-print">
@@ -1443,7 +1501,7 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {/* Bound Book Container (Normal at top OR Fullscreen + Rotate-to-Fit Overlay) */}
+      {/* Bound Book Container (Normal at top OR Fullscreen upright fit overlay) */}
       <div
         className={
           isBookFullscreen
@@ -1496,12 +1554,30 @@ export default function RegisterPage() {
 
               <button
                 type="button"
+                onClick={() => {
+                  setIsRotatedLandscape((prev) => !prev);
+                  setFitToScreen(true);
+                }}
+                className={`h-8 px-2.5 rounded-lg border inline-flex items-center gap-1 font-semibold cursor-pointer ${
+                  isRotatedLandscape
+                    ? "border-fuel-amber bg-fuel-amber text-black"
+                    : "border-white/20 bg-white/10 text-white"
+                }`}
+                title="Rotate 90°"
+              >
+                <RotateCw size={13} />
+                <span>{t("Rotate")}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => toggleFullscreenBook()}
                 className="h-8 px-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold inline-flex items-center gap-1 cursor-pointer"
+                title="Minimize / Exit Full Screen (Esc)"
               >
                 <Minimize2 size={13} />
-                <X size={13} className="sm:hidden" />
-                <span className="hidden sm:inline">{t("Exit Full Screen")}</span>
+                <span>{t("Minimize")}</span>
+                <span className="hidden md:inline opacity-75 text-[10px] font-mono">(Esc)</span>
               </button>
             </div>
           </div>
@@ -1529,7 +1605,9 @@ export default function RegisterPage() {
                     top: "50%",
                     left: "50%",
                     width: `${bookBaseW}px`,
-                    transform: `translate(-50%, -50%) scale(${fsScale})`,
+                    transform: `translate(-50%, -50%) ${
+                      isRotatedLandscape ? "rotate(90deg) " : ""
+                    }scale(${fsScale})`,
                     transformOrigin: "center center",
                   }
                 : undefined
@@ -2519,6 +2597,8 @@ export default function RegisterPage() {
       </div>
       </div>
       </div>
+      </>
+      )}
 
       {/* BELOW REGISTER 1: Interlinked Simple Entry Form (Previous Card Style, synced live with Book above) */}
       <div
