@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/common/PageHeader";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiCollectionBreakdown from "@/components/common/UpiCollectionBreakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,7 +16,6 @@ import {
   Fuel,
   Lock,
   MessageCircle,
-  Plus,
   Printer,
   RefreshCw,
   Save,
@@ -32,14 +32,13 @@ import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import inventoryService from "@/features/inventory/services/inventoryService";
 import paymentService from "@/features/payments/services/paymentService";
 import incomeService from "@/features/income/services/incomeService";
-import type { IncomeKind, PaymentMode } from "@/features/income/types/income";
 import dayClosingService from "@/features/day-closing/services/dayClosingService";
 import bankAccountService from "@/features/admin/services/bankAccountService";
+import type { FuelType, PaymentMode as VoucherPaymentMode } from "@/types/voucher";
 import { formatCurrency } from "@/lib/utils";
 import { getWhatsAppShareUrl } from "@/lib/whatsapp";
 import api from "@/api/client";
 
-// Cash denominations rendered in the collection-counts grid (note value → state key)
 const DENOMINATIONS = [
   { value: 500, key: "n500" },
   { value: 200, key: "n200" },
@@ -49,7 +48,17 @@ const DENOMINATIONS = [
   { value: 10, key: "n10" },
 ] as const;
 
-// Indian currency format style for ledger: 15000=00
+type LeftEntryMode =
+  | "CREDIT"
+  | "CASH"
+  | "UPI"
+  | "CARD"
+  | "EXP_CASH"
+  | "EXP_BANK"
+  | "LEND_CASH";
+
+type RightEntryMode = "INCOME" | "LEND_CASH";
+
 function formatLedgerAmount(val: number): string {
   const safeVal = Number(val) || 0;
   const base = Math.floor(safeVal);
@@ -58,8 +67,14 @@ function formatLedgerAmount(val: number): string {
   return `${base.toLocaleString("en-IN")}=${paiseStr}`;
 }
 
+function fmtTrim(n: number): string {
+  return Number(n.toFixed(2)).toString();
+}
+
 interface NozzleDraftItem {
+  opening: string;
   closing: string;
+  net: string;
   interim6am: string;
   testing: string;
 }
@@ -76,34 +91,39 @@ export default function RegisterPage() {
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
 
-  // Inline editable nozzle closing readings (persisted to localStorage draft per date)
+  // Nozzle inline editing + Enter navigation across Opening / Closing / Net rows
   const [nozzleDrafts, setNozzleDrafts] = useState<Record<string, NozzleDraftItem>>({});
   const [hasUnsavedReadings, setHasUnsavedReadings] = useState(false);
   const [rateChanged6am, setRateChanged6am] = useState(false);
+  const openingInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const closingInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const netInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Inline book-page entry states (type directly inside Left & Right book pages)
-  const [bookExpDesc, setBookExpDesc] = useState("");
-  const [bookExpAmt, setBookExpAmt] = useState("");
-  const [bookExpMode, setBookExpMode] = useState<PaymentMode>("CASH");
-  const [bookIncDesc, setBookIncDesc] = useState("");
-  const [bookIncAmt, setBookIncAmt] = useState("");
+  // Left Page inline entry: Qty -> Particulars (+ Mode / UPI / Fuel) -> Amount -> Save
+  const [leftQty, setLeftQty] = useState("");
+  const [leftParticulars, setLeftParticulars] = useState("");
+  const [leftAmt, setLeftAmt] = useState("");
+  const [leftMode, setLeftMode] = useState<LeftEntryMode>("CREDIT");
+  const [leftFuel, setLeftFuel] = useState<FuelType>("DIESEL");
+  const [leftUpiUuid, setLeftUpiUuid] = useState("");
+  const [leftUpiBankUuid, setLeftUpiBankUuid] = useState("");
+  const leftQtyRef = useRef<HTMLInputElement | null>(null);
+  const leftParticularsRef = useRef<HTMLInputElement | null>(null);
+  const leftAmtRef = useRef<HTMLInputElement | null>(null);
 
-  // Quick 1-line Expense / Income panel
-  const [showQuickEntry, setShowQuickEntry] = useState(false);
-  const [entryKind, setEntryKind] = useState<IncomeKind>("EXPENSE");
-  const [entryDesc, setEntryDesc] = useState("");
-  const [entryAmt, setEntryAmt] = useState("");
-  const [entryMode, setEntryMode] = useState<PaymentMode>("CASH");
-  const [entryBankUuid, setEntryBankUuid] = useState("");
+  // Right Page inline Cash Income / Money Lended entry
+  const [rightMode, setRightMode] = useState<RightEntryMode>("INCOME");
+  const [rightDesc, setRightDesc] = useState("");
+  const [rightAmt, setRightAmt] = useState("");
+  const rightDescRef = useRef<HTMLInputElement | null>(null);
+  const rightAmtRef = useRef<HTMLInputElement | null>(null);
 
-  // Optional Tank Dip Check + Day Closing Bar
+  // Tank Dip & Closing controls
   const [showDips, setShowDips] = useState(false);
   const [tankDips, setTankDips] = useState<Record<string, string>>({});
   const [cashToNextDay, setCashToNextDay] = useState("2000");
   const [settlementBankUuid, setSettlementBankUuid] = useState("");
 
-  // Backend-synced state for cash denominations & daily sheet totals (with localStorage fallback)
   const cacheKey = `ledger_denominations_${date}`;
   const nozzleDraftKey = `register_nozzle_draft_${date}`;
 
@@ -163,7 +183,6 @@ export default function RegisterPage() {
     }
   }, [cashSheetQuery.data, cashSheetQuery.isFetched, cacheKey]);
 
-  // Save cache helper (writes to localStorage + syncs with backend)
   const saveDenominations = (
     updatedNotes: typeof notes,
     updatedHome = cashHome,
@@ -198,10 +217,10 @@ export default function RegisterPage() {
       });
   };
 
-  // Queries for Vouchers, Nozzles, Incomes/Expenses, Payments, Day Closing Draft & Pipeline Snapshot
   const { data: vouchersData, refetch: refetchVouchers } = useVoucherList({
     from_date: date,
     to_date: date,
+    page_size: 200,
   });
 
   const { data: nozzleData, refetch: refetchNozzles } = useQuery({
@@ -218,7 +237,7 @@ export default function RegisterPage() {
 
   const { data: incomesData } = useQuery({
     queryKey: ["incomes", date],
-    queryFn: () => incomeService.getIncomes({ income_date: date, page_size: 50 }),
+    queryFn: () => incomeService.getIncomes({ income_date: date, page_size: 100 }),
     enabled: !isOperator,
   });
 
@@ -240,17 +259,35 @@ export default function RegisterPage() {
     enabled: !isOperator,
   });
 
-  useEffect(() => {
-    if (bankAccounts && bankAccounts.length > 0) {
-      if (!settlementBankUuid) setSettlementBankUuid(bankAccounts[0].uuid);
-      if (!entryBankUuid) setEntryBankUuid(bankAccounts[0].uuid);
-    }
-  }, [bankAccounts, settlementBankUuid, entryBankUuid]);
+  const { data: upiAccounts } = useQuery({
+    queryKey: ["upi-accounts"],
+    queryFn: () => bankAccountService.getUpiAccounts(),
+    enabled: !isOperator,
+  });
 
-  // Seed editable nozzle drafts from API + localStorage unsaved draft
+  const priceSchedulesQuery = useQuery({
+    queryKey: ["priceSchedules"],
+    queryFn: () => inventoryService.getPriceSchedules(),
+    enabled: !isOperator,
+  });
+
+  useEffect(() => {
+    if (bankAccounts && bankAccounts.length > 0 && !settlementBankUuid) {
+      setSettlementBankUuid(bankAccounts[0].uuid);
+    }
+  }, [bankAccounts, settlementBankUuid]);
+
+  useEffect(() => {
+    if (upiAccounts && upiAccounts.length > 0 && !leftUpiUuid) {
+      setLeftUpiUuid(upiAccounts[0].uuid);
+      setLeftUpiBankUuid(upiAccounts[0].bank_account_uuid || "");
+    }
+  }, [upiAccounts, leftUpiUuid]);
+
+  // Seed nozzle drafts (Opening, Closing, Net, 6AM, Testing)
   useEffect(() => {
     if (!nozzleData?.items) return;
-    let savedDraft: Record<string, NozzleDraftItem> = {};
+    let savedDraft: Record<string, Partial<NozzleDraftItem>> = {};
     let hadSavedDraft = false;
     try {
       const raw = localStorage.getItem(nozzleDraftKey);
@@ -259,23 +296,38 @@ export default function RegisterPage() {
         hadSavedDraft = Object.keys(savedDraft).length > 0;
       }
     } catch {
-      // ignore storage errors
+      // ignore
     }
 
     const next: Record<string, NozzleDraftItem> = {};
     let has6am = false;
     for (const item of nozzleData.items) {
       const local = savedDraft[item.nozzle_uuid];
+      const openStr = local?.opening ?? String(Number(item.opening_reading) || 0);
+      const closeStr =
+        local?.closing ??
+        (item.closing_reading != null ? String(item.closing_reading) : "");
+      const testStr = local?.testing ?? (item.testing != null ? String(item.testing) : "0");
       const interimVal =
         local?.interim6am ??
         (item.interim_6am_reading != null ? String(item.interim_6am_reading) : "");
       if (interimVal) has6am = true;
+
+      let netStr = local?.net ?? "";
+      if (!local?.net && closeStr !== "") {
+        const o = Number(openStr) || 0;
+        const c = Number(closeStr);
+        const cap = Number(item.meter_capacity) || 999999;
+        const rawSales = c >= o ? c - o : cap - o + c;
+        netStr = fmtTrim(Math.max(0, rawSales - (Number(testStr) || 0)));
+      }
+
       next[item.nozzle_uuid] = {
-        closing:
-          local?.closing ??
-          (item.closing_reading != null ? String(item.closing_reading) : ""),
+        opening: openStr,
+        closing: closeStr,
+        net: netStr,
         interim6am: interimVal,
-        testing: local?.testing ?? (item.testing != null ? String(item.testing) : "0"),
+        testing: testStr,
       };
     }
     setNozzleDrafts(next);
@@ -283,7 +335,6 @@ export default function RegisterPage() {
     if (has6am) setRateChanged6am(true);
   }, [nozzleData, nozzleDraftKey]);
 
-  // Seed tank dips from Day Closing draft
   useEffect(() => {
     if (!closingDraft?.tank_dips) return;
     const next: Record<string, string> = {};
@@ -314,22 +365,67 @@ export default function RegisterPage() {
     queryClient.invalidateQueries({ queryKey: ["tanks"] });
     queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
     queryClient.invalidateQueries({ queryKey: ["liquid-funds-summary"] });
+    queryClient.invalidateQueries({ queryKey: ["upi-collection-summary"] });
     queryClient.invalidateQueries({ queryKey: ["report-pnl"] });
     queryClient.invalidateQueries({ queryKey: ["vouchers"] });
+    queryClient.invalidateQueries({ queryKey: ["customers"] });
   };
 
-  const updateNozzleDraft = (nozzleUuid: string, patch: Partial<NozzleDraftItem>) => {
+  const persistNozzleDrafts = (updated: Record<string, NozzleDraftItem>) => {
+    try {
+      localStorage.setItem(nozzleDraftKey, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    setHasUnsavedReadings(true);
+  };
+
+  // Bidirectional nozzle field updater (Opening / Closing <-> Net)
+  const handleNozzleFieldChange = (
+    nozzleUuid: string,
+    field: "opening" | "closing" | "net" | "interim6am",
+    value: string,
+    defaultOpening: number,
+    meterCapacity: number
+  ) => {
     setNozzleDrafts((prev) => {
-      const current = prev[nozzleUuid] ?? { closing: "", interim6am: "", testing: "0" };
-      const updated = { ...prev, [nozzleUuid]: { ...current, ...patch } };
-      try {
-        localStorage.setItem(nozzleDraftKey, JSON.stringify(updated));
-      } catch {
-        // ignore storage errors
+      const cur = prev[nozzleUuid] ?? {
+        opening: String(defaultOpening),
+        closing: "",
+        net: "",
+        interim6am: "",
+        testing: "0",
+      };
+      const nextItem: NozzleDraftItem = { ...cur, [field]: value };
+      const o = Number(field === "opening" ? value : cur.opening) || 0;
+      const t = Number(cur.testing) || 0;
+      const cap = meterCapacity || 999999;
+
+      if (field === "opening" || field === "closing") {
+        const cStr = field === "closing" ? value : cur.closing;
+        if (cStr !== "" && !Number.isNaN(Number(cStr))) {
+          const c = Number(cStr);
+          const raw = c >= o ? c - o : cap - o + c;
+          nextItem.net = fmtTrim(Math.max(0, raw - t));
+        } else if (field === "closing" && value === "") {
+          nextItem.net = "";
+        }
+      } else if (field === "net") {
+        if (value !== "" && !Number.isNaN(Number(value))) {
+          const netVal = Math.max(0, Number(value));
+          const computedClose = o + netVal + t;
+          nextItem.closing = fmtTrim(
+            computedClose >= cap && cap > 0 ? computedClose % cap : computedClose
+          );
+        } else {
+          nextItem.closing = "";
+        }
       }
+
+      const updated = { ...prev, [nozzleUuid]: nextItem };
+      persistNozzleDrafts(updated);
       return updated;
     });
-    setHasUnsavedReadings(true);
   };
 
   const saveReadingsMutation = useMutation({
@@ -338,25 +434,40 @@ export default function RegisterPage() {
       const readings = nozzleData.items
         .map((item) => {
           const d = nozzleDrafts[item.nozzle_uuid];
-          const closingNum = Number(d?.closing);
-          if (!d?.closing || Number.isNaN(closingNum)) return null;
+          const openNum = d?.opening !== "" && d?.opening !== undefined ? Number(d.opening) : Number(item.opening_reading) || 0;
+          const testNum = Number(d?.testing || 0);
+          let closingNum: number | null =
+            d?.closing !== "" && d?.closing !== undefined && !Number.isNaN(Number(d.closing))
+              ? Number(d.closing)
+              : null;
+
+          // If user typed Net without Closing, auto-compute Closing from Opening + Net + Testing
+          if (closingNum === null && d?.net !== "" && d?.net !== undefined && !Number.isNaN(Number(d.net))) {
+            const cap = Number(item.meter_capacity) || 999999;
+            const rawClose = openNum + Math.max(0, Number(d.net)) + testNum;
+            closingNum = rawClose >= cap && cap > 0 ? rawClose % cap : rawClose;
+          }
+
+          if (closingNum === null) return null;
+
           const interimNum =
-            rateChanged6am && d.interim6am !== "" && !Number.isNaN(Number(d.interim6am))
+            rateChanged6am && d?.interim6am !== "" && d?.interim6am !== undefined && !Number.isNaN(Number(d.interim6am))
               ? Number(d.interim6am)
               : null;
+
           return {
             nozzle_uuid: item.nozzle_uuid,
-            opening_reading: Number(item.opening_reading) || 0,
+            opening_reading: openNum,
             closing_reading: closingNum,
             interim_6am_reading: interimNum,
-            testing_liters: Number(d.testing || 0),
+            testing_liters: testNum,
             return_testing_to_storage: true,
           };
         })
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (readings.length === 0) {
-        throw new Error("Enter at least one nozzle closing reading first.");
+        throw new Error("Enter closing reading or net liters for at least one nozzle.");
       }
       return inventoryService.postBulkReadings({
         reading_date: date,
@@ -370,7 +481,7 @@ export default function RegisterPage() {
         // ignore
       }
       setHasUnsavedReadings(false);
-      toast.success("Meter readings saved — Tank inventory & daily profit updated!");
+      toast.success("Meter readings saved — Tank stock & profit updated!");
       invalidateAll();
     },
     onError: (err: any) => {
@@ -378,39 +489,186 @@ export default function RegisterPage() {
     },
   });
 
-  const saveInlineBookEntryMutation = useMutation({
-    mutationFn: async (vars: {
-      kind: IncomeKind;
-      description: string;
-      amount: number;
-      payment_mode: PaymentMode;
-    }) => {
-      if (!vars.description.trim() || !vars.amount || vars.amount <= 0) {
-        throw new Error("Enter a description and positive amount.");
+  const normalizeFuelType = (ft: string): "DIESEL" | "PETROL" | "SPEED" => {
+    if (!ft) return "PETROL";
+    const upper = ft.toUpperCase();
+    if (upper.includes("DIESEL") || upper.includes("HSD")) return "DIESEL";
+    if (upper.includes("SPEED")) return "SPEED";
+    return "PETROL";
+  };
+
+  const getDynamicFuelRate = (fuelType: "DIESEL" | "PETROL" | "SPEED", fallback: number): number => {
+    if (!priceSchedulesQuery.data || priceSchedulesQuery.data.length === 0) return fallback;
+    const match = priceSchedulesQuery.data.find(
+      (s) => normalizeFuelType(s.fuel_type) === fuelType && s.is_applied
+    );
+    return match ? Number(match.rate) || fallback : fallback;
+  };
+
+  const hsdRate = getDynamicFuelRate("DIESEL", 90.0);
+  const msRate = getDynamicFuelRate("PETROL", 96.5);
+  const msRate2 = getDynamicFuelRate("SPEED", 103.0);
+
+  const ROWS_PER_PAGE = 14;
+
+  // Save Left Page entry (Voucher OR Expense OR Money Lended) and auto-advance sheet if full
+  const saveLeftBookEntryMutation = useMutation({
+    mutationFn: async () => {
+      const amt = Number(leftAmt);
+      if (!amt || amt <= 0) {
+        throw new Error("Enter a valid positive amount.");
       }
-      return incomeService.createIncome({
-        kind: vars.kind,
-        income_date: date,
-        description: vars.description.trim(),
-        amount: vars.amount,
-        category: vars.kind === "EXPENSE" ? "Daily Expense" : "Other Income",
-        payment_mode: vars.payment_mode,
-        bank_account_uuid: vars.payment_mode === "BANK" ? settlementBankUuid || null : null,
+      const desc = leftParticulars.trim();
+
+      if (leftMode === "EXP_CASH" || leftMode === "EXP_BANK" || leftMode === "LEND_CASH") {
+        if (!desc) {
+          throw new Error(
+            leftMode === "LEND_CASH"
+              ? "Enter customer name for money lended."
+              : "Enter expense description."
+          );
+        }
+        return incomeService.createIncome({
+          kind: "EXPENSE",
+          income_date: date,
+          description: leftMode === "LEND_CASH" ? `Loan to ${desc}` : desc,
+          amount: amt,
+          category: leftMode === "LEND_CASH" ? "Customer Loan" : "Daily Expense",
+          payment_mode: leftMode === "EXP_BANK" ? "BANK" : "CASH",
+          bank_account_uuid: leftMode === "EXP_BANK" ? settlementBankUuid || null : null,
+          customer_name: leftMode === "LEND_CASH" ? desc : undefined,
+        });
+      }
+
+      // Voucher entry (CREDIT, CASH, UPI, CARD)
+      if (leftMode === "CREDIT" && !desc) {
+        throw new Error("Enter customer name for a Credit slip.");
+      }
+
+      const activeFuelRate =
+        leftFuel === "DIESEL" ? hsdRate : leftFuel === "SPEED" ? msRate2 : msRate;
+      const qtyNum =
+        leftQty !== "" && !Number.isNaN(Number(leftQty)) && Number(leftQty) > 0
+          ? Number(leftQty)
+          : Number((amt / activeFuelRate).toFixed(2));
+      const ratePerLiter =
+        qtyNum > 0 ? Number((amt / qtyNum).toFixed(2)) : activeFuelRate;
+
+      const selectedUpi = upiAccounts?.find((u) => u.uuid === leftUpiUuid);
+      const bankForVoucher =
+        leftMode === "UPI"
+          ? leftUpiBankUuid || selectedUpi?.bank_account_uuid || settlementBankUuid || undefined
+          : leftMode === "CARD"
+          ? settlementBankUuid || undefined
+          : undefined;
+
+      const voucherCustomerName =
+        desc ||
+        (leftMode === "UPI" && selectedUpi
+          ? `${selectedUpi.name} (${selectedUpi.provider})`
+          : leftMode === "CARD"
+          ? "Card EDC Sale"
+          : "Cash Sale");
+
+      return voucherService.createVoucher({
+        invoice_number: `REG-${date.replace(/-/g, "")}-${Date.now().toString().slice(-5)}`,
+        invoice_date: date,
+        customer_name: voucherCustomerName,
+        fuel_type: leftFuel,
+        quantity_liters: qtyNum,
+        rate_per_liter: ratePerLiter,
+        total_amount: amt,
+        payment_mode: leftMode as VoucherPaymentMode,
+        bank_account_uuid: bankForVoucher,
+        remarks:
+          leftMode === "UPI" && selectedUpi
+            ? `${selectedUpi.provider}:${selectedUpi.name}`
+            : undefined,
       });
     },
-    onSuccess: (_data, vars) => {
-      toast.success(`${vars.kind === "EXPENSE" ? "Expense" : "Income"} added to register!`);
-      if (vars.kind === "EXPENSE") {
-        setBookExpDesc("");
-        setBookExpAmt("");
+    onSuccess: () => {
+      const nextCount = sortedVouchers.length + realExpenses.length + 1;
+      const nextLastPage = Math.max(0, Math.ceil(nextCount / ROWS_PER_PAGE) - 1);
+      if (nextLastPage > currentPageIndex) {
+        setPageIndex(nextLastPage);
+        toast.success(`Saved! Sheet full — moved to Sheet ${nextLastPage + 1}.`);
       } else {
-        setBookIncDesc("");
-        setBookIncAmt("");
+        toast.success("Entry added to register!");
       }
+      setLeftQty("");
+      setLeftParticulars("");
+      setLeftAmt("");
       invalidateAll();
+      setTimeout(() => leftQtyRef.current?.focus(), 40);
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || err?.message || "Could not save entry");
+    },
+  });
+
+  // Save Right Page entry (Cash Income OR Money Lended)
+  const saveRightBookEntryMutation = useMutation({
+    mutationFn: async () => {
+      const amt = Number(rightAmt);
+      const desc = rightDesc.trim();
+      if (!desc || !amt || amt <= 0) {
+        throw new Error("Enter name/description and positive amount.");
+      }
+      if (rightMode === "LEND_CASH") {
+        return incomeService.createIncome({
+          kind: "EXPENSE",
+          income_date: date,
+          description: `Loan to ${desc}`,
+          amount: amt,
+          category: "Customer Loan",
+          payment_mode: "CASH",
+          customer_name: desc,
+        });
+      }
+      return incomeService.createIncome({
+        kind: "INCOME",
+        income_date: date,
+        description: desc,
+        amount: amt,
+        category: "Other Income",
+        payment_mode: "CASH",
+      });
+    },
+    onSuccess: () => {
+      toast.success(
+        rightMode === "LEND_CASH"
+          ? "Money lended saved to Customer Ledger & Register!"
+          : "Cash income added to register!"
+      );
+      setRightDesc("");
+      setRightAmt("");
+      invalidateAll();
+      setTimeout(() => rightDescRef.current?.focus(), 40);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || "Could not save entry");
+    },
+  });
+
+  const deleteIncomeMutation = useMutation({
+    mutationFn: (uuid: string) => incomeService.deleteIncome(uuid),
+    onSuccess: () => {
+      toast.success("Entry deleted");
+      invalidateAll();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Could not delete entry");
+    },
+  });
+
+  const deleteVoucherMutation = useMutation({
+    mutationFn: (uuid: string) => voucherService.deleteVoucher(uuid),
+    onSuccess: () => {
+      toast.success("Slip removed");
+      invalidateAll();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Could not remove slip");
     },
   });
 
@@ -423,69 +681,33 @@ export default function RegisterPage() {
     const tankTest = getTankStorageTestingFor(fuelKey);
     const totalNum = Math.max(0, Number(valStr) || 0);
     const nozzleTest = Math.max(0, totalNum - tankTest);
-    // Zero out other nozzles of this fuel type in draft and put the testing liters on the first matching nozzle
     setNozzleDrafts((prev) => {
       const next = { ...prev };
       for (const item of nozzleData?.items ?? []) {
         if (normalizeFuelType(item.fuel_type) === fuelKey) {
           const cur = next[item.nozzle_uuid] ?? {
+            opening: String(Number(item.opening_reading) || 0),
             closing: item.closing_reading != null ? String(item.closing_reading) : "",
+            net: "",
             interim6am: item.interim_6am_reading != null ? String(item.interim_6am_reading) : "",
             testing: "0",
           };
-          next[item.nozzle_uuid] = {
-            ...cur,
-            testing: item.nozzle_uuid === matchNozzle.nozzle_uuid ? String(nozzleTest) : "0",
-          };
+          const updatedTest = item.nozzle_uuid === matchNozzle.nozzle_uuid ? String(nozzleTest) : "0";
+          let nextNet = cur.net;
+          if (cur.closing !== "" && !Number.isNaN(Number(cur.closing))) {
+            const o = Number(cur.opening) || 0;
+            const c = Number(cur.closing);
+            const cap = Number(item.meter_capacity) || 999999;
+            const raw = c >= o ? c - o : cap - o + c;
+            nextNet = fmtTrim(Math.max(0, raw - Number(updatedTest)));
+          }
+          next[item.nozzle_uuid] = { ...cur, testing: updatedTest, net: nextNet };
         }
       }
-      try {
-        localStorage.setItem(nozzleDraftKey, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      persistNozzleDrafts(next);
       return next;
     });
-    setHasUnsavedReadings(true);
   };
-
-  const addEntryMutation = useMutation({
-    mutationFn: async () => {
-      const amt = Number(entryAmt);
-      if (!entryDesc.trim() || !amt || amt <= 0) {
-        throw new Error("Enter a description and positive amount.");
-      }
-      return incomeService.createIncome({
-        kind: entryKind,
-        income_date: date,
-        description: entryDesc.trim(),
-        amount: amt,
-        category: entryKind === "EXPENSE" ? "Daily Expense" : "Other Income",
-        payment_mode: entryMode,
-        bank_account_uuid: entryMode === "BANK" ? entryBankUuid || null : null,
-      });
-    },
-    onSuccess: () => {
-      toast.success(`${entryKind === "EXPENSE" ? "Expense" : "Income"} added to register!`);
-      setEntryDesc("");
-      setEntryAmt("");
-      invalidateAll();
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || err?.message || "Could not save entry");
-    },
-  });
-
-  const deleteEntryMutation = useMutation({
-    mutationFn: (uuid: string) => incomeService.deleteIncome(uuid),
-    onSuccess: () => {
-      toast.success("Entry deleted");
-      invalidateAll();
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || "Could not delete entry");
-    },
-  });
 
   const parsedTankDips = useMemo(() => {
     const out: Record<string, number> = {};
@@ -581,60 +803,6 @@ export default function RegisterPage() {
     toast.success(`Synced note counts (${pipelineSnapshot.cash_proof.denom_source}).`);
   };
 
-  // Fast Monthly Bulk Prefetch
-  useEffect(() => {
-    if (isOperator) return;
-    let isMounted = true;
-    const loadMonthData = async () => {
-      try {
-        const activeMonth = date.substring(0, 7);
-        const monthStart = `${activeMonth}-01`;
-        const [y, m] = activeMonth.split("-").map(Number);
-        const lastDay = new Date(y, m, 0).getDate();
-        const monthEnd = `${activeMonth}-${String(lastDay).padStart(2, "0")}`;
-
-        const res = await voucherService.getVouchers({
-          from_date: monthStart,
-          to_date: monthEnd,
-          page_size: 1000,
-        });
-
-        if (!isMounted || !res?.items) return;
-
-        const vouchersByDate: Record<string, typeof res.items> = {};
-        res.items.forEach((v: any) => {
-          const vDate = v.date || v.voucher_date || (v.created_at ? v.created_at.split("T")[0] : "");
-          if (vDate) {
-            if (!vouchersByDate[vDate]) vouchersByDate[vDate] = [];
-            vouchersByDate[vDate].push(v);
-          }
-        });
-
-        for (let d = 1; d <= lastDay; d++) {
-          const dayStr = `${activeMonth}-${String(d).padStart(2, "0")}`;
-          const dayItems = vouchersByDate[dayStr] || [];
-          queryClient.setQueryData(
-            ["vouchers", { from_date: dayStr, to_date: dayStr }],
-            {
-              items: dayItems,
-              total: dayItems.length,
-              page: 1,
-              page_size: 50,
-              pages: 1,
-            }
-          );
-        }
-      } catch (err) {
-        console.error("Month prefetch error:", err);
-      }
-    };
-
-    loadMonthData();
-    return () => {
-      isMounted = false;
-    };
-  }, [date.substring(0, 7), queryClient, isOperator]);
-
   // Drag-pan container state
   const containerRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
@@ -654,6 +822,7 @@ export default function RegisterPage() {
       target.tagName === "SELECT" ||
       target.closest("button") ||
       target.closest("input") ||
+      target.closest("select") ||
       target.closest("a")
     ) {
       return;
@@ -698,14 +867,6 @@ export default function RegisterPage() {
     };
   }, []);
 
-  // Fetch active fuel price schedules
-  const priceSchedulesQuery = useQuery({
-    queryKey: ["priceSchedules"],
-    queryFn: () => inventoryService.getPriceSchedules(),
-    enabled: !isOperator,
-  });
-
-  // Simple Operator screen (for attendants without manager access)
   if (isOperator) {
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
@@ -773,13 +934,17 @@ export default function RegisterPage() {
 
   const totalCashPayments = cashPaymentsForDate.reduce((sum, p) => sum + p.amount, 0);
 
-  // Real expenses & other income from backend Income table
   const realExpenses = (incomesData?.items ?? [])
     .filter((item) => item.kind === "EXPENSE")
     .map((item) => ({
       uuid: item.uuid,
-      customer_name: `${item.description} (${item.payment_mode})`,
+      kind: "EXPENSE" as const,
+      quantity_liters: 0,
+      customer_name: item.customer_name
+        ? `${item.description} (${item.customer_name})`
+        : `${item.description} (${item.payment_mode})`,
       amount: Number(item.amount ?? 0),
+      isLoan: Boolean(item.customer_uuid || item.category === "Customer Loan"),
     }));
 
   const realCashOtherIncomes = (incomesData?.items ?? [])
@@ -792,31 +957,33 @@ export default function RegisterPage() {
 
   const totalExpensesAmount = realExpenses.reduce((s, e) => s + e.amount, 0);
 
-  // Map vouchers
   const activeVouchers = vouchersData?.items?.length
     ? vouchersData.items.map((v) => ({
+        uuid: v.uuid,
+        kind: "VOUCHER" as const,
         quantity_liters: Number(v.quantity_liters ?? 0),
         customer_name:
           (v.customer_name || "Cash Customer") +
           (v.vehicle_number ? ` (${v.vehicle_number})` : "") +
-          (v.payment_mode ? ` [${v.payment_mode}]` : ""),
+          (v.payment_mode === "UPI" && v.remarks ? ` [${v.remarks}]` : v.payment_mode ? ` [${v.payment_mode}]` : ""),
         amount: Number(v.total_amount ?? 0),
+        isLoan: false,
       }))
     : [];
 
   const totalVouchersAmount = activeVouchers.reduce((sum, item) => sum + item.amount, 0);
 
   const paymentRank = (name: string) =>
-    /\[CREDIT\]/i.test(name) ? 0 : /\[UPI\]/i.test(name) ? 1 : /\[CARD\]/i.test(name) ? 2 : 3;
+    /\[CREDIT\]/i.test(name) ? 0 : /\[UPI|Paytm|PhonePe|GPay|BHIM/i.test(name) ? 1 : /\[CARD\]/i.test(name) ? 2 : 3;
   const sortedVouchers = [...activeVouchers].sort(
     (a, b) => paymentRank(a.customer_name) - paymentRank(b.customer_name)
   );
 
-  // Multi-sheet pagination per date (14 rows fit per ledger sheet)
-  const ROWS_PER_PAGE = 14;
-  const totalPages = Math.max(1, Math.ceil((sortedVouchers.length + realExpenses.length) / ROWS_PER_PAGE));
+  // Unified Left-Page pagination across Vouchers + Expenses (14 rows per sheet)
+  const combinedLeftRows = [...sortedVouchers, ...realExpenses];
+  const totalPages = Math.max(1, Math.ceil(combinedLeftRows.length / ROWS_PER_PAGE));
   const currentPageIndex = Math.min(pageIndex, totalPages - 1);
-  const visibleVouchers = sortedVouchers.slice(
+  const visibleLeftRows = combinedLeftRows.slice(
     currentPageIndex * ROWS_PER_PAGE,
     (currentPageIndex + 1) * ROWS_PER_PAGE
   );
@@ -863,13 +1030,16 @@ export default function RegisterPage() {
   const grandTotalLeft =
     totalCashCounted + totalVouchersAmount + totalExpensesAmount + cashHome + prevDeposit;
 
-  // Map Nozzles using live editable drafts so right-page equations update instantly as you type
+  // Map Nozzles using live editable drafts (Opening, Closing, Net)
   const activeNozzles = nozzleData?.items?.length
     ? nozzleData.items.map((item, idx) => {
         const draftItem = nozzleDrafts[item.nozzle_uuid];
-        const closingStr =
+        const openStr = draftItem?.opening ?? String(Number(item.opening_reading) || 0);
+        const openNum = Number(openStr) || 0;
+        const closeStr =
           draftItem?.closing ?? (item.closing_reading != null ? String(item.closing_reading) : "");
-        const closingNum = closingStr !== "" && !Number.isNaN(Number(closingStr)) ? Number(closingStr) : null;
+        const closeNum =
+          closeStr !== "" && !Number.isNaN(Number(closeStr)) ? Number(closeStr) : null;
         const testingNum =
           draftItem?.testing !== undefined
             ? Number(draftItem.testing) || 0
@@ -877,59 +1047,52 @@ export default function RegisterPage() {
         const interimStr =
           draftItem?.interim6am ??
           (item.interim_6am_reading != null ? String(item.interim_6am_reading) : "");
+        const meterCap = Number(item.meter_capacity) || 999999;
+
+        const rawSales =
+          closeNum != null
+            ? closeNum >= openNum
+              ? closeNum - openNum
+              : meterCap - openNum + closeNum
+            : draftItem?.net !== undefined && draftItem.net !== "" && !Number.isNaN(Number(draftItem.net))
+            ? Math.max(0, Number(draftItem.net)) + testingNum
+            : 0;
+        const netVol = Math.max(0, rawSales - testingNum);
+        const netStr =
+          draftItem?.net ?? (closeNum != null ? fmtTrim(netVol) : "");
+
         return {
           idx,
           nozzle_uuid: item.nozzle_uuid,
           nozzle_name: item.nozzle_name,
-          dispenser_name: item.dispenser_name,
+          dispenser_name: item.dispenser_name || (item.fuel_type === "DIESEL" ? "HSD I" : "MS I"),
           fuel_type: item.fuel_type,
-          opening_reading: Number(item.opening_reading) || 0,
-          closing_reading: closingNum,
-          closing_str: closingStr,
+          opening_reading: openNum,
+          opening_str: openStr,
+          closing_reading: closeNum,
+          closing_str: closeStr,
+          net_str: netStr,
           interim_str: interimStr,
-          meter_capacity: Number(item.meter_capacity) || 999999,
+          meter_capacity: meterCap,
           testing: testingNum,
+          hasReading: closeNum != null || netStr !== "",
+          rawSales,
+          netVol,
         };
       })
     : [];
 
-  const gridItems = activeNozzles.map((noz) => {
-    const hasClosing = noz.closing_reading != null;
-    const rawSales = hasClosing
-      ? noz.closing_reading! >= noz.opening_reading
-        ? noz.closing_reading! - noz.opening_reading
-        : noz.meter_capacity - noz.opening_reading + noz.closing_reading!
-      : 0;
-    const netVol = hasClosing ? Math.max(0, rawSales - noz.testing) : 0;
-    const dispenser_name = noz.dispenser_name || (noz.fuel_type === "DIESEL" ? "HSD I" : "MS I");
-    return {
-      ...noz,
-      hasClosing,
-      dispenser_name,
-      rawSales,
-      netVol,
-    };
-  });
-
-  const groupedDispensers: Record<string, typeof gridItems> = {};
-  gridItems.forEach((item) => {
+  const groupedDispensers: Record<string, typeof activeNozzles> = {};
+  activeNozzles.forEach((item) => {
     if (!groupedDispensers[item.dispenser_name]) {
       groupedDispensers[item.dispenser_name] = [];
     }
     groupedDispensers[item.dispenser_name].push(item);
   });
 
-  const normalizeFuelType = (ft: string): "DIESEL" | "PETROL" | "SPEED" => {
-    if (!ft) return "PETROL";
-    const upper = ft.toUpperCase();
-    if (upper.includes("DIESEL") || upper.includes("HSD")) return "DIESEL";
-    if (upper.includes("SPEED")) return "SPEED";
-    return "PETROL";
-  };
-
   const rawSalesByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
   const nozzleTestingByFuel: Record<string, number> = { DIESEL: 0, PETROL: 0, SPEED: 0 };
-  gridItems.forEach((item) => {
+  activeNozzles.forEach((item) => {
     const key = normalizeFuelType(item.fuel_type);
     rawSalesByFuel[key] = (rawSalesByFuel[key] || 0) + item.rawSales;
     nozzleTestingByFuel[key] = (nozzleTestingByFuel[key] || 0) + item.testing;
@@ -978,18 +1141,6 @@ export default function RegisterPage() {
     netVol: Math.max(0, (rawSalesByFuel["SPEED"] || 0) - getTestingFor("SPEED")),
   };
 
-  const getDynamicFuelRate = (fuelType: "DIESEL" | "PETROL" | "SPEED", fallback: number): number => {
-    if (!priceSchedulesQuery.data || priceSchedulesQuery.data.length === 0) return fallback;
-    const match = priceSchedulesQuery.data.find(
-      (s) => normalizeFuelType(s.fuel_type) === fuelType && s.is_applied
-    );
-    return match ? Number(match.rate) || fallback : fallback;
-  };
-
-  const hsdRate = getDynamicFuelRate("DIESEL", 90.0);
-  const msRate = getDynamicFuelRate("PETROL", 96.5);
-  const msRate2 = getDynamicFuelRate("SPEED", 103.0);
-
   const hsdAmt = hsdSummary.netVol * hsdRate;
   const msAmt = msSummary.netVol * msRate;
   const speedAmt = speedSummary.netVol * msRate2;
@@ -1015,7 +1166,7 @@ export default function RegisterPage() {
       `• Fuel Sold: ${totalLitersLive.toFixed(1)} L (${formatCurrency(totalCalculatedFuelSales)})`,
       `• Credit Slips: ${formatCurrency(creditTotal)}`,
       `• UPI / Card: ${formatCurrency(digitalTotal)}`,
-      `• Expenses: ${formatCurrency(expensesTotal)}`,
+      `• Expenses & Loans: ${formatCurrency(expensesTotal)}`,
       `• Bank Deposit: ${formatCurrency(prevDeposit)}`,
       `• Cash Counted: ${formatCurrency(totalCashCounted)} (Expected ${formatCurrency(expectedCash)} | ${varianceStr})`,
       `• Net Profit: ${formatCurrency(profit?.net_profit ?? 0)}`,
@@ -1026,14 +1177,12 @@ export default function RegisterPage() {
 
   return (
     <div className="space-y-4 print-container">
-      {/* Action bar (Hidden on prints) */}
+      {/* Action bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 no-print">
-        <div className="flex items-center gap-3">
-          <PageHeader
-            title="Daily Register"
-            description="Edit readings & cash counts right inside the register — tanks, customers, bank & profit update automatically."
-          />
-        </div>
+        <PageHeader
+          title="Daily Register"
+          description="Type directly inside the register pages: Qty → Particulars → Payment/UPI → Amount, and Opening / Closing / Net readings."
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -1097,7 +1246,7 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* 4 Live Connected KPIs + Lock Status */}
+      {/* 4 Live Connected KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 no-print">
         <div className="rounded-xl border border-hairline bg-surface-1 p-3.5">
           <div className="flex items-center justify-between text-xs text-ink-muted">
@@ -1116,7 +1265,7 @@ export default function RegisterPage() {
           <div className="flex items-center justify-between text-xs text-ink-muted">
             <span>Credit + UPI / Card</span>
             <Link to="/dashboard/slips" className="text-fuel-amber hover:underline font-semibold">
-              + Scan Slip
+              + OCR Scan
             </Link>
           </div>
           <div className="text-lg font-bold text-ink mt-0.5">
@@ -1190,20 +1339,10 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Compact Action Strip: Add Expense/Income, 6 AM Split, Tank Dip, Close & Lock + WhatsApp */}
+      {/* Compact Control Bar: 6 AM Toggle, Tank Dip, Sync Shift, Lock Day & WhatsApp + UPI Breakdown */}
       <div className="rounded-xl border border-hairline bg-surface-1 p-3 space-y-3 no-print">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant={showQuickEntry ? "default" : "outline"}
-              disabled={isLocked}
-              onClick={() => setShowQuickEntry((p) => !p)}
-              className="h-8 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" /> Add Expense / Income
-            </Button>
-
             <label className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 cursor-pointer text-xs text-ink-muted hover:text-ink">
               <input
                 type="checkbox"
@@ -1289,59 +1428,6 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Inline 1-Line Expense / Income Bar */}
-        {showQuickEntry && !isLocked && (
-          <div className="grid grid-cols-2 sm:grid-cols-12 gap-2 pt-2 border-t border-hairline">
-            <select
-              value={entryKind}
-              onChange={(e) => setEntryKind(e.target.value as IncomeKind)}
-              className="sm:col-span-2 h-8 rounded-md border border-hairline bg-canvas px-2 text-xs font-semibold text-ink"
-            >
-              <option value="EXPENSE">Expense (-)</option>
-              <option value="INCOME">Income (+)</option>
-            </select>
-            <Input
-              placeholder="Description (e.g. Tea, Repair, Lube)"
-              value={entryDesc}
-              onChange={(e) => setEntryDesc(e.target.value)}
-              className="sm:col-span-4 h-8 text-xs"
-            />
-            <Input
-              type="number"
-              placeholder="₹ Amount"
-              value={entryAmt}
-              onChange={(e) => setEntryAmt(e.target.value)}
-              className="sm:col-span-2 h-8 text-xs"
-            />
-            <select
-              value={entryMode}
-              onChange={(e) => setEntryMode(e.target.value as PaymentMode)}
-              className="sm:col-span-2 h-8 rounded-md border border-hairline bg-canvas px-2 text-xs text-ink"
-            >
-              <option value="CASH">Cash Drawer</option>
-              <option value="BANK">Bank / UPI</option>
-            </select>
-            {entryMode === "BANK" && (
-              <div className="sm:col-span-2">
-                <BankAccountSelect
-                  value={entryBankUuid}
-                  onChange={setEntryBankUuid}
-                  label=""
-                  autoSelectDefault
-                />
-              </div>
-            )}
-            <Button
-              size="sm"
-              disabled={addEntryMutation.isPending}
-              onClick={() => addEntryMutation.mutate()}
-              className={entryMode === "BANK" ? "sm:col-span-12 sm:w-28 h-8" : "sm:col-span-2 h-8"}
-            >
-              Add to Register
-            </Button>
-          </div>
-        )}
-
         {/* Inline Optional Tank Dip Check */}
         {showDips && (closingDraft?.tank_dips?.length ?? 0) > 0 && (
           <div className="pt-2 border-t border-hairline grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-center">
@@ -1353,14 +1439,22 @@ export default function RegisterPage() {
                 ? Math.round((dipNum - Number(td.book_stock ?? 0)) * 10) / 10
                 : td.variance_liters;
               return (
-                <div key={td.tank_uuid} className="flex items-center gap-2 rounded-md border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs">
+                <div
+                  key={td.tank_uuid}
+                  className="flex items-center gap-2 rounded-md border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-ink truncate">{td.tank_name}</div>
                     <div className="text-[10px] text-ink-muted font-mono">
                       Book: {Number(td.book_stock ?? 0).toFixed(0)} L
                       {varL != null && (
-                        <span className={`ml-1.5 font-bold ${varL < -50 ? "text-rose-500" : "text-emerald-500"}`}>
-                          ({varL >= 0 ? "+" : ""}{Number(varL).toFixed(0)} L)
+                        <span
+                          className={`ml-1.5 font-bold ${
+                            varL < -50 ? "text-rose-500" : "text-emerald-500"
+                          }`}
+                        >
+                          ({varL >= 0 ? "+" : ""}
+                          {Number(varL).toFixed(0)} L)
                         </span>
                       )}
                     </div>
@@ -1389,6 +1483,9 @@ export default function RegisterPage() {
             )}
           </div>
         )}
+
+        {/* Per-UPI Account Breakdown (Paytm, PhonePe, GPay, etc.) */}
+        <UpiCollectionBreakdown date={date} />
       </div>
 
       {/* Real bound book container */}
@@ -1399,13 +1496,12 @@ export default function RegisterPage() {
           isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
         }`}
       >
-        {/* Book Outer Spine layout */}
         <div className="pl-book-shell relative min-w-[1000px] w-full max-w-[1250px] mx-auto min-h-[820px] rounded-2xl overflow-hidden border border-amber-950/30 touch-pan-y">
           {/* Left Stacked Page Edges */}
           <div
             onClick={() => triggerPageTurn("prev")}
             className="absolute left-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 flex items-center justify-start pl-3 no-print"
-            title="Click to turn to previous day"
+            title="Click to turn to previous page/day"
           >
             <div className="absolute left-0 inset-y-0 w-[12px] flex pointer-events-none">
               <div className="w-[3px] h-full bg-[#e7dcc2] border-r border-[#c4b391]/30" />
@@ -1421,7 +1517,7 @@ export default function RegisterPage() {
           <div
             onClick={() => triggerPageTurn("next")}
             className="absolute right-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 flex items-center justify-end pr-3 no-print"
-            title="Click to turn to next day"
+            title="Click to turn to next page/day"
           >
             <div className="absolute right-0 inset-y-0 w-[12px] flex justify-end pointer-events-none">
               <div className="w-[3px] h-full bg-[#faf6ee] border-l border-[#c4b391]/30" />
@@ -1434,23 +1530,10 @@ export default function RegisterPage() {
           </div>
 
           <div className="grid grid-cols-2 relative bg-[#F7F1E3] min-h-[820px]">
-            {/* 3D Double-Sided Flipbook sheet */}
             {isFlipping && (
               <div className={`pl-flip-container ${flipDirection === "next" ? "pl-flip-next" : "pl-flip-prev"}`}>
-                <div className="pl-flip-page-front">
-                  <div className="pl-flip-mock-content space-y-4 font-handwritten">
-                    <div className="border-b border-[#A33A32]/25 pb-1">
-                      <div className="grid grid-cols-[65px_1fr_95px] font-bold text-[#A33A32] text-xs">
-                        <span>Qty (L)</span>
-                        <span>Particulars / Accounts</span>
-                        <span className="text-right">Amount (₹)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="pl-flip-page-back">
-                  <div className="pl-flip-mock-content space-y-4 font-handwritten" />
-                </div>
+                <div className="pl-flip-page-front" />
+                <div className="pl-flip-page-back" />
               </div>
             )}
 
@@ -1458,13 +1541,13 @@ export default function RegisterPage() {
             <div className="absolute inset-y-0 left-1/2 -ml-2.5 w-5 bg-gradient-to-r from-black/10 via-black/30 to-black/10 z-30 pointer-events-none border-l border-r border-black/5" />
 
             {/* ========================================================
-                LEFT PAGE: VOUCHERS, EXPENSES & CASH CASCADE
+                LEFT PAGE: PARTICULARS (QTY -> PARTICULAR -> MODE/UPI -> AMT) & CASH
                ======================================================== */}
             <div className="pl-register-page-left flex flex-col justify-between select-none">
               <div
                 onClick={() => triggerPageTurn("prev")}
                 className="pl-page-corner-left no-print"
-                title="Click to turn to previous day"
+                title="Click to turn to previous page/day"
               />
 
               <div className="pl-register-page-header">
@@ -1473,14 +1556,36 @@ export default function RegisterPage() {
                   <span className="pl-handwritten-header pl-handwritten-red tracking-widest font-bold">
                     {stationName} — Daily Register
                   </span>
-                  <div className="text-[10px] font-mono font-bold inline-block px-4 select-all text-neutral-800">
-                    {formattedDateHeader}
-                    {totalPages > 1 ? ` (Sheet ${currentPageIndex + 1} of ${totalPages})` : ""}
+                  <div className="text-[10px] font-mono font-bold inline-flex items-center gap-2 px-4 text-neutral-800">
+                    <span>{formattedDateHeader}</span>
+                    {totalPages > 1 && (
+                      <span className="inline-flex items-center gap-1 no-print">
+                        <button
+                          type="button"
+                          disabled={currentPageIndex === 0}
+                          onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                          className="px-1 rounded border border-[#A33A32]/30 disabled:opacity-30 cursor-pointer"
+                        >
+                          ‹
+                        </button>
+                        <span>
+                          Sheet {currentPageIndex + 1}/{totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={currentPageIndex >= totalPages - 1}
+                          onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
+                          className="px-1 rounded border border-[#A33A32]/30 disabled:opacity-30 cursor-pointer"
+                        >
+                          ›
+                        </button>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Transactions grid */}
+              {/* Transactions & Particulars grid */}
               <div className="text-xs space-y-0 flex-1">
                 <div className="grid grid-cols-[65px_1fr_95px] border-b-2 border-[#A33A32] pl-handwritten-red font-bold h-[20px] items-center">
                   <div className="text-center pr-2 border-r border-[#A33A32]/25">Qty (L)</div>
@@ -1489,108 +1594,192 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-[0px]">
-                  {visibleVouchers.map((row, idx) => (
-                    <div key={idx} className="grid grid-cols-[65px_1fr_95px] h-[20px] items-center">
-                      <div className="text-center pl-handwritten pr-2 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px]">
-                        {row.quantity_liters > 0 ? row.quantity_liters.toFixed(2) : "—"}
+                  {visibleLeftRows.map((row) =>
+                    row.kind === "VOUCHER" ? (
+                      <div key={row.uuid} className="group grid grid-cols-[65px_1fr_95px] h-[20px] items-center">
+                        <div className="text-center pl-handwritten pr-2 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px]">
+                          {row.quantity_liters > 0 ? row.quantity_liters.toFixed(2) : "—"}
+                        </div>
+                        <div className="pl-4 truncate pr-2 h-full flex items-center justify-between">
+                          <span className="pl-handwritten-strong truncate">{row.customer_name}</span>
+                          {!isLocked && (
+                            <button
+                              type="button"
+                              onClick={() => deleteVoucherMutation.mutate(row.uuid)}
+                              className="opacity-0 group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 no-print cursor-pointer"
+                              title="Remove slip"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-right font-bold pr-1 pl-handwritten-strong h-full flex items-center justify-end text-[13px]">
+                          {formatLedgerAmount(row.amount)}
+                        </div>
                       </div>
-                      <div className="pl-4 truncate pr-2 h-full flex items-center">
-                        <span className="pl-handwritten-strong">{row.customer_name}</span>
+                    ) : (
+                      <div
+                        key={row.uuid}
+                        className="group grid grid-cols-[65px_1fr_95px] h-[20px] items-center rotate-[-0.1deg]"
+                      >
+                        <div className="text-center pr-2 border-r border-[#A33A32]/25 text-neutral-500 h-full flex items-center justify-center text-[11px]">
+                          {row.isLoan ? "Loan" : "Exp"}
+                        </div>
+                        <div className="pl-4 truncate h-full flex items-center justify-between pr-1">
+                          <span className="pl-handwritten-red truncate">{row.customer_name}</span>
+                          {!isLocked && (
+                            <button
+                              type="button"
+                              onClick={() => deleteIncomeMutation.mutate(row.uuid)}
+                              className="opacity-0 group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 no-print cursor-pointer"
+                              title="Delete entry"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-right pr-1 pl-handwritten-red h-full flex items-center justify-end text-[13px]">
+                          {formatLedgerAmount(row.amount)}
+                        </div>
                       </div>
-                      <div className="text-right font-bold pr-1 pl-handwritten-strong h-full flex items-center justify-end text-[13px]">
-                        {formatLedgerAmount(row.amount)}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  )}
 
-                  {/* Real Expense Items in red ink */}
-                  {realExpenses.map((row) => (
-                    <div
-                      key={row.uuid}
-                      className="group grid grid-cols-[65px_1fr_95px] h-[20px] items-center rotate-[-0.1deg]"
-                    >
-                      <div className="text-center pr-2 border-r border-[#A33A32]/25 text-neutral-500 h-full flex items-center justify-center">
-                        Exp
-                      </div>
-                      <div className="pl-4 truncate h-full flex items-center justify-between pr-1">
-                        <span className="pl-handwritten-red truncate">{row.customer_name}</span>
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => deleteEntryMutation.mutate(row.uuid)}
-                            className="opacity-0 group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 no-print cursor-pointer"
-                            title="Delete expense"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        )}
-                      </div>
-                      <div className="text-right pr-1 pl-handwritten-red h-full flex items-center justify-end text-[13px]">
-                        {formatLedgerAmount(row.amount)}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Inline Editable Expense Row right inside Left Page */}
+                  {/* Unified Inline Entry Row: Qty -> Particulars + Mode/UPI -> Amount (Enter to save & auto-paginate) */}
                   {!isLocked && (
-                    <div className="grid grid-cols-[65px_1fr_95px] h-[22px] items-center no-print">
-                      <div className="pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center">
+                    <div className="pt-1 space-y-1 no-print">
+                      <div className="grid grid-cols-[65px_1fr_95px] h-[22px] items-center">
+                        <div className="pr-2 border-r border-[#A33A32]/25 h-full flex items-center">
+                          <input
+                            ref={leftQtyRef}
+                            type="number"
+                            step="0.01"
+                            value={leftQty}
+                            placeholder="Qty"
+                            disabled={
+                              leftMode === "EXP_CASH" ||
+                              leftMode === "EXP_BANK" ||
+                              leftMode === "LEND_CASH"
+                            }
+                            onChange={(e) => setLeftQty(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                leftParticularsRef.current?.focus();
+                              }
+                            }}
+                            className="w-full h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-center text-[#103F91] placeholder:text-[#103F91]/40 pl-handwritten text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid disabled:opacity-30 select-text"
+                          />
+                        </div>
+
+                        <div className="pl-4 pr-1 h-full flex items-center">
+                          <input
+                            ref={leftParticularsRef}
+                            type="text"
+                            value={leftParticulars}
+                            placeholder={
+                              leftMode === "LEND_CASH"
+                                ? "Customer name (Loan)..."
+                                : leftMode === "EXP_CASH" || leftMode === "EXP_BANK"
+                                ? "Expense (Tea, Repair)..."
+                                : "Customer / Particulars..."
+                            }
+                            onChange={(e) => setLeftParticulars(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                leftAmtRef.current?.focus();
+                              }
+                            }}
+                            className={`w-full h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
+                              leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
+                                ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
+                                : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
+                            }`}
+                          />
+                        </div>
+
+                        <div className="pr-1 h-full flex items-center gap-1">
+                          <input
+                            ref={leftAmtRef}
+                            type="number"
+                            step="0.01"
+                            value={leftAmt}
+                            placeholder="₹ Amt"
+                            onChange={(e) => setLeftAmt(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                saveLeftBookEntryMutation.mutate();
+                              }
+                            }}
+                            className={`w-full h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-right font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
+                              leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
+                                ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
+                                : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Inline Payment Mode + Fuel + Individual UPI Handle selector */}
+                      <div className="pl-[69px] pr-1 flex flex-wrap items-center gap-1.5 text-[10px] font-sans">
+                        <select
+                          value={leftMode}
+                          onChange={(e) => setLeftMode(e.target.value as LeftEntryMode)}
+                          className="h-5 rounded border border-[#A33A32]/30 bg-white/70 px-1 text-neutral-800 font-semibold outline-none"
+                        >
+                          <option value="CREDIT">Credit (Udhaar)</option>
+                          <option value="CASH">Cash Slip</option>
+                          <option value="UPI">UPI</option>
+                          <option value="CARD">Card EDC</option>
+                          <option value="EXP_CASH">Expense (Cash)</option>
+                          <option value="EXP_BANK">Expense (Bank)</option>
+                          <option value="LEND_CASH">Money Lended (Loan)</option>
+                        </select>
+
+                        {(leftMode === "CREDIT" ||
+                          leftMode === "CASH" ||
+                          leftMode === "UPI" ||
+                          leftMode === "CARD") && (
+                          <select
+                            value={leftFuel}
+                            onChange={(e) => setLeftFuel(e.target.value as FuelType)}
+                            className="h-5 rounded border border-[#103F91]/30 bg-white/70 px-1 text-[#103F91] font-semibold outline-none"
+                          >
+                            <option value="DIESEL">Diesel</option>
+                            <option value="PETROL">Petrol</option>
+                            <option value="SPEED">Speed</option>
+                          </select>
+                        )}
+
+                        {leftMode === "UPI" && upiAccounts && upiAccounts.length > 0 && (
+                          <select
+                            value={leftUpiUuid}
+                            onChange={(e) => {
+                              const uuid = e.target.value;
+                              setLeftUpiUuid(uuid);
+                              const matched = upiAccounts.find((u) => u.uuid === uuid);
+                              setLeftUpiBankUuid(matched?.bank_account_uuid || "");
+                            }}
+                            className="h-5 max-w-[165px] rounded border border-emerald-700/35 bg-white/80 px-1 text-emerald-900 font-semibold outline-none"
+                          >
+                            {upiAccounts.map((u) => (
+                              <option key={u.uuid} value={u.uuid}>
+                                {u.name} ({u.provider})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() =>
-                            setBookExpMode((m) => (m === "CASH" ? "BANK" : "CASH"))
-                          }
-                          title="Click to switch Cash / Bank"
-                          className="text-[10px] font-mono font-bold px-1 rounded border border-[#A33A32]/30 text-[#A33A32] hover:bg-[#A33A32]/10 cursor-pointer"
+                          disabled={saveLeftBookEntryMutation.isPending}
+                          onClick={() => saveLeftBookEntryMutation.mutate()}
+                          className="ml-auto h-5 px-2 rounded bg-[#A33A32] text-white font-semibold hover:bg-[#8c2e27] cursor-pointer disabled:opacity-50"
                         >
-                          {bookExpMode === "CASH" ? "Exp₹" : "Bank"}
+                          {saveLeftBookEntryMutation.isPending ? "..." : "+ Add"}
                         </button>
-                      </div>
-                      <div className="pl-4 pr-1 h-full flex items-center">
-                        <input
-                          type="text"
-                          value={bookExpDesc}
-                          placeholder="+ Write expense (Tea, Repair)..."
-                          onChange={(e) => setBookExpDesc(e.target.value)}
-                          className="w-full h-4 bg-transparent border-b border-dashed border-[#A33A32]/30 text-[#A33A32] placeholder:text-[#A33A32]/45 pl-handwritten-red text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text"
-                        />
-                      </div>
-                      <div className="pr-1 h-full flex items-center justify-end gap-1">
-                        <input
-                          type="number"
-                          value={bookExpAmt}
-                          placeholder="₹ Amt"
-                          onChange={(e) => setBookExpAmt(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key !== "Enter") return;
-                            e.preventDefault();
-                            saveInlineBookEntryMutation.mutate({
-                              kind: "EXPENSE",
-                              description: bookExpDesc,
-                              amount: Number(bookExpAmt),
-                              payment_mode: bookExpMode,
-                            });
-                          }}
-                          className="w-full h-4 bg-transparent border-b border-dashed border-[#A33A32]/30 text-right text-[#A33A32] placeholder:text-[#A33A32]/45 pl-handwritten-red font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text"
-                        />
-                        {bookExpDesc && bookExpAmt && (
-                          <button
-                            type="button"
-                            disabled={saveInlineBookEntryMutation.isPending}
-                            onClick={() =>
-                              saveInlineBookEntryMutation.mutate({
-                                kind: "EXPENSE",
-                                description: bookExpDesc,
-                                amount: Number(bookExpAmt),
-                                payment_mode: bookExpMode,
-                              })
-                            }
-                            className="text-[#A33A32] hover:text-red-700 font-bold text-xs cursor-pointer"
-                            title="Add Expense"
-                          >
-                            +
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}
@@ -1619,7 +1808,7 @@ export default function RegisterPage() {
                             setNotes(updated);
                             saveDenominations(updated);
                           }}
-                          className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-center w-full h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px]"
+                          className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-center w-full h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
                         />
                         <span className="text-center">=</span>
                         <span className="pl-handwritten-strong font-bold text-neutral-800 pr-1 text-[13px] text-right min-w-[64px]">
@@ -1662,7 +1851,7 @@ export default function RegisterPage() {
                         setCashHome(val);
                         saveDenominations(notes, val, prevDeposit, ledgerInterest);
                       }}
-                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px]"
+                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
                     />
                   </div>
 
@@ -1678,7 +1867,7 @@ export default function RegisterPage() {
                         setPrevDeposit(val);
                         saveDenominations(notes, cashHome, val, ledgerInterest);
                       }}
-                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px]"
+                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
                     />
                   </div>
 
@@ -1693,13 +1882,13 @@ export default function RegisterPage() {
             </div>
 
             {/* ========================================================
-                RIGHT PAGE: EDITABLE NOZZLE METER LOGS & RECONCILIATION
+                RIGHT PAGE: EDITABLE OPENING / CLOSING / NET + CASH INCOME / LOAN
                ======================================================== */}
             <div className="pl-register-page-right flex flex-col select-none">
               <div
                 onClick={() => triggerPageTurn("next")}
                 className="pl-page-corner-right no-print"
-                title="Click to turn to next day"
+                title="Click to turn to next page/day"
               />
 
               <div className="pl-register-page-header">
@@ -1710,7 +1899,7 @@ export default function RegisterPage() {
                   <div className="text-[10px] font-mono font-bold inline-block px-4 text-neutral-800">
                     {formattedDateHeader}{" "}
                     <span className="text-[9px] text-neutral-500 font-normal no-print">
-                      (Click closing reading &amp; press Enter for next nozzle)
+                      (Opening / Closing / Net editable · Enter jumps across row)
                     </span>
                   </div>
                 </div>
@@ -1729,8 +1918,9 @@ export default function RegisterPage() {
                   Object.entries(groupedDispensers).map(([dispName, dispNozzles], dispIdx, arr) => (
                     <React.Fragment key={dispName}>
                       <div className="relative">
-                        <div className="absolute -left-[68px] top-0 w-[64px] text-right pl-handwritten-strong font-bold text-[#A33A32] text-[11px] h-[80px] flex items-center justify-end select-none z-20">
-                          {dispName}
+                        <div className="absolute -left-[68px] top-0 w-[64px] text-right pl-handwritten-strong font-bold text-[#A33A32] text-[11px] h-[80px] flex flex-col justify-center items-end select-none z-20 leading-tight">
+                          <span>{dispName}</span>
+                          <span className="text-[9px] font-normal text-neutral-500">Close / Open / Net</span>
                         </div>
 
                         {/* Row 1: Nozzle Names */}
@@ -1745,7 +1935,7 @@ export default function RegisterPage() {
                           ))}
                         </div>
 
-                        {/* Row 2: Editable Closing Readings directly inside the book */}
+                        {/* Row 2: Editable Closing Readings */}
                         <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten-strong text-[#103F91] font-bold">
                           {dispNozzles.map((noz) => (
                             <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
@@ -1758,8 +1948,15 @@ export default function RegisterPage() {
                                 disabled={isLocked}
                                 value={noz.closing_str}
                                 placeholder="Closing"
+                                title="Closing reading (Enter → next nozzle closing)"
                                 onChange={(e) =>
-                                  updateNozzleDraft(noz.nozzle_uuid, { closing: e.target.value })
+                                  handleNozzleFieldChange(
+                                    noz.nozzle_uuid,
+                                    "closing",
+                                    e.target.value,
+                                    noz.opening_reading,
+                                    noz.meter_capacity
+                                  )
                                 }
                                 onKeyDown={(e) => {
                                   if (e.key !== "Enter") return;
@@ -1772,7 +1969,7 @@ export default function RegisterPage() {
                                     saveReadingsMutation.mutate();
                                   }
                                 }}
-                                className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#103F91]/40 text-center text-[#103F91] font-bold outline-none focus:bg-yellow-50/70 focus:border-solid pl-handwritten-strong text-[13px]"
+                                className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#103F91]/40 text-center text-[#103F91] font-bold outline-none focus:bg-yellow-50/70 focus:border-solid pl-handwritten-strong text-[13px] select-text"
                               />
                             </div>
                           ))}
@@ -1781,7 +1978,7 @@ export default function RegisterPage() {
                           ))}
                         </div>
 
-                        {/* Optional Row: 6 AM Interim Reading (when rate changed at 6 AM) */}
+                        {/* Optional Row: 6 AM Interim Reading */}
                         {rateChanged6am && (
                           <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten text-[#A33A32] text-[11px]">
                             {dispNozzles.map((noz) => (
@@ -1793,9 +1990,15 @@ export default function RegisterPage() {
                                   value={noz.interim_str}
                                   placeholder="6 AM"
                                   onChange={(e) =>
-                                    updateNozzleDraft(noz.nozzle_uuid, { interim6am: e.target.value })
+                                    handleNozzleFieldChange(
+                                      noz.nozzle_uuid,
+                                      "interim6am",
+                                      e.target.value,
+                                      noz.opening_reading,
+                                      noz.meter_capacity
+                                    )
                                   }
-                                  className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#A33A32]/40 text-center text-[#A33A32] outline-none focus:bg-yellow-50/70 text-[11px]"
+                                  className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#A33A32]/40 text-center text-[#A33A32] outline-none focus:bg-yellow-50/70 text-[11px] select-text"
                                 />
                               </div>
                             ))}
@@ -1805,11 +2008,40 @@ export default function RegisterPage() {
                           </div>
                         )}
 
-                        {/* Row 3: Opening Readings */}
+                        {/* Row 3: Editable Opening Readings (Enter -> next Opening) */}
                         <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten text-[#103F91]">
                           {dispNozzles.map((noz) => (
-                            <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center">
-                              {noz.opening_reading > 0 ? noz.opening_reading.toLocaleString() : "0"}
+                            <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
+                              <input
+                                ref={(el) => {
+                                  openingInputRefs.current[noz.idx] = el;
+                                }}
+                                type="number"
+                                step="0.01"
+                                disabled={isLocked}
+                                value={noz.opening_str}
+                                placeholder="Opening"
+                                title="Opening reading (Enter → next nozzle opening)"
+                                onChange={(e) =>
+                                  handleNozzleFieldChange(
+                                    noz.nozzle_uuid,
+                                    "opening",
+                                    e.target.value,
+                                    noz.opening_reading,
+                                    noz.meter_capacity
+                                  )
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key !== "Enter") return;
+                                  e.preventDefault();
+                                  const nextEl = openingInputRefs.current[noz.idx + 1];
+                                  if (nextEl) {
+                                    nextEl.focus();
+                                    nextEl.select();
+                                  }
+                                }}
+                                className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#103F91]/25 text-center text-[#103F91] outline-none focus:bg-yellow-50/70 focus:border-solid pl-handwritten text-[12px] select-text"
+                              />
                             </div>
                           ))}
                           {Array.from({ length: Math.max(0, 4 - dispNozzles.length) }).map((_, i) => (
@@ -1817,11 +2049,43 @@ export default function RegisterPage() {
                           ))}
                         </div>
 
-                        {/* Row 4: Difference (Raw Liters Sold) */}
+                        {/* Row 4: Editable Net Liters Sold (auto-fills Closing if Closing empty, Enter -> next Net) */}
                         <div className="grid grid-cols-4 h-[20px] items-center text-center pl-handwritten-strong text-[#103F91] font-bold">
                           {dispNozzles.map((noz) => (
-                            <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center">
-                              {noz.hasClosing ? `${noz.rawSales.toLocaleString()} L` : "—"}
+                            <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
+                              <input
+                                ref={(el) => {
+                                  netInputRefs.current[noz.idx] = el;
+                                }}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                disabled={isLocked}
+                                value={noz.net_str}
+                                placeholder="Net L"
+                                title="Net liters sold — typing Net auto-computes Closing!"
+                                onChange={(e) =>
+                                  handleNozzleFieldChange(
+                                    noz.nozzle_uuid,
+                                    "net",
+                                    e.target.value,
+                                    noz.opening_reading,
+                                    noz.meter_capacity
+                                  )
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key !== "Enter") return;
+                                  e.preventDefault();
+                                  const nextEl = netInputRefs.current[noz.idx + 1];
+                                  if (nextEl) {
+                                    nextEl.focus();
+                                    nextEl.select();
+                                  } else if (!isLocked && !saveReadingsMutation.isPending) {
+                                    saveReadingsMutation.mutate();
+                                  }
+                                }}
+                                className="w-full max-w-[92px] h-4 bg-transparent border-b border-dashed border-[#103F91]/40 text-center text-emerald-800 font-bold outline-none focus:bg-yellow-50/70 focus:border-solid pl-handwritten-strong text-[12px] select-text"
+                              />
                             </div>
                           ))}
                           {Array.from({ length: Math.max(0, 4 - dispNozzles.length) }).map((_, i) => (
@@ -1875,12 +2139,12 @@ export default function RegisterPage() {
 
                 <div className="h-[20px]" />
 
-                {/* Cash Income & Recoveries */}
+                {/* Cash Income, Recoveries & Inline Cash Income / Money Lended */}
                 <div className="border-t border-[#A33A32]/30">
                   {activeVouchers
-                    .filter((row) => !/\[(CREDIT|UPI|CARD)\]/i.test(row.customer_name))
-                    .map((row, idx) => (
-                      <div key={idx} className="flex items-center h-[20px] pl-handwritten text-[12px]">
+                    .filter((row) => !/\[(CREDIT|UPI|CARD|Paytm|PhonePe|GPay|BHIM)/i.test(row.customer_name))
+                    .map((row) => (
+                      <div key={row.uuid} className="flex items-center h-[20px] pl-handwritten text-[12px]">
                         <span className="truncate flex-1 pr-2">{row.customer_name}</span>
                         <span className="pl-handwritten-strong font-bold text-[13px] pr-1 shrink-0">
                           {formatLedgerAmount(row.amount)}
@@ -1894,7 +2158,7 @@ export default function RegisterPage() {
                         {!isLocked && (
                           <button
                             type="button"
-                            onClick={() => deleteEntryMutation.mutate(row.uuid)}
+                            onClick={() => deleteIncomeMutation.mutate(row.uuid)}
                             className="opacity-0 group-hover:opacity-100 text-rose-600 ml-1 no-print cursor-pointer"
                             title="Delete income"
                           >
@@ -1916,47 +2180,60 @@ export default function RegisterPage() {
                     </div>
                   ))}
 
-                  {/* Inline Editable Cash Income Row right inside Right Page */}
+                  {/* Inline Right-Page Cash Income / Money Lended Entry */}
                   {!isLocked && (
-                    <div className="flex items-center gap-2 h-[22px] pl-handwritten text-[12px] no-print">
+                    <div className="flex items-center gap-1.5 h-[24px] pl-handwritten text-[12px] no-print">
+                      <select
+                        value={rightMode}
+                        onChange={(e) => setRightMode(e.target.value as RightEntryMode)}
+                        className="h-5 rounded border border-[#103F91]/30 bg-white/70 px-1 text-[10px] font-sans font-semibold text-[#103F91] outline-none"
+                      >
+                        <option value="INCOME">+ Cash Income</option>
+                        <option value="LEND_CASH">− Money Lended</option>
+                      </select>
                       <input
+                        ref={rightDescRef}
                         type="text"
-                        value={bookIncDesc}
-                        placeholder="+ Write cash income (e.g. Lube, Scrap)..."
-                        onChange={(e) => setBookIncDesc(e.target.value)}
-                        className="flex-1 h-4 bg-transparent border-b border-dashed border-[#103F91]/35 text-[#103F91] placeholder:text-[#103F91]/45 pl-handwritten text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text"
+                        value={rightDesc}
+                        placeholder={
+                          rightMode === "LEND_CASH"
+                            ? "Customer name (Money lended)..."
+                            : "Lube, Scrap, Misc income..."
+                        }
+                        onChange={(e) => setRightDesc(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            rightAmtRef.current?.focus();
+                          }
+                        }}
+                        className={`flex-1 h-4 bg-transparent border-b border-dashed border-[#103F91]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
+                          rightMode === "LEND_CASH"
+                            ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
+                            : "text-[#103F91] pl-handwritten placeholder:text-[#103F91]/45"
+                        }`}
                       />
                       <input
+                        ref={rightAmtRef}
                         type="number"
-                        value={bookIncAmt}
+                        value={rightAmt}
                         placeholder="₹ Amt"
-                        onChange={(e) => setBookIncAmt(e.target.value)}
+                        onChange={(e) => setRightAmt(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key !== "Enter") return;
-                          e.preventDefault();
-                          saveInlineBookEntryMutation.mutate({
-                            kind: "INCOME",
-                            description: bookIncDesc,
-                            amount: Number(bookIncAmt),
-                            payment_mode: "CASH",
-                          });
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveRightBookEntryMutation.mutate();
+                          }
                         }}
                         className="w-20 h-4 bg-transparent border-b border-dashed border-[#103F91]/35 text-right text-[#103F91] placeholder:text-[#103F91]/45 pl-handwritten-strong font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text"
                       />
-                      {bookIncDesc && bookIncAmt && (
+                      {rightDesc && rightAmt && (
                         <button
                           type="button"
-                          disabled={saveInlineBookEntryMutation.isPending}
-                          onClick={() =>
-                            saveInlineBookEntryMutation.mutate({
-                              kind: "INCOME",
-                              description: bookIncDesc,
-                              amount: Number(bookIncAmt),
-                              payment_mode: "CASH",
-                            })
-                          }
+                          disabled={saveRightBookEntryMutation.isPending}
+                          onClick={() => saveRightBookEntryMutation.mutate()}
                           className="text-[#103F91] font-bold text-xs cursor-pointer"
-                          title="Add Cash Income"
+                          title="Save"
                         >
                           +
                         </button>
@@ -1967,7 +2244,6 @@ export default function RegisterPage() {
 
                 <div className="h-[20px]" />
 
-                {/* Grand Total */}
                 <div className="flex justify-between text-red-800 font-bold text-sm border-t-2 border-double border-[#A33A32]/50 h-[20px] items-center">
                   <span className="pl-handwritten-red">Grand Total:</span>
                   <span className="pl-handwritten-strong underline decoration-double decoration-[#A33A32] text-neutral-900 text-[14px] pr-1">
