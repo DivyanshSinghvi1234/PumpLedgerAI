@@ -24,6 +24,7 @@ interface Props {
   onEdit(voucher: Voucher): void;
   onDelete(voucher: Voucher): void;
   onSettle?(voucher: Voucher): void;
+  onRepeat?(voucher: Voucher): void;
 }
 
 export default function VoucherTable({
@@ -32,6 +33,7 @@ export default function VoucherTable({
   onEdit,
   onDelete,
   onSettle,
+  onRepeat,
 }: Props) {
 
   const [imageVoucher, setImageVoucher] =
@@ -170,6 +172,16 @@ export default function VoucherTable({
                   >
                     WhatsApp
                   </a>
+                )}
+                {canManage && onRepeat && (
+                  <button
+                    type="button"
+                    onClick={() => onRepeat(voucher)}
+                    className="inline-flex items-center justify-center rounded-lg text-xs font-semibold border border-hairline bg-surface-2 text-ink-muted hover:text-ink h-8 px-2 transition-colors cursor-pointer"
+                    title="Repeat / Clone this voucher"
+                  >
+                    Repeat
+                  </button>
                 )}
                 <VoucherActions
                   voucherId={voucher.uuid}

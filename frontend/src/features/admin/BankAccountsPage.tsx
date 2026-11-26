@@ -15,12 +15,18 @@ import {
   Trash2,
   FileSpreadsheet,
   Smartphone,
+  Printer,
+  CheckCircle2,
 } from "lucide-react";
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
 import api from "@/api/client";
+import { pipelineService } from "@/features/pipeline/services/pipelineService";
+import { BooksHealthCard } from "@/features/pipeline/components/BooksHealthModal";
+import { CashBankTimelineCard } from "@/features/pipeline/components/CashBankTimelineCard";
+import { getTodayDateString } from "@/lib/utils";
 
 import PageHeader from "@/components/common/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -87,6 +93,54 @@ export default function BankAccountsPage() {
     queryKey: ["upi-accounts"],
     queryFn: () => bankAccountService.getUpiAccounts(),
   });
+
+  const todayStr = getTodayDateString();
+  const { data: todaySnapshot } = useQuery({
+    queryKey: ["daily-snapshot", todayStr],
+    queryFn: () => pipelineService.getSnapshot(todayStr),
+  });
+
+  const [depositNotes, setDepositNotes] = useState({ n500: 0, n200: 0, n100: 0, n50: 0 });
+  const matchClosingMutation = useMutation({
+    mutationFn: () => pipelineService.matchDayClosing(todayStr),
+    onSuccess: (res) => {
+      if (res.matched) {
+        toast.success(`Matched Day Closing (${res.synced_entries} bank entries synced).`);
+        queryClient.invalidateQueries({ queryKey: ["bank-accounts-summary"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+        queryClient.invalidateQueries({ queryKey: ["daily-snapshot", todayStr] });
+      } else {
+        toast.info(res.message || "No Day Closing found for today.");
+      }
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.detail || "Match Day Closing failed."),
+  });
+
+  const handlePrintDepositSlip = () => {
+    const acc = summary?.accounts?.find((a) => a.uuid === depositBankUuid);
+    const win = window.open("", "_blank", "width=480,height=620");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>Bank Deposit Slip</title>
+      <style>body{font-family:monospace;padding:24px;font-size:13px;}h2{margin:0 0 8px;}table{width:100%;border-collapse:collapse;margin:12px 0;}td,th{border:1px solid #ccc;padding:6px;text-align:left;}</style>
+      </head><body>
+      <h2>CASH DEPOSIT SLIP</h2>
+      <div>Date: ${depositDate} | Slip #: ${refNumber || "N/A"}</div>
+      <div>Bank: ${acc ? `${acc.bank_name} - ${acc.account_name} (${acc.account_number || ""})` : "Selected Bank"}</div>
+      <table>
+        <tr><th>Denomination</th><th>Count</th><th>Amount (₹)</th></tr>
+        <tr><td>₹500</td><td>${depositNotes.n500}</td><td>${(depositNotes.n500 * 500).toLocaleString("en-IN")}</td></tr>
+        <tr><td>₹200</td><td>${depositNotes.n200}</td><td>${(depositNotes.n200 * 200).toLocaleString("en-IN")}</td></tr>
+        <tr><td>₹100</td><td>${depositNotes.n100}</td><td>${(depositNotes.n100 * 100).toLocaleString("en-IN")}</td></tr>
+        <tr><td>₹50</td><td>${depositNotes.n50}</td><td>${(depositNotes.n50 * 50).toLocaleString("en-IN")}</td></tr>
+      </table>
+      <h3>Total Deposit: ₹${Number(depositAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</h3>
+      <div>Remarks: ${depositRemarks || "-"}</div>
+      <script>window.print();</script>
+      </body></html>
+    `);
+    win.document.close();
+  };
 
   const saveUpiMutation = useMutation({
     mutationFn: () => {
@@ -357,6 +411,15 @@ export default function BankAccountsPage() {
                 </button>
               </div>
             </details>
+            <Button
+              onClick={() => matchClosingMutation.mutate()}
+              disabled={matchClosingMutation.isPending}
+              variant="outline"
+              className="font-bold text-xs h-9 cursor-pointer"
+            >
+              <CheckCircle2 size={15} className="mr-1.5 text-emerald-500" />
+              {matchClosingMutation.isPending ? "Matching..." : "Match Day Closing"}
+            </Button>
             <Button
               onClick={() => setDepositCashOpen(true)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 cursor-pointer shadow-md"
@@ -687,6 +750,43 @@ export default function BankAccountsPage() {
         </CardContent>
       </Card>
 
+      {/* Daily Cash & Bank Opening vs. Closing Verification Strip */}
+      {todaySnapshot && (
+        <div className="rounded-xl border border-hairline bg-surface-1 p-3.5 text-xs flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div>
+              <span className="text-ink-muted">Opening Cash:</span>{" "}
+              <span className="font-mono font-bold text-ink">{formatCurrency(todaySnapshot.cash_proof.opening_float)}</span>
+            </div>
+            <div>
+              <span className="text-ink-muted">Net Cash Movement:</span>{" "}
+              <span className="font-mono font-bold text-emerald-500">
+                {formatCurrency(
+                  todaySnapshot.cash_proof.cash_fuel_sales +
+                    todaySnapshot.cash_proof.cash_other_income +
+                    todaySnapshot.cash_proof.cash_payments_received -
+                    todaySnapshot.cash_proof.cash_expenses -
+                    todaySnapshot.cash_proof.cash_bank_deposits
+                )}
+              </span>
+            </div>
+            <div>
+              <span className="text-ink-muted">Expected Cash Now:</span>{" "}
+              <span className="font-mono font-bold text-fuel-amber">{formatCurrency(todaySnapshot.cash_proof.expected_drawer_cash)}</span>
+            </div>
+          </div>
+          <div className="text-ink-subtle">
+            Digital Today: <span className="font-mono font-semibold text-ink">{formatCurrency(todaySnapshot.digital_collections.total_digital)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Books Health Check & Live Cash/Bank Flow Timeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <BooksHealthCard />
+        <CashBankTimelineCard targetDate={todayStr} />
+      </div>
+
       {/* Add Bank Account Dialog */}
       <Dialog open={addBankOpen} onOpenChange={setAddBankOpen}>
         <DialogContent className="glass border border-hairline sm:max-w-[440px]">
@@ -799,6 +899,43 @@ export default function BankAccountsPage() {
               </div>
             </div>
 
+            <div className="rounded-lg border border-hairline bg-surface-2 p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-ink-muted">
+                <span>Note Denominations (Optional — auto-fills amount)</span>
+                <button
+                  type="button"
+                  onClick={handlePrintDepositSlip}
+                  className="inline-flex items-center gap-1 text-fuel-amber hover:underline cursor-pointer"
+                >
+                  <Printer size={12} /> Print Slip
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {([
+                  { k: "n500", label: "₹500", v: 500 },
+                  { k: "n200", label: "₹200", v: 200 },
+                  { k: "n100", label: "₹100", v: 100 },
+                  { k: "n50", label: "₹50", v: 50 },
+                ] as const).map((item) => (
+                  <div key={item.k}>
+                    <label className="block text-[10px] text-ink-muted">{item.label}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={depositNotes[item.k]}
+                      onChange={(e) => {
+                        const next = { ...depositNotes, [item.k]: Number(e.target.value) || 0 };
+                        setDepositNotes(next);
+                        const sum = next.n500 * 500 + next.n200 * 200 + next.n100 * 100 + next.n50 * 50;
+                        if (sum > 0) setDepositAmount(String(sum));
+                      }}
+                      className="w-full rounded border border-hairline bg-surface-1 px-2 py-1 text-xs font-mono text-ink"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <DialogFooter className="pt-3 border-t border-hairline">
               <Button type="button" variant="ghost" onClick={() => setAddBankOpen(false)} className="text-xs h-9 cursor-pointer">
                 Cancel
@@ -907,6 +1044,43 @@ export default function BankAccountsPage() {
                   onChange={(e) => setDepositRemarks(e.target.value)}
                   className="bg-surface-2 border-hairline text-xs text-ink"
                 />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-hairline bg-surface-2 p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-ink-muted">
+                <span>Note Denominations (Optional — auto-fills amount)</span>
+                <button
+                  type="button"
+                  onClick={handlePrintDepositSlip}
+                  className="inline-flex items-center gap-1 text-fuel-amber hover:underline cursor-pointer"
+                >
+                  <Printer size={12} /> Print Slip
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {([
+                  { k: "n500", label: "₹500", v: 500 },
+                  { k: "n200", label: "₹200", v: 200 },
+                  { k: "n100", label: "₹100", v: 100 },
+                  { k: "n50", label: "₹50", v: 50 },
+                ] as const).map((item) => (
+                  <div key={item.k}>
+                    <label className="block text-[10px] text-ink-muted">{item.label}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={depositNotes[item.k]}
+                      onChange={(e) => {
+                        const next = { ...depositNotes, [item.k]: Number(e.target.value) || 0 };
+                        setDepositNotes(next);
+                        const sum = next.n500 * 500 + next.n200 * 200 + next.n100 * 100 + next.n50 * 50;
+                        if (sum > 0) setDepositAmount(String(sum));
+                      }}
+                      className="w-full rounded border border-hairline bg-surface-1 px-2 py-1 text-xs font-mono text-ink"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import api from "@/api/client";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -132,7 +133,52 @@ export default function PaymentForm({
   const customerUuid = watch("customer_uuid") ?? "";
   const vehicleNumber = watch("vehicle_number") ?? "";
   const paymentMode = watch("payment_mode");
+  const totalAmt = Number(watch("amount") ?? 0);
+  const cashPart = watch("cash_amount");
+  const refNum = watch("reference_number") ?? "";
   const [selectedUpiUuid, setSelectedUpiUuid] = useState("");
+  const [customerBalance, setCustomerBalance] = useState<number | null>(null);
+  const [dupRefWarning, setDupRefWarning] = useState<string | null>(null);
+
+  // Fetch customer's live outstanding balance for Overpayment warning
+  useEffect(() => {
+    if (!customerUuid) {
+      setCustomerBalance(null);
+      return;
+    }
+    api.get(`/v1/customers/${customerUuid}`)
+      .then((res) => setCustomerBalance(Number(res.data?.outstanding_balance ?? 0)))
+      .catch(() => setCustomerBalance(null));
+  }, [customerUuid]);
+
+  // Auto-Fill Remainder in SPLIT mode: Bank/UPI = Total - Cash
+  useEffect(() => {
+    if (paymentMode === "SPLIT" && totalAmt > 0 && cashPart !== undefined && cashPart !== null) {
+      const rem = Math.max(0, totalAmt - Number(cashPart || 0));
+      setValue("bank_amount", Number(rem.toFixed(2)));
+    }
+  }, [paymentMode, totalAmt, cashPart]);
+
+  // Real-Time Duplicate UTR / Reference Number Guard
+  useEffect(() => {
+    const trimmed = refNum.trim();
+    if (trimmed.length < 4) {
+      setDupRefWarning(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.get("/pipeline/check-duplicate", { params: { reference_number: trimmed } })
+        .then((res) => {
+          if (res.data?.duplicate_reference) {
+            setDupRefWarning(`Duplicate UTR/Ref # detected: ${(res.data.matches || []).join(", ")}`);
+          } else {
+            setDupRefWarning(null);
+          }
+        })
+        .catch(() => setDupRefWarning(null));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [refNum]);
 
   function submitForm(
     data: PaymentFormData
@@ -214,6 +260,18 @@ export default function PaymentForm({
           error={errors.amount?.message}
           {...register("amount")}
         />
+
+        {customerBalance !== null && totalAmt > customerBalance && (
+          <div className="col-span-1 sm:col-span-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <strong>Overpayment — will stay as Advance:</strong> Customer due is ₹{customerBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}, so ₹{(totalAmt - customerBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} will be recorded as unallocated advance.
+          </div>
+        )}
+
+        {dupRefWarning && (
+          <div className="col-span-1 sm:col-span-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-300 font-semibold">
+            {dupRefWarning}
+          </div>
+        )}
 
         <FormSelect
           label="Payment Mode"

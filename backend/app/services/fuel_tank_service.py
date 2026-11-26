@@ -136,6 +136,8 @@ class FuelTankService:
         payment_mode: PaymentMode = PaymentMode.CREDIT,
         bank_account_uuid: str | None = None,
         ignore_capacity: bool = False,
+        dip_before_liters: float | None = None,
+        dip_after_liters: float | None = None,
     ) -> TankerDelivery:
         tank = self.tank_repo.get_by_uuid(db, tank_uuid)
         if not tank:
@@ -146,7 +148,14 @@ class FuelTankService:
         # Capacity validation downgrade: check if it exceeds and raise distinct CAPACITY_WARNING
         if not ignore_capacity and tank.current_stock_liters + quantity_liters > tank.capacity_liters:
             raise ValueError("CAPACITY_WARNING: Delivery would exceed the tank capacity")
-            
+
+        computed_remarks = remarks or ""
+        if dip_before_liters is not None and dip_after_liters is not None:
+            actual_gain = round(float(dip_after_liters) - float(dip_before_liters), 2)
+            diff = round(actual_gain - float(quantity_liters), 2)
+            dip_note = f"[Dip Check: Before {dip_before_liters}L → After {dip_after_liters}L = {actual_gain}L gain vs {quantity_liters}L invoice ({diff:+.1f}L)]"
+            computed_remarks = f"{computed_remarks} {dip_note}".strip()
+
         delivery = TankerDelivery(
             tank_id=tank.id,
             delivery_date=delivery_date,
@@ -154,7 +163,7 @@ class FuelTankService:
             quantity_liters=quantity_liters,
             density=density,
             supplier_name=supplier_name,
-            remarks=remarks,
+            remarks=computed_remarks or None,
             procurement_rate=procurement_rate,
             payment_mode=payment_mode,
             pump_id=tank.pump_id,
@@ -548,4 +557,223 @@ class FuelTankService:
             target_id=str(transfer.id),
             actor_id=actor_id,
         )
+
+    def get_margin_analytics(self, db: Session, pump_id: int) -> dict:
+        """Tank-Wise Profit & Variance, Procurement Cost-Per-Liter Trend, and Low Bank Balance Alert for Indents."""
+        from datetime import datetime, timezone
+        from sqlalchemy import func
+        from app.models.bank_account import BankAccount
+        from app.models.nozzle import Nozzle
+        from app.models.nozzle_reading import NozzleReading
+        from app.models.purchase_indent import IndentStatus, PurchaseIndent
+        from app.models.stock_variance import StockVariance
+        from app.services.price_schedule_service import PriceScheduleService
+
+        price_service = PriceScheduleService()
+        today = date.today()
+        now_dt = datetime.now(timezone.utc)
+
+        tanks = list(
+            db.scalars(
+                select(FuelTank).where(FuelTank.pump_id == pump_id, FuelTank.is_active.is_(True))
+            ).all()
+        )
+        tank_cards: list[dict] = []
+        for t in tanks:
+            selling_rate = float(price_service.get_active_rate(db, t.fuel_type, now_dt) or 0.0)
+            avg_cost = float(t.avg_cost_per_liter or 0.0)
+            margin_per_l = round(selling_rate - avg_cost, 2) if avg_cost > 0 and selling_rate > 0 else 0.0
+
+            # Today's nozzle sales for nozzles linked to this tank (or matching fuel_type)
+            nozzle_ids = list(
+                db.scalars(
+                    select(Nozzle.id).where(
+                        Nozzle.pump_id == pump_id,
+                        Nozzle.is_active.is_(True),
+                        (Nozzle.tank_id == t.id) | ((Nozzle.tank_id.is_(None)) & (Nozzle.fuel_type == t.fuel_type)),
+                    )
+                ).all()
+            )
+            net_sales_l = 0.0
+            if nozzle_ids:
+                net_sales_l = float(
+                    db.scalar(
+                        select(func.coalesce(func.sum(NozzleReading.sales), 0.0)).where(
+                            NozzleReading.nozzle_id.in_(nozzle_ids),
+                            NozzleReading.reading_date == today,
+                        )
+                    )
+                    or 0.0
+                )
+            sv = db.scalar(
+                select(StockVariance).where(
+                    StockVariance.tank_id == t.id,
+                    StockVariance.variance_date == today,
+                )
+            )
+            dip_var_l = float(sv.variance_liters or 0.0) if sv else 0.0
+            dip_loss_rs = abs(min(0.0, dip_var_l)) * (avg_cost or selling_rate)
+            gross_profit = round((margin_per_l * net_sales_l) - dip_loss_rs, 2)
+            fill_pct = round((float(t.current_stock_liters) / float(t.capacity_liters)) * 100, 1) if t.capacity_liters else 0.0
+
+            tank_cards.append(
+                {
+                    "tank_uuid": str(t.uuid),
+                    "tank_name": t.name,
+                    "fuel_type": t.fuel_type.value if hasattr(t.fuel_type, "value") else str(t.fuel_type),
+                    "current_stock_liters": round(float(t.current_stock_liters), 1),
+                    "capacity_liters": round(float(t.capacity_liters), 1),
+                    "fill_percent": fill_pct,
+                    "avg_cost_per_liter": round(avg_cost, 2),
+                    "selling_rate": round(selling_rate, 2),
+                    "margin_per_liter": margin_per_l,
+                    "today_net_sales_liters": round(net_sales_l, 2),
+                    "today_dip_variance_liters": round(dip_var_l, 2),
+                    "today_gross_profit": gross_profit,
+                }
+            )
+
+        # Procurement Cost-Per-Liter Trend (last 20 deliveries with rate)
+        deliveries = list(
+            db.scalars(
+                select(TankerDelivery)
+                .where(
+                    TankerDelivery.pump_id == pump_id,
+                    TankerDelivery.is_active.is_(True),
+                    TankerDelivery.procurement_rate.isnot(None),
+                )
+                .order_by(TankerDelivery.delivery_date.asc(), TankerDelivery.id.asc())
+                .limit(20)
+            ).all()
+        )
+        tank_map = {t.id: t for t in tanks}
+        trend: list[dict] = []
+        for d in deliveries:
+            tk = tank_map.get(d.tank_id)
+            ft = tk.fuel_type if tk else FuelType.DIESEL
+            sell_r = float(price_service.get_active_rate(db, ft, now_dt) or 0.0)
+            trend.append(
+                {
+                    "date": d.delivery_date.isoformat(),
+                    "fuel_type": ft.value if hasattr(ft, "value") else str(ft),
+                    "procurement_rate": float(d.procurement_rate or 0.0),
+                    "selling_rate": sell_r,
+                    "quantity_liters": float(d.quantity_liters),
+                }
+            )
+
+        # Low Bank Balance Alert for Upcoming OMC Indents
+        pending_indents = list(
+            db.scalars(
+                select(PurchaseIndent).where(
+                    PurchaseIndent.pump_id == pump_id,
+                    PurchaseIndent.is_active.is_(True),
+                    PurchaseIndent.status.in_([IndentStatus.PENDING, IndentStatus.ORDERED]),
+                )
+            ).all()
+        )
+        pending_cost = sum(float(i.estimated_cost or 0.0) for i in pending_indents)
+        total_bank_bal = float(
+            db.scalar(
+                select(func.coalesce(func.sum(BankAccount.current_balance), 0.0)).where(
+                    BankAccount.pump_id == pump_id,
+                    BankAccount.is_active.is_(True),
+                )
+            )
+            or 0.0
+        )
+        shortfall = round(max(0.0, pending_cost - total_bank_bal), 2)
+
+        return {
+            "tanks": tank_cards,
+            "procurement_trend": trend,
+            "indent_bank_alert": {
+                "pending_indent_count": len(pending_indents),
+                "pending_indent_cost": round(pending_cost, 2),
+                "total_bank_balance": round(total_bank_bal, 2),
+                "is_short": shortfall > 0,
+                "shortfall": shortfall,
+            },
+        }
+
+    def omc_invoice_ocr_autopilot(
+        self,
+        db: Session,
+        *,
+        pump_id: int,
+        tank_uuid: str,
+        invoice_number: str,
+        delivery_date: date,
+        quantity_liters: float,
+        total_amount: float,
+        density: float | None = None,
+        supplier_name: str | None = None,
+        bank_account_uuid: str | None = None,
+        payment_mode: PaymentMode = PaymentMode.BANK,
+        dip_before_liters: float | None = None,
+        dip_after_liters: float | None = None,
+        actor_id: int | None = None,
+    ) -> dict:
+        """OMC Invoice OCR -> Full Tanker Pipeline Auto-Pilot:
+        1. Auto-matches open OMC PurchaseIndent for this fuel type
+        2. Creates TankerDelivery + updates Tank Stock & avg_cost_per_liter
+        3. Debits selected BankAccount (idempotently via DEL-{id})
+        4. Flags any short-delivery variance vs indent or dip check."""
+        from app.models.purchase_indent import IndentStatus, PurchaseIndent
+
+        tank = self.tank_repo.get_by_uuid(db, tank_uuid)
+        if not tank:
+            raise ValueError(f"Fuel tank {tank_uuid} not found")
+
+        proc_rate = round(total_amount / quantity_liters, 4) if quantity_liters > 0 else 0.0
+
+        # Auto-match open PurchaseIndent
+        matched_indent = db.scalar(
+            select(PurchaseIndent)
+            .where(
+                PurchaseIndent.pump_id == pump_id,
+                PurchaseIndent.fuel_type == tank.fuel_type,
+                PurchaseIndent.is_active.is_(True),
+                PurchaseIndent.status.in_([IndentStatus.ORDERED, IndentStatus.PENDING]),
+            )
+            .order_by(PurchaseIndent.indent_date.asc(), PurchaseIndent.id.asc())
+            .limit(1)
+        )
+        short_delivery_liters = 0.0
+        indent_number = None
+        if matched_indent is not None:
+            indent_number = matched_indent.indent_number
+            short_delivery_liters = round(float(matched_indent.quantity_liters) - float(quantity_liters), 2)
+            matched_indent.status = IndentStatus.DELIVERED
+
+        remarks = f"OMC Auto-Pilot (Indent: {indent_number})" if indent_number else "OMC Auto-Pilot"
+        if abs(short_delivery_liters) > 0:
+            remarks += f" | Indent Variance: {short_delivery_liters:+.1f}L"
+
+        delivery = self.create_delivery(
+            db,
+            tank_uuid=tank_uuid,
+            delivery_date=delivery_date,
+            invoice_number=invoice_number,
+            quantity_liters=quantity_liters,
+            density=density,
+            supplier_name=supplier_name,
+            remarks=remarks,
+            procurement_rate=proc_rate,
+            payment_mode=payment_mode,
+            bank_account_uuid=bank_account_uuid,
+            ignore_capacity=True,
+            dip_before_liters=dip_before_liters,
+            dip_after_liters=dip_after_liters,
+        )
+        return {
+            "delivery_uuid": str(delivery.uuid),
+            "invoice_number": delivery.invoice_number,
+            "quantity_liters": delivery.quantity_liters,
+            "procurement_rate": proc_rate,
+            "matched_indent_number": indent_number,
+            "short_delivery_liters": short_delivery_liters,
+            "new_tank_stock": float(tank.current_stock_liters),
+            "new_avg_cost_per_liter": float(tank.avg_cost_per_liter or proc_rate),
+        }
 

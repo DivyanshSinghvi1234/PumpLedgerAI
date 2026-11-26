@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageHeader from "@/components/common/PageHeader";
-import { ChevronLeft, ChevronRight, Printer, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Printer, RefreshCw, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
 import voucherService from "@/features/vouchers/services/voucherService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
@@ -135,6 +137,31 @@ export default function RegisterPage() {
     queryKey: ["registerPayments", date],
     queryFn: () => paymentService.getPayments({ payment_date: date, page_size: 100 }),
   });
+
+  const { data: pipelineSnapshot, refetch: refetchSnapshot } = useQuery({
+    queryKey: ["daily-snapshot", date],
+    queryFn: () => pipelineService.getSnapshot(date),
+  });
+
+  const handleAutoFillFromShift = () => {
+    if (!pipelineSnapshot) return;
+    if (pipelineSnapshot.is_locked) {
+      toast.error("This business day is locked in Day Closing.");
+      return;
+    }
+    const d = pipelineSnapshot.cash_proof.denominations;
+    const nextNotes = {
+      n500: d.notes_500 || 0,
+      n200: d.notes_200 || 0,
+      n100: d.notes_100 || 0,
+      n50: d.notes_50 || 0,
+      n20: d.notes_20 || 0,
+      n10: d.notes_10 || 0,
+    };
+    setNotes(nextNotes);
+    saveDenominations(nextNotes);
+    toast.success(`Synced note counts (${pipelineSnapshot.cash_proof.denom_source}).`);
+  };
 
   const cashPaymentsForDate = (paymentsData?.items ?? [])
     .map((p) => {
@@ -602,6 +629,7 @@ export default function RegisterPage() {
             onClick={() => {
               refetchVouchers();
               refetchNozzles();
+              refetchSnapshot();
             }}
             className="flex items-center justify-center h-9 w-9 rounded-xl border border-hairline bg-surface-2 text-ink hover:bg-surface-3 transition cursor-pointer"
             title="Reload Data"
@@ -646,6 +674,90 @@ export default function RegisterPage() {
       </div>
 
 
+
+      {/* Pipeline Sync, 5-Line Cash-in-Hand Proof & Meter Gap Check */}
+      {pipelineSnapshot && (
+        <div className="space-y-3 no-print">
+          {pipelineSnapshot.is_locked && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-700 dark:text-emerald-300">
+              <span className="flex items-center gap-2 font-semibold">
+                <Lock size={14} /> Day Closing is LOCKED for {date}. Daily Register is read-only.
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* 5-Line Cash-in-Hand Proof Box */}
+            <div className="rounded-xl border border-hairline bg-surface-1 p-3.5 text-xs space-y-1.5">
+              <div className="flex items-center justify-between border-b border-hairline pb-1.5">
+                <span className="font-bold uppercase tracking-wide text-ink">
+                  5-Line Cash-in-Hand Proof
+                </span>
+                <button
+                  type="button"
+                  disabled={pipelineSnapshot.is_locked}
+                  onClick={handleAutoFillFromShift}
+                  className="inline-flex items-center gap-1 rounded bg-fuel-amber/15 border border-fuel-amber/30 px-2 py-0.5 text-[11px] font-semibold text-fuel-amber hover:bg-fuel-amber/25 cursor-pointer disabled:opacity-40"
+                >
+                  <Sparkles size={11} /> Auto-Fill From 8 PM Shift
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono">
+                <span className="text-ink-muted">Opening Float (+)</span>
+                <span className="text-right">₹{pipelineSnapshot.cash_proof.opening_float.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-ink-muted">Fuel + Lube Cash (+)</span>
+                <span className="text-right">₹{(pipelineSnapshot.cash_proof.cash_fuel_sales + pipelineSnapshot.cash_proof.cash_other_income).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-ink-muted">Cash Recoveries (+)</span>
+                <span className="text-right">₹{pipelineSnapshot.cash_proof.cash_payments_received.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-ink-muted">Cash Expenses (−)</span>
+                <span className="text-right text-rose-500">−₹{pipelineSnapshot.cash_proof.cash_expenses.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span className="text-ink-muted">Bank Deposits (−)</span>
+                <span className="text-right text-rose-500">−₹{pipelineSnapshot.cash_proof.cash_bank_deposits.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-hairline pt-1.5 font-mono font-bold text-ink">
+                <span>Expected Drawer Cash</span>
+                <span>₹{pipelineSnapshot.cash_proof.expected_drawer_cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            {/* Meter vs. Vouchers Live Gap Check & Shift Variance */}
+            <div className="rounded-xl border border-hairline bg-surface-1 p-3.5 text-xs flex flex-col justify-between gap-2">
+              <div className="flex items-center justify-between border-b border-hairline pb-1.5">
+                <span className="font-bold uppercase tracking-wide text-ink">
+                  Meter vs. Vouchers Live Gap Check
+                </span>
+                {pipelineSnapshot.shift_settlement.count > 0 && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full font-mono text-[11px] font-semibold ${
+                      pipelineSnapshot.shift_settlement.total_variance < 0
+                        ? "bg-rose-500/15 text-rose-500"
+                        : "bg-emerald-500/15 text-emerald-500"
+                    }`}
+                  >
+                    8 PM Shift Variance: {pipelineSnapshot.shift_settlement.total_variance >= 0 ? "+" : ""}₹
+                    {pipelineSnapshot.shift_settlement.total_variance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </span>
+                )}
+              </div>
+              <div className="font-mono text-xs text-ink-muted">
+                Meter Sales (₹{pipelineSnapshot.meters.gross_meter_sales.toLocaleString("en-IN")}) − Credit (₹{pipelineSnapshot.vouchers.credit_sales.toLocaleString("en-IN")}) − UPI/Card/Bank (₹{(pipelineSnapshot.vouchers.upi_sales + pipelineSnapshot.vouchers.card_sales + pipelineSnapshot.vouchers.bank_sales).toLocaleString("en-IN")})
+              </div>
+              <div className="flex items-center justify-between border-t border-hairline pt-1.5 font-mono font-bold">
+                <span>Expected Cash Fuel</span>
+                <span className="text-fuel-amber">
+                  ₹{(
+                    pipelineSnapshot.meters.gross_meter_sales -
+                    pipelineSnapshot.vouchers.credit_sales -
+                    pipelineSnapshot.vouchers.upi_sales -
+                    pipelineSnapshot.vouchers.card_sales -
+                    pipelineSnapshot.vouchers.bank_sales
+                  ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Real bound book container */}
       <div

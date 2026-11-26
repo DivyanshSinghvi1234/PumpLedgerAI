@@ -169,22 +169,41 @@ class PriceScheduleService:
             check_date.year, check_date.month, check_date.day, 23, 59, 59, tzinfo=timezone.utc
         )
         changes: list[dict] = []
+        total_stock_gain_loss = 0.0
+        from sqlalchemy import func, select
+        from app.models.fuel_tank import FuelTank
+
         for ftype in (FuelType.PETROL, FuelType.DIESEL, FuelType.SPEED):
             old_rate = self.get_active_rate(db, ftype, prev_eod)
             new_rate = self.get_active_rate(db, ftype, after_6am)
             if old_rate is not None and new_rate is not None and old_rate != new_rate:
+                diff = round(float(new_rate - old_rate), 2)
+                stock_liters = float(
+                    db.scalar(
+                        select(func.coalesce(func.sum(FuelTank.current_stock_liters), 0.0)).where(
+                            FuelTank.fuel_type == ftype,
+                            FuelTank.is_active.is_(True),
+                        )
+                    )
+                    or 0.0
+                )
+                gain_loss = round(stock_liters * diff, 2)
+                total_stock_gain_loss = round(total_stock_gain_loss + gain_loss, 2)
                 changes.append(
                     {
                         "fuel_type": ftype.value,
                         "old_rate": float(old_rate),
                         "new_rate": float(new_rate),
-                        "diff": round(float(new_rate - old_rate), 2),
+                        "diff": diff,
+                        "stock_liters": round(stock_liters, 2),
+                        "stock_gain_loss_value": gain_loss,
                     }
                 )
         return {
             "target_date": check_date.isoformat(),
             "has_price_change": len(changes) > 0,
             "requires_6am_interim_reading": len(changes) > 0,
+            "total_stock_gain_loss_value": total_stock_gain_loss,
             "changes": changes,
         }
 

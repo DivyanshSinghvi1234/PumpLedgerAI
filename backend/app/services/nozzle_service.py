@@ -381,6 +381,21 @@ class NozzleService:
             # upgrade to filtering on `status == ACTIVE` if that's ever wanted.
             for nozzle in dispenser.nozzles:
                 reading = readings_on_date.get(nozzle.id)
+                prev = prev_readings_map.get(nozzle.id)
+                yesterday_closing = prev.closing_reading if prev else None
+                yesterday_sales = prev.sales if prev else None
+
+                # Compute 7-day average sales for >3x jump sanity guard
+                from datetime import timedelta
+                seven_days_ago = reading_date - timedelta(days=7)
+                avg_7d = db.scalar(
+                    select(func.avg(NozzleReading.sales)).where(
+                        NozzleReading.nozzle_id == nozzle.id,
+                        NozzleReading.reading_date >= seven_days_ago,
+                        NozzleReading.reading_date < reading_date,
+                    )
+                )
+                avg_7d_sales = round(float(avg_7d), 2) if avg_7d is not None else None
                 if reading:
                     opening_reading = reading.opening_reading if reading.opening_reading is not None else 0.0
                     closing_reading = reading.closing_reading
@@ -430,6 +445,9 @@ class NozzleService:
                         meter_capacity=nozzle.meter_capacity,
                         is_rollover=is_rollover,
                         is_meter_replaced=is_meter_replaced,
+                        yesterday_closing=yesterday_closing,
+                        yesterday_sales=yesterday_sales,
+                        avg_7d_sales=avg_7d_sales,
                     )
                 )
 

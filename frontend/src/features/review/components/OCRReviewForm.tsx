@@ -7,6 +7,8 @@ import InvoiceImageDialog from "../../vouchers/components/InvoiceImageDialog";
 import { invoiceImageUrl } from "../../vouchers/utils/invoiceImage";
 import CustomerAutocomplete from "../../customers/components/CustomerAutocomplete";
 import VehicleAutocomplete from "../../vehicles/components/VehicleAutocomplete";
+import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiAccountSelect from "@/components/common/UpiAccountSelect";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import { getTodayDateString } from "@/lib/utils";
 import AppDialog from "@/components/common/AppDialog";
@@ -40,6 +42,8 @@ export default function OCRReviewForm({
 
   const [showImage, setShowImage] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [ocrBankUuid, setOcrBankUuid] = useState("");
+  const [ocrUpiUuid, setOcrUpiUuid] = useState("");
 
   // The backend returns { ocr, validation, ready_to_save }.
   const ocr = data?.ocr ?? {};
@@ -293,9 +297,10 @@ export default function OCRReviewForm({
 
       await createMutation.mutateAsync({
         ...formData,
+        ...(ocrBankUuid ? { bank_account_uuid: ocrBankUuid } : {}),
         // Preserve the uploaded invoice image on the saved voucher.
         image_path: imagePath,
-      });
+      } as any);
 
       if (onSaved) {
         onSaved();
@@ -571,6 +576,29 @@ export default function OCRReviewForm({
           </select>
           <FieldError field="payment_mode" />
         </div>
+
+        {(formData.payment_mode === "UPI" ||
+          formData.payment_mode === "BANK" ||
+          formData.payment_mode === "CARD" ||
+          formData.payment_mode === "SPLIT") && (
+          <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-hairline bg-surface-2/60 p-3">
+            {formData.payment_mode === "UPI" && (
+              <UpiAccountSelect
+                value={ocrUpiUuid}
+                onChange={(u, linkedBank) => {
+                  setOcrUpiUuid(u);
+                  if (linkedBank) setOcrBankUuid(linkedBank);
+                }}
+              />
+            )}
+            <BankAccountSelect
+              value={ocrBankUuid}
+              onChange={setOcrBankUuid}
+              autoSelectDefault
+              label="Linked Bank Account (HDFC / SBI)"
+            />
+          </div>
+        )}
 
         <div className="sm:col-span-2 border border-border/40 rounded-xl p-4 bg-muted/10">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

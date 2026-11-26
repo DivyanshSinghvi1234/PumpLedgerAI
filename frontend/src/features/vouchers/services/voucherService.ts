@@ -13,6 +13,7 @@ export interface VoucherSearchParams {
   search?: string;
   fuel_type?: string;
   payment_mode?: string;
+  payment_status?: string;
   verification_status?: string;
   customer_uuid?: string;
   from_date?: string;

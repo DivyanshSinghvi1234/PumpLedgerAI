@@ -455,6 +455,25 @@ class DayClosingService:
         )
         closing.synced_bank_txn_ids = synced_txn_ids or None
 
+        # Two-way sync denominations into DailyCashSheet
+        from app.models.daily_cash_sheet import DailyCashSheet
+
+        cash_sheet = db.scalar(
+            select(DailyCashSheet).where(DailyCashSheet.sheet_date == payload.closing_date)
+        )
+        if cash_sheet is None:
+            cash_sheet = DailyCashSheet(
+                sheet_date=payload.closing_date,
+                pump_id=closing.pump_id,
+            )
+            db.add(cash_sheet)
+        cash_sheet.notes_500 = payload.notes_500
+        cash_sheet.notes_200 = payload.notes_200
+        cash_sheet.notes_100 = payload.notes_100
+        cash_sheet.notes_50 = payload.notes_50
+        cash_sheet.notes_20 = payload.notes_20
+        cash_sheet.notes_10 = payload.notes_10
+
         # Auto-mark shift attendants PRESENT for this closing date
         from app.services.employee_service import EmployeeService
         EmployeeService().sync_attendance_from_shifts(db, payload.closing_date)

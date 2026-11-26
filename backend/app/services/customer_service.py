@@ -343,3 +343,160 @@ class CustomerService:
             actor_id=actor_id,
             old_values=old_values,
         )
+
+    # -----------------------------------
+    # Risk & Collection Scoring + Duplicate Merge
+    # -----------------------------------
+
+    def get_risk_scores(self, db: Session) -> list[dict]:
+        from datetime import date
+        from sqlalchemy import func, select
+        from app.core.enums import PaymentStatus
+        from app.models.customer import Customer
+        from app.models.voucher import Voucher
+
+        today = date.today()
+        customers = list(
+            db.scalars(select(Customer).where(Customer.is_active.is_(True))).all()
+        )
+        oldest_rows = db.execute(
+            select(
+                Voucher.customer_id,
+                func.min(Voucher.invoice_date),
+            )
+            .where(
+                Voucher.is_active.is_(True),
+                Voucher.customer_id.isnot(None),
+                Voucher.payment_status.in_([PaymentStatus.UNPAID, PaymentStatus.PARTIAL]),
+            )
+            .group_by(Voucher.customer_id)
+        ).all()
+        oldest_map = {cid: dt for cid, dt in oldest_rows if dt is not None}
+
+        results: list[dict] = []
+        for c in customers:
+            bal = float(c.outstanding_balance or 0)
+            limit = float(c.credit_limit or 0)
+            oldest_dt = oldest_map.get(c.id)
+            overdue_days = (today - oldest_dt).days if (oldest_dt and bal > 1) else 0
+
+            if (overdue_days > 30 and bal > 1) or (limit > 0 and bal > limit):
+                risk = "RED"
+                stage = "SOFT_HOLD"
+            elif overdue_days >= 15 and bal > 1:
+                risk = "AMBER"
+                stage = "DAY_15_REMINDER"
+            else:
+                risk = "GREEN"
+                stage = "CURRENT"
+
+            results.append(
+                {
+                    "customer_uuid": str(c.uuid),
+                    "name": c.name,
+                    "mobile": c.mobile,
+                    "outstanding_balance": round(bal, 2),
+                    "credit_limit": round(limit, 2),
+                    "overdue_days": overdue_days,
+                    "risk_score": risk,
+                    "collection_stage": stage,
+                }
+            )
+
+        priority = {"RED": 0, "AMBER": 1, "GREEN": 2}
+        results.sort(key=lambda r: (priority[r["risk_score"]], -r["outstanding_balance"]))
+        return results
+
+    def find_duplicates(self, db: Session) -> list[dict]:
+        import re
+        from sqlalchemy import select
+        from app.models.customer import Customer
+
+        customers = list(
+            db.scalars(select(Customer).where(Customer.is_active.is_(True))).all()
+        )
+
+        def _norm(s: str) -> str:
+            s = re.sub(r"[^a-z0-9]", "", s.lower())
+            for suffix in ("transport", "trpt", "travels", "logistics", "pvt", "ltd"):
+                s = s.replace(suffix, "")
+            return s
+
+        groups: dict[str, list[Customer]] = {}
+        for c in customers:
+            key = _norm(c.name)
+            if len(key) >= 3:
+                groups.setdefault(key, []).append(c)
+
+        dupes: list[dict] = []
+        for key, items in groups.items():
+            if len(items) > 1:
+                dupes.append(
+                    {
+                        "key": key,
+                        "customers": [
+                            {
+                                "uuid": str(c.uuid),
+                                "name": c.name,
+                                "mobile": c.mobile,
+                                "outstanding_balance": float(c.outstanding_balance or 0),
+                            }
+                            for c in items
+                        ],
+                    }
+                )
+        return dupes
+
+    def merge_customers(
+        self,
+        db: Session,
+        *,
+        source_uuid: str,
+        target_uuid: str,
+        actor_id: int | None = None,
+    ) -> dict:
+        from sqlalchemy import update
+        from app.models.ledger_entry import LedgerEntry
+        from app.models.payment import Payment
+        from app.models.vehicle import Vehicle
+        from app.models.voucher import Voucher
+
+        if source_uuid == target_uuid:
+            raise ValueError("Source and target customers must be different.")
+        source = self.repository.get_by_uuid(db, source_uuid)
+        target = self.repository.get_by_uuid(db, target_uuid)
+        if not source or not target:
+            raise CustomerNotFoundError(source_uuid if not source else target_uuid)
+
+        db.execute(
+            update(Voucher).where(Voucher.customer_id == source.id).values(customer_id=target.id)
+        )
+        db.execute(
+            update(Payment).where(Payment.customer_id == source.id).values(customer_id=target.id)
+        )
+        db.execute(
+            update(Vehicle).where(Vehicle.customer_id == source.id).values(customer_id=target.id)
+        )
+        db.execute(
+            update(LedgerEntry).where(LedgerEntry.customer_id == source.id).values(customer_id=target.id)
+        )
+
+        target.opening_balance = (target.opening_balance or 0) + (source.opening_balance or 0)
+        target.outstanding_balance = (target.outstanding_balance or 0) + (source.outstanding_balance or 0)
+        source.is_active = False
+
+        self.audit_service.log_action(
+            db,
+            action="Merged Duplicate Customer",
+            target_table="customers",
+            target_id=str(target.uuid),
+            actor_id=actor_id,
+            new_values={"merged_from": str(source.uuid), "source_name": source.name},
+        )
+        db.commit()
+        return {
+            "merged": True,
+            "target_uuid": str(target.uuid),
+            "target_name": target.name,
+            "new_outstanding_balance": float(target.outstanding_balance or 0),
+        }

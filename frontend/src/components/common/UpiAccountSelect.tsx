@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import bankAccountService, { type UpiAccount } from "@/features/admin/services/bankAccountService";
 import { Smartphone } from "lucide-react";
@@ -7,6 +8,7 @@ interface UpiAccountSelectProps {
   onChange: (upiUuid: string, linkedBankUuid: string, account?: UpiAccount) => void;
   label?: string;
   className?: string;
+  autoSelectDefault?: boolean;
 }
 
 export default function UpiAccountSelect({
@@ -14,11 +16,19 @@ export default function UpiAccountSelect({
   onChange,
   label = "UPI Account / Provider (PhonePe, Paytm, GPay)",
   className = "",
+  autoSelectDefault = true,
 }: UpiAccountSelectProps) {
   const { data: upiAccounts, isLoading } = useQuery({
     queryKey: ["upi-accounts"],
     queryFn: () => bankAccountService.getUpiAccounts(),
   });
+
+  useEffect(() => {
+    if (autoSelectDefault && !value && upiAccounts && upiAccounts.length > 0) {
+      const first = upiAccounts[0];
+      onChange(first.uuid, first.bank_account_uuid || "", first);
+    }
+  }, [autoSelectDefault, value, upiAccounts]);
 
   if (!isLoading && (!upiAccounts || upiAccounts.length === 0)) {
     return null;

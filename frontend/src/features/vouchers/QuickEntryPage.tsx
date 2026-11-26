@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Zap, Camera, Fuel, CheckCircle2 } from "lucide-react";
+import { Zap, Camera, Fuel, CheckCircle2, Moon, AlertTriangle } from "lucide-react";
+import BankAccountSelect from "@/components/common/BankAccountSelect";
 
 import PageHeader from "@/components/common/PageHeader";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
@@ -33,7 +34,16 @@ const MODE_BUTTONS: { label: string; value: PaymentMode }[] = [
 
 export default function QuickEntryPage() {
   const today = getTodayDateString();
+  const yesterday = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+  const isAfterMidnightShift = new Date().getHours() < 6;
   const queryClient = useQueryClient();
+
+  const [assignYesterday, setAssignYesterday] = useState(isAfterMidnightShift);
+  const businessDate = assignYesterday ? yesterday : today;
 
   const [fuelType, setFuelType] = useState<FuelType>("DIESEL");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("CREDIT");
@@ -45,6 +55,7 @@ export default function QuickEntryPage() {
   const [totalAmount, setTotalAmount] = useState("");
   const [upiUuid, setUpiUuid] = useState("");
   const [bankUuid, setBankUuid] = useState("");
+  const [scheduledRate, setScheduledRate] = useState<number | null>(null);
 
   const { data: schedules } = useQuery({
     queryKey: ["priceSchedules"],
@@ -71,8 +82,32 @@ export default function QuickEntryPage() {
     );
     if (active) {
       setRate(String(active.rate));
+      setScheduledRate(Number(active.rate));
     }
   }, [fuelType, schedules]);
+
+  // Sanity warnings
+  const rateDiffWarning = useMemo(() => {
+    const r = parseFloat(rate);
+    if (!scheduledRate || isNaN(r) || r <= 0) return null;
+    const diff = Math.abs(r - scheduledRate);
+    if (diff > 2) {
+      return `Entered rate ₹${r.toFixed(2)} differs from today's schedule (₹${scheduledRate.toFixed(2)}) by ₹${diff.toFixed(2)}/L.`;
+    }
+    return null;
+  }, [rate, scheduledRate]);
+
+  const mathMismatchWarning = useMemo(() => {
+    const l = parseFloat(liters);
+    const r = parseFloat(rate);
+    const t = parseFloat(totalAmount);
+    if (isNaN(l) || isNaN(r) || isNaN(t) || l <= 0 || r <= 0 || t <= 0) return null;
+    const expected = l * r;
+    if (Math.abs(expected - t) > 1.5) {
+      return `Qty × Rate = ₹${expected.toFixed(2)}, but Total is ₹${t.toFixed(2)}.`;
+    }
+    return null;
+  }, [liters, rate, totalAmount]);
 
   const handleLitersChange = (val: string) => {
     setLiters(val);
@@ -113,8 +148,8 @@ export default function QuickEntryPage() {
       const stamp = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
       const rand = Math.floor(100 + Math.random() * 900);
       return voucherService.createVoucher({
-        invoice_number: `QE-${today.replace(/-/g, "")}-${stamp}${rand}`,
-        invoice_date: today,
+        invoice_number: `QE-${businessDate.replace(/-/g, "")}-${stamp}${rand}`,
+        invoice_date: businessDate,
         fuel_type: fuelType,
         payment_mode: paymentMode,
         quantity_liters: qty,
@@ -126,8 +161,24 @@ export default function QuickEntryPage() {
         bank_account_uuid: paymentMode === "UPI" && bankUuid ? bankUuid : undefined,
       });
     },
-    onSuccess: () => {
-      toast.success("Slip saved! Ready for next vehicle.");
+    onSuccess: (created) => {
+      toast.success("Slip saved! Ready for next vehicle.", {
+        duration: 8000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try {
+              await voucherService.deleteVoucher(created.uuid);
+              toast.info("Slip undone and removed.");
+              queryClient.invalidateQueries({ queryKey: ["vouchers"] });
+              queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+              queryClient.invalidateQueries({ queryKey: ["customers"] });
+            } catch {
+              toast.error("Could not undo slip (may require Manager/Admin).");
+            }
+          },
+        },
+      });
       setLiters("");
       setTotalAmount("");
       setVehicleNumber("");
@@ -152,6 +203,10 @@ export default function QuickEntryPage() {
     }
     if (paymentMode === "CREDIT" && !customerUuid && !customerName.trim()) {
       toast.error("Please select a Customer for Credit slips.");
+      return;
+    }
+    if (paymentMode === "UPI" && !bankUuid) {
+      toast.error("Please select a UPI Handle or Linked Bank Account.");
       return;
     }
     createMutation.mutate();
@@ -181,7 +236,36 @@ export default function QuickEntryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form
+              onSubmit={handleSubmit}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !createMutation.isPending) {
+                  e.preventDefault();
+                  handleSubmit(e as unknown as React.FormEvent);
+                }
+              }}
+              className="space-y-4"
+            >
+              {/* Night-Shift Business Date Toggle (12 AM - 6 AM) */}
+              <div className="flex items-center justify-between rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Moon size={14} className="text-indigo-400" />
+                  <span className="font-medium text-ink">
+                    Business Date: <strong className="font-mono">{businessDate}</strong>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignYesterday((v) => !v)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold border transition cursor-pointer ${
+                    assignYesterday
+                      ? "bg-indigo-500/20 border-indigo-400 text-indigo-300"
+                      : "bg-surface-1 border-hairline text-ink-muted hover:text-ink"
+                  }`}
+                >
+                  {assignYesterday ? "Assigned to Yesterday (Night Shift)" : "Assign to Yesterday (12–6 AM)"}
+                </button>
+              </div>
               {/* Fuel Pills */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-ink-muted">1. Fuel Type</Label>
@@ -225,13 +309,39 @@ export default function QuickEntryPage() {
               </div>
 
               {paymentMode === "UPI" && (
-                <UpiAccountSelect
-                  value={upiUuid}
-                  onChange={(u, linkedBank) => {
-                    setUpiUuid(u);
-                    setBankUuid(linkedBank);
-                  }}
-                />
+                <div className="space-y-2">
+                  <UpiAccountSelect
+                    value={upiUuid}
+                    onChange={(u, linkedBank) => {
+                      setUpiUuid(u);
+                      if (linkedBank) setBankUuid(linkedBank);
+                    }}
+                  />
+                  {!bankUuid && (
+                    <BankAccountSelect
+                      value={bankUuid}
+                      onChange={setBankUuid}
+                      label="Linked Bank Account (Required for UPI)"
+                    />
+                  )}
+                </div>
+              )}
+
+              {(rateDiffWarning || mathMismatchWarning) && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                  {rateDiffWarning && (
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      <span>{rateDiffWarning}</span>
+                    </div>
+                  )}
+                  {mathMismatchWarning && (
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      <span>{mathMismatchWarning}</span>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Customer & Vehicle */}

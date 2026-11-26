@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Menu, Building2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { LogOut, Menu, Building2, Calculator, Search, Fuel, X } from "lucide-react";
 
 import { logout } from "../../features/auth/services/authService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import api from "@/api/client";
+import { formatCurrency } from "@/lib/utils";
 
 interface NavbarProps {
   onMenuClick(): void;
@@ -13,6 +17,37 @@ interface NavbarProps {
 export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
   const navigate = useNavigate();
   const { user, activePump } = useCurrentUser();
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [cashCalcOpen, setCashCalcOpen] = useState(false);
+  const [calcNotes, setCalcNotes] = useState({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
+
+  const { data: tanks = [] } = useQuery({
+    queryKey: ["tanks-navbar"],
+    queryFn: async () => {
+      const res = await api.get("/fuel-tanks");
+      return res.data as Array<{ uuid: string; name: string; fuel_type: string; current_stock_liters: number; capacity_liters: number }>;
+    },
+    staleTime: 60_000,
+  });
+
+  const { data: lookupResults = [] } = useQuery({
+    queryKey: ["navbar-balance-lookup", lookupQuery],
+    queryFn: async () => {
+      const res = await api.get("/v1/customers/search/autocomplete", {
+        params: { q: lookupQuery.trim(), limit: 5 },
+      });
+      return res.data as Array<{ uuid: string; name: string; outstanding_balance: number; mobile?: string }>;
+    },
+    enabled: lookupQuery.trim().length >= 2,
+  });
+
+  const calcTotal =
+    calcNotes.n500 * 500 +
+    calcNotes.n200 * 200 +
+    calcNotes.n100 * 100 +
+    calcNotes.n50 * 50 +
+    calcNotes.n20 * 20 +
+    calcNotes.n10 * 10;
 
   function handleLogout() {
     logout();
@@ -59,6 +94,106 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
+          {/* Fuel Tank Live Stock Pill */}
+          {tanks.length > 0 && (
+            <div className="hidden xl:flex items-center gap-1.5 rounded-full border border-hairline bg-surface-2 px-2.5 py-1 text-[10px] font-mono">
+              <Fuel size={11} className="text-fuel-amber" />
+              {tanks.slice(0, 3).map((t, i) => {
+                const pct = t.capacity_liters > 0 ? Math.round((t.current_stock_liters / t.capacity_liters) * 100) : 0;
+                const color = pct < 20 || pct > 95 ? "text-rose-500 font-bold" : pct < 35 ? "text-amber-500 font-semibold" : "text-emerald-500";
+                const short = t.fuel_type === "DIESEL" ? "HSD" : t.fuel_type === "PETROL" ? "MS" : "SPD";
+                return (
+                  <span key={t.uuid} className={color}>
+                    {i > 0 ? "· " : ""}{short} {pct}%
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Top-Bar Instant Balance Lookup */}
+          <div className="relative hidden md:block">
+            <div className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-2 px-2.5 py-1">
+              <Search size={12} className="text-ink-muted" />
+              <input
+                value={lookupQuery}
+                onChange={(e) => setLookupQuery(e.target.value)}
+                placeholder="Check Customer Due..."
+                className="w-36 bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
+              />
+              {lookupQuery && (
+                <button type="button" onClick={() => setLookupQuery("")} className="text-ink-muted hover:text-ink cursor-pointer">
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+            {lookupQuery.trim().length >= 2 && lookupResults.length > 0 && (
+              <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-hairline bg-surface-1 shadow-xl p-1.5 z-50 space-y-1">
+                {lookupResults.map((c) => (
+                  <button
+                    key={c.uuid}
+                    type="button"
+                    onClick={() => {
+                      setLookupQuery("");
+                      navigate(`/dashboard/customers/${c.uuid}/ledger`);
+                    }}
+                    className="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs hover:bg-surface-2 cursor-pointer text-left"
+                  >
+                    <span className="font-medium text-ink truncate">{c.name}</span>
+                    <span className="font-mono font-bold text-fuel-amber shrink-0 ml-2">
+                      {formatCurrency(c.outstanding_balance)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Cash Counter Widget */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setCashCalcOpen((v) => !v)}
+              className="rounded-lg border border-hairline bg-surface-2 p-1.5 text-ink-muted hover:text-ink hover:bg-surface-3 cursor-pointer"
+              title="Quick Cash Denomination Counter"
+            >
+              <Calculator size={15} />
+            </button>
+            {cashCalcOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
+                <div className="flex items-center justify-between font-bold text-ink border-b border-hairline pb-1.5">
+                  <span>Quick Cash Counter</span>
+                  <button type="button" onClick={() => setCalcNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 })} className="text-[10px] text-fuel-amber hover:underline cursor-pointer">Reset</button>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {([
+                    { k: "n500", l: "₹500" },
+                    { k: "n200", l: "₹200" },
+                    { k: "n100", l: "₹100" },
+                    { k: "n50", l: "₹50" },
+                    { k: "n20", l: "₹20" },
+                    { k: "n10", l: "₹10" },
+                  ] as const).map((d) => (
+                    <div key={d.k} className="flex items-center gap-1.5">
+                      <span className="w-9 font-mono text-ink-muted">{d.l}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={calcNotes[d.k]}
+                        onChange={(e) => setCalcNotes((p) => ({ ...p, [d.k]: Number(e.target.value) || 0 }))}
+                        className="w-full rounded border border-hairline bg-surface-2 px-1.5 py-0.5 font-mono text-ink"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-hairline pt-1.5 flex items-center justify-between font-mono font-bold text-emerald-500">
+                  <span>Total Cash</span>
+                  <span>{formatCurrency(calcTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Divider */}
           <div className="h-6 w-px bg-hairline mx-1" />
 

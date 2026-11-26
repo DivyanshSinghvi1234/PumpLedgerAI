@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet } from "react-router-dom";
+import { Home, Zap, FileText, Moon } from "lucide-react";
 
 import Sidebar from "../components/layout/Sidebar";
 import Navbar from "../components/layout/Navbar";
@@ -42,10 +43,37 @@ export default function AppLayout() {
           {/* Warm glow at top (light mode only) */}
           <div className="absolute top-0 left-0 right-0 h-48 fuel-glow pointer-events-none dark:hidden" />
 
-          <div className="relative z-10 animate-fade-in-up">
+          <div className="relative z-10 animate-fade-in-up pb-16 md:pb-0">
             <Outlet />
           </div>
         </main>
+
+        {/* Zero-Friction Mobile Bottom Navigation Bar */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-hairline bg-canvas/95 backdrop-blur-md py-2 px-2">
+          {[
+            { to: "/dashboard", label: "Home", icon: Home, end: true },
+            { to: "/dashboard/quick-entry", label: "Quick Entry", icon: Zap, end: false },
+            { to: "/dashboard/vouchers", label: "Vouchers", icon: FileText, end: false },
+            { to: "/dashboard/day-closing", label: "Day Close", icon: Moon, end: false },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-3 py-1 rounded-lg ${
+                    isActive ? "text-fuel-amber" : "text-ink-muted"
+                  }`
+                }
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );

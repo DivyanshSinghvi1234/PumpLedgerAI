@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -12,6 +12,8 @@ import {
   Droplets,
   Calculator,
   ArrowRight,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +24,8 @@ import UpiCollectionBreakdown from "@/components/common/UpiCollectionBreakdown";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import dayClosingService from "./services/dayClosingService";
+import { pipelineService } from "@/features/pipeline/services/pipelineService";
+import { FivePointAuditBanner } from "@/features/pipeline/components/FivePointAuditBanner";
 
 export default function DayClosingPage() {
   const queryClient = useQueryClient();
@@ -63,6 +67,48 @@ export default function DayClosingPage() {
     queryFn: () => dayClosingService.listClosings(30),
   });
 
+  const { data: snapshot } = useQuery({
+    queryKey: ["daily-snapshot", closingDate],
+    queryFn: () => pipelineService.getSnapshot(closingDate),
+  });
+
+  // Two-way auto-sync denominations from Daily Register / Shift Settlement if not yet entered
+  useEffect(() => {
+    if (!snapshot) return;
+    const d = snapshot.cash_proof.denominations;
+    const hasSynced =
+      d.notes_500 + d.notes_200 + d.notes_100 + d.notes_50 + d.notes_20 + d.notes_10 > 0;
+    const isLocalEmpty =
+      Number(notes500) === 0 &&
+      Number(notes200) === 0 &&
+      Number(notes100) === 0 &&
+      Number(notes50) === 0 &&
+      Number(notes20) === 0 &&
+      Number(notes10) === 0;
+    if (hasSynced && isLocalEmpty) {
+      setNotes500(String(d.notes_500));
+      setNotes200(String(d.notes_200));
+      setNotes100(String(d.notes_100));
+      setNotes50(String(d.notes_50));
+      setNotes20(String(d.notes_20));
+      setNotes10(String(d.notes_10));
+      if (d.coins > 0) setCoins(String(d.coins));
+    }
+  }, [snapshot]);
+
+  const autoBalanceMutation = useMutation({
+    mutationFn: () => pipelineService.autoBalanceCash(closingDate),
+    onSuccess: (res) => {
+      toast.success(res.message || "Summary Cash Sale posted.");
+      queryClient.invalidateQueries({ queryKey: ["day-closing-draft", closingDate] });
+      queryClient.invalidateQueries({ queryKey: ["daily-snapshot", closingDate] });
+      queryClient.invalidateQueries({ queryKey: ["five-point-audit", closingDate] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to auto-balance unbilled cash.");
+    },
+  });
+
   const denomCashTotal = useMemo(() => {
     return (
       (Number(notes500) || 0) * 500 +
@@ -91,6 +137,18 @@ export default function DayClosingPage() {
   }, [draft, openingFloat, cashToNextDay]);
 
   const variance = physicalCash - expectedCash;
+
+  const { data: preLock } = useQuery({
+    queryKey: ["pre-lock-check", closingDate, notes, physicalCash, cashToNextDay],
+    queryFn: () =>
+      pipelineService.getPreLockCheck({
+        target_date: closingDate,
+        notes: notes || undefined,
+        physical_cash_counted: physicalCash,
+        cash_to_next_day: Number(cashToNextDay) || 0,
+      }),
+    enabled: step === 3 && !draft?.already_closed,
+  });
 
   const tankDipsPayload = useMemo(() => {
     const out: Record<string, number> = {};
@@ -200,6 +258,12 @@ export default function DayClosingPage() {
           )}
         </div>
       </div>
+
+      {/* 5-Point Auto-Audit Mismatch Banner */}
+      <FivePointAuditBanner
+        targetDate={closingDate}
+        onFixed={() => queryClient.invalidateQueries({ queryKey: ["day-closing-draft", closingDate] })}
+      />
 
       {/* Already Closed Banner */}
       {draft?.already_closed && draft.existing_closing_uuid && (
@@ -558,6 +622,22 @@ export default function DayClosingPage() {
                 <span className="text-ink-muted">Total Billed Vouchers</span>
                 <span className="font-mono font-bold">{formatCurrency(draft.total_voucher_sales)}</span>
               </div>
+              {snapshot && snapshot.vouchers.unbilled_cash_fuel > 1 && !draft.already_closed && (
+                <div className="pt-2 border-t border-hairline flex items-center justify-between gap-2">
+                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    Unbilled: {formatCurrency(snapshot.vouchers.unbilled_cash_fuel)}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={autoBalanceMutation.isPending}
+                    onClick={() => autoBalanceMutation.mutate()}
+                    className="inline-flex items-center gap-1 rounded bg-fuel-amber px-2.5 py-1 text-[11px] font-semibold text-canvas hover:bg-fuel-amber/90 cursor-pointer disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Post Summary Cash Sale
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-hairline bg-surface-2 p-4 space-y-1.5 text-xs">
@@ -671,6 +751,49 @@ export default function DayClosingPage() {
             />
           </div>
 
+          {/* 4-Checkpoint Pre-Lock Safety Gate */}
+          {!draft.already_closed && preLock && (
+            <div className="rounded-xl border border-hairline bg-surface-2 p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wide text-ink flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                  4-Checkpoint Day Closing Gate
+                </p>
+                <span
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                    preLock.can_lock
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  {preLock.can_lock ? "All Checks Passed" : "Action Required"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {preLock.checkpoints.map((cp) => (
+                  <div
+                    key={cp.id}
+                    className={`rounded-lg border px-3 py-2 text-xs flex items-start gap-2 ${
+                      cp.passed
+                        ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                        : "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                    }`}
+                  >
+                    {cp.passed ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <div className="font-semibold">{cp.title}</div>
+                      <div className="opacity-80">{cp.detail}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
@@ -683,7 +806,7 @@ export default function DayClosingPage() {
             {!draft.already_closed && (
               <button
                 type="button"
-                disabled={closeMutation.isPending}
+                disabled={closeMutation.isPending || (preLock ? !preLock.can_lock : false)}
                 onClick={() => closeMutation.mutate()}
                 className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
               >

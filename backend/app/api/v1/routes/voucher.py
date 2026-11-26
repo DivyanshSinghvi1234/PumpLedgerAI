@@ -59,6 +59,12 @@ def create_voucher(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from datetime import timedelta
+    if current_user.role == UserRole.OPERATOR and voucher.invoice_date < (date.today() - timedelta(days=1)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operators/Cashiers cannot back-date entries more than 1 day.",
+        )
     try:
         return service.create(
             db,
@@ -229,16 +235,35 @@ def get_voucher(
 def update_voucher(
     voucher_uuid: str,
     voucher: VoucherUpdate,
+    edit_reason: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from datetime import timedelta
+    if current_user.role == UserRole.OPERATOR and voucher.invoice_date is not None and voucher.invoice_date < (date.today() - timedelta(days=1)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operators/Cashiers cannot back-date entries more than 1 day.",
+        )
     try:
-        return service.update(
+        updated = service.update(
             db,
             voucher_uuid,
             voucher,
             actor_id=current_user.id,
         )
+        if edit_reason and edit_reason.strip():
+            from app.services.audit_log_service import AuditLogService
+            AuditLogService().log_action(
+                db,
+                action="Edited Posted Voucher (With Reason)",
+                target_table="vouchers",
+                target_id=str(updated.uuid),
+                actor_id=current_user.id,
+                new_values={"edit_reason": edit_reason.strip()},
+            )
+            db.commit()
+        return updated
 
     except VoucherNotFoundError as exc:
         raise HTTPException(

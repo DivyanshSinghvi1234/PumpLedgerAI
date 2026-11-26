@@ -30,6 +30,7 @@ export default function VoucherListPage() {
   const [selectedFuelTypes, setSelectedFuelTypes] = useState<string[]>([]);
   const [selectedPaymentModes, setSelectedPaymentModes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string | undefined>(undefined);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
@@ -60,6 +61,8 @@ export default function VoucherListPage() {
         ? selectedPaymentModes.join(",")
         : undefined,
 
+    payment_status: paymentStatusFilter,
+
     verification_status:
       selectedStatuses.length > 0
         ? selectedStatuses.join(",")
@@ -80,6 +83,19 @@ export default function VoucherListPage() {
 
   function handleEdit(voucher: Voucher) {
     setSelectedVoucher(voucher);
+    setDialogOpen(true);
+  }
+
+  function handleRepeat(voucher: Voucher) {
+    const todayStr = new Date().toISOString().split("T")[0];
+    setSelectedVoucher({
+      ...voucher,
+      uuid: "",
+      invoice_number: "",
+      invoice_date: todayStr,
+      quantity_liters: 0,
+      total_amount: 0,
+    });
     setDialogOpen(true);
   }
 
@@ -179,6 +195,90 @@ export default function VoucherListPage() {
         }}
       />
 
+      {/* 1-Tap Quick Filter Pills + Live Summary Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(() => {
+            const todayStr = new Date().toISOString().split("T")[0];
+            const isToday = fromDate === todayStr && toDate === todayStr;
+            const isUnpaid = paymentStatusFilter === "UNPAID";
+            const isCash = selectedPaymentModes.length === 1 && selectedPaymentModes[0] === "CASH";
+            const isUpi = selectedPaymentModes.length === 1 && selectedPaymentModes[0] === "UPI";
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isToday) { setFromDate(""); setToDate(""); }
+                    else { setFromDate(todayStr); setToDate(todayStr); }
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+                    isToday ? "bg-fuel-amber text-canvas border-fuel-amber" : "bg-surface-2 text-ink-muted border-hairline hover:text-ink"
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentStatusFilter(isUnpaid ? undefined : "UNPAID");
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+                    isUnpaid ? "bg-rose-500 text-white border-rose-500" : "bg-surface-2 text-ink-muted border-hairline hover:text-ink"
+                  }`}
+                >
+                  Unpaid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPaymentModes(isCash ? [] : ["CASH"]);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+                    isCash ? "bg-emerald-600 text-white border-emerald-600" : "bg-surface-2 text-ink-muted border-hairline hover:text-ink"
+                  }`}
+                >
+                  Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPaymentModes(isUpi ? [] : ["UPI"]);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+                    isUpi ? "bg-indigo-600 text-white border-indigo-600" : "bg-surface-2 text-ink-muted border-hairline hover:text-ink"
+                  }`}
+                >
+                  UPI
+                </button>
+              </>
+            );
+          })()}
+        </div>
+
+        {/* Live Summary Strip */}
+        {data?.items && data.items.length > 0 && (() => {
+          const sumMode = (m: string) =>
+            data.items.filter((v) => v.payment_mode === m).reduce((s, v) => s + Number(v.total_amount || 0), 0);
+          const unpaidSum = data.items
+            .filter((v) => v.payment_status !== "PAID")
+            .reduce((s, v) => s + Number(v.balance_due ?? v.total_amount ?? 0), 0);
+          return (
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono bg-surface-1 border border-hairline rounded-lg px-3 py-1.5">
+              <span>Cash: <strong>₹{sumMode("CASH").toLocaleString("en-IN")}</strong></span>
+              <span>UPI: <strong>₹{sumMode("UPI").toLocaleString("en-IN")}</strong></span>
+              <span>Bank: <strong>₹{sumMode("BANK").toLocaleString("en-IN")}</strong></span>
+              <span>Credit: <strong>₹{sumMode("CREDIT").toLocaleString("en-IN")}</strong></span>
+              <span className="text-rose-500">Unpaid: <strong>₹{unpaidSum.toLocaleString("en-IN")}</strong></span>
+            </div>
+          );
+        })()}
+      </div>
+
       <div className="rounded-xl border border-hairline bg-surface-1 overflow-hidden shadow-md">
         <VoucherTable
           vouchers={data?.items ?? []}
@@ -186,6 +286,7 @@ export default function VoucherListPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onSettle={(v) => setSettleVoucher(v)}
+          onRepeat={handleRepeat}
         />
       </div>
 

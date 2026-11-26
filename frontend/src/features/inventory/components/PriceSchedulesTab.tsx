@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import inventoryService from "../services/inventoryService";
+import api from "@/api/client";
 import type { FuelType } from "../types";
 
 // Standard fuel items
@@ -54,6 +55,28 @@ export default function PriceSchedulesTab({ isAdminOrManager }: { isAdminOrManag
     return d.toISOString().split("T")[0];
   })();
   const prevTimeStr = `${prevDateStr}T06:00:00`;
+
+  // Fetch 6 AM Price Change & Stock Gain/Loss Alert
+  const { data: sixAmAlert } = useQuery({
+    queryKey: ["sixAmPriceAlert", activeDate],
+    queryFn: async () => {
+      const res = await api.get("/price-schedules/6am-alert", {
+        params: { target_date: activeDate },
+      });
+      return res.data as {
+        has_price_change: boolean;
+        total_stock_gain_loss_value: number;
+        changes: Array<{
+          fuel_type: string;
+          old_rate: number;
+          new_rate: number;
+          diff: number;
+          stock_liters: number;
+          stock_gain_loss_value: number;
+        }>;
+      };
+    },
+  });
 
   // Fetch rates for active date (at 6:00 AM)
   const { data: currentRatesData, refetch: refetchCurrent } = useQuery({
@@ -216,6 +239,26 @@ export default function PriceSchedulesTab({ isAdminOrManager }: { isAdminOrManag
           Fuel Price Mapping & Variation Console
         </p>
       </div>
+
+      {sixAmAlert?.has_price_change && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs space-y-1.5">
+          <div className="flex items-center justify-between font-bold text-amber-700 dark:text-amber-300">
+            <span>6:00 AM Price Revision — Overnight Tank Stock Gain / Loss</span>
+            <span className="font-mono">
+              Net: {sixAmAlert.total_stock_gain_loss_value >= 0 ? "+" : ""}₹
+              {sixAmAlert.total_stock_gain_loss_value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-3 text-[11px]">
+            {sixAmAlert.changes.map((c) => (
+              <span key={c.fuel_type} className="font-mono">
+                {c.fuel_type}: ₹{c.old_rate} → ₹{c.new_rate} ({c.diff >= 0 ? "+" : ""}{c.diff}) on {c.stock_liters}L ={" "}
+                <strong>{c.stock_gain_loss_value >= 0 ? "+" : ""}₹{c.stock_gain_loss_value.toLocaleString("en-IN")}</strong>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Card className="glass border-hairline overflow-hidden shadow-xl" style={{ fontFamily: "Courier New, monospace" }}>
         <CardContent className="p-6 space-y-6">

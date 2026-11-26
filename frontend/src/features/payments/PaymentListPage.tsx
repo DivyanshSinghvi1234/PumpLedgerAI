@@ -23,6 +23,8 @@ export default function PaymentListPage() {
   const canManage = hasRole("ADMIN", "MANAGER");
 
   const [search, setSearch] = useState("");
+  const [quickMode, setQuickMode] = useState<string | undefined>(undefined);
+  const [quickToday, setQuickToday] = useState(false);
   const [page, setPage] = useState(1);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -34,12 +36,15 @@ export default function PaymentListPage() {
 
   const deleteMutation = useDeletePayment();
 
+  const todayStr = new Date().toISOString().split("T")[0];
   const {
     data,
     isLoading,
     isError,
   } = usePaymentList({
     search,
+    payment_mode: quickMode,
+    payment_date: quickToday ? todayStr : undefined,
     page,
     page_size: 20,
   });
@@ -105,6 +110,47 @@ export default function PaymentListPage() {
           setPage(1);
         }}
       />
+
+      {/* 1-Tap Quick Filter Pills + Live Summary Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => { setQuickToday((v) => !v); setPage(1); }}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+              quickToday ? "bg-fuel-amber text-canvas border-fuel-amber" : "bg-surface-2 text-ink-muted border-hairline hover:text-ink"
+            }`}
+          >
+            Today
+          </button>
+          {(["CASH", "UPI", "BANK", "SPLIT"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setQuickMode(quickMode === m ? undefined : m); setPage(1); }}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border cursor-pointer transition ${
+                quickMode === m ? "bg-emerald-600 text-white border-emerald-600" : "bg-surface-2 text-ink-muted border-hairline hover:text-ink"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
+        {data?.items && data.items.length > 0 && (() => {
+          const sumMode = (m: string) =>
+            data.items.filter((p) => p.payment_mode === m).reduce((s, p) => s + Number(p.amount || 0), 0);
+          const totalAll = data.items.reduce((s, p) => s + Number(p.amount || 0), 0);
+          return (
+            <div className="flex flex-wrap items-center gap-3 text-xs font-mono bg-surface-1 border border-hairline rounded-lg px-3 py-1.5">
+              <span>Cash: <strong>₹{sumMode("CASH").toLocaleString("en-IN")}</strong></span>
+              <span>UPI: <strong>₹{sumMode("UPI").toLocaleString("en-IN")}</strong></span>
+              <span>Bank: <strong>₹{sumMode("BANK").toLocaleString("en-IN")}</strong></span>
+              <span className="text-emerald-500">Total: <strong>₹{totalAll.toLocaleString("en-IN")}</strong></span>
+            </div>
+          );
+        })()}
+      </div>
 
       <PaymentTable
         payments={data?.items ?? []}

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import bankAccountService from "@/features/admin/services/bankAccountService";
 import { Landmark } from "lucide-react";
@@ -9,6 +10,7 @@ interface BankAccountSelectProps {
   label?: string;
   className?: string;
   required?: boolean;
+  autoSelectDefault?: boolean;
 }
 
 export default function BankAccountSelect({
@@ -17,11 +19,18 @@ export default function BankAccountSelect({
   label = "Select Destination/Source Bank Account",
   className = "",
   required = false,
+  autoSelectDefault = false,
 }: BankAccountSelectProps) {
   const { data: accounts, isLoading } = useQuery({
     queryKey: ["bank-accounts"],
     queryFn: () => bankAccountService.getBankAccounts(),
   });
+
+  useEffect(() => {
+    if ((required || autoSelectDefault) && !value && accounts && accounts.length > 0) {
+      onChange(accounts[0].uuid);
+    }
+  }, [required, autoSelectDefault, value, accounts]);
 
   return (
     <div className={`space-y-1.5 ${className}`}>

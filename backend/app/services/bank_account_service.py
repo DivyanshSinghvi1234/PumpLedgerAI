@@ -178,7 +178,8 @@ class BankAccountService:
         pump_id: int | None = None,
     ) -> BankAccount | None:
         """Credit or debit a specific BankAccount (e.g. HDFC vs SBI) from a Payment,
-        Voucher, Income, or TankerDelivery and record a traceable BankTransaction."""
+        Voucher, Income, or TankerDelivery and record a traceable BankTransaction.
+        Enforces idempotency on deterministic reference_number (VCH-, PAY-, DEL-, IND-, INC-)."""
         if not bank_account_uuid or amount <= Decimal("0.00"):
             return None
         acc = db.scalars(
@@ -189,6 +190,22 @@ class BankAccountService:
         ).first()
         if acc is None:
             return None
+
+        if reference_number:
+            existing_txn = db.scalars(
+                select(BankTransaction).where(
+                    BankTransaction.reference_number == reference_number
+                )
+            ).first()
+            if existing_txn is not None:
+                if (
+                    existing_txn.bank_account_id == acc.id
+                    and Decimal(str(existing_txn.amount)) == Decimal(str(amount))
+                    and existing_txn.transaction_type == transaction_type
+                ):
+                    return acc
+                self.reverse_by_reference(db, reference_number)
+
         self.adjust_bank_balance(
             db,
             bank_account_id=acc.id,
@@ -818,4 +835,74 @@ class BankAccountService:
             "date": on_date.isoformat(),
             "total_upi": total_upi,
             "items": items,
+        }
+
+    def match_day_closing(
+        self,
+        db: Session,
+        pump_id: int,
+        closing_date: date,
+        bank_account_uuid: str | None = None,
+    ) -> dict:
+        """1-Click Match Day Closing: ensures UPI/Card/Cash Deposit from DayClosing
+        are idempotently synced to the target or primary bank account."""
+        from app.models.day_closing import DayClosing
+
+        closing = db.scalar(
+            select(DayClosing).where(
+                DayClosing.pump_id == pump_id,
+                DayClosing.closing_date == closing_date,
+            )
+        )
+        if closing is None:
+            return {"matched": False, "message": f"No Day Closing found for {closing_date}."}
+
+        target_uuid = bank_account_uuid or closing.settlement_bank_account_uuid
+        if not target_uuid:
+            primary = db.scalars(
+                select(BankAccount)
+                .where(BankAccount.pump_id == pump_id, BankAccount.is_active.is_(True))
+                .order_by(BankAccount.id.asc())
+                .limit(1)
+            ).first()
+            if primary is None:
+                return {"matched": False, "message": "No active Bank Account found."}
+            target_uuid = str(primary.uuid)
+
+        synced = 0
+        digital_total = Decimal(str(closing.upi_sales or 0)) + Decimal(str(closing.card_sales or 0))
+        if digital_total > Decimal("0.00"):
+            self.sync_from_entity(
+                db,
+                bank_account_uuid=target_uuid,
+                amount=digital_total,
+                transaction_type="INCOME",
+                transaction_date=closing_date,
+                reference_number=f"DAYCLOSE-{closing.id}-DIGITAL",
+                remarks=f"Matched Day Closing UPI+Card ({closing_date})",
+                pump_id=pump_id,
+            )
+            synced += 1
+
+        cash_dep = Decimal(str(closing.cash_deposited_to_bank or 0))
+        if cash_dep > Decimal("0.00"):
+            self.sync_from_entity(
+                db,
+                bank_account_uuid=target_uuid,
+                amount=cash_dep,
+                transaction_type="DEPOSIT",
+                transaction_date=closing_date,
+                reference_number=f"DAYCLOSE-{closing.id}-CASH",
+                remarks=f"Matched Day Closing Cash Deposit ({closing_date})",
+                pump_id=pump_id,
+            )
+            synced += 1
+
+        db.commit()
+        return {
+            "matched": True,
+            "closing_date": closing_date.isoformat(),
+            "synced_entries": synced,
+            "digital_amount": float(digital_total),
+            "cash_deposit_amount": float(cash_dep),
         }

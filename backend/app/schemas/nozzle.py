@@ -67,6 +67,9 @@ class NozzleReadingCreate(BaseModel):
     return_testing_to_storage: bool | None = True
     is_rollover: bool | None = False
     is_meter_replaced: bool | None = False
+    yesterday_closing: float | None = None
+    yesterday_sales: float | None = None
+    avg_7d_sales: float | None = None
 
 class NozzleReadingResponse(BaseModel):
     id: int
@@ -122,6 +125,9 @@ class BulkFormNozzleItem(BaseModel):
     meter_capacity: float | None = 100000.0
     is_rollover: bool | None = False
     is_meter_replaced: bool | None = False
+    yesterday_closing: float | None = None
+    yesterday_sales: float | None = None
+    avg_7d_sales: float | None = None
 
 
 class BulkFormResponse(BaseModel):

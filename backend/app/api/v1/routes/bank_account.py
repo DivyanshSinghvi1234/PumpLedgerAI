@@ -330,6 +330,19 @@ def delete_upi_account(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+@router.post(
+    "/match-day-closing",
+    dependencies=manager_required,
+)
+def match_day_closing(
+    closing_date: date,
+    bank_account_uuid: str | None = None,
+    db: Session = Depends(get_db),
+):
+    pump_id = _get_active_pump_id(db)
+    return service.match_day_closing(db, pump_id, closing_date, bank_account_uuid)
+
+
 @router.delete(
     "/{uuid}",
     status_code=status.HTTP_204_NO_CONTENT,

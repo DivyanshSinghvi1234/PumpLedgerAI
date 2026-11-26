@@ -7,6 +7,7 @@ import MeterReadingsTab from "./components/MeterReadingsTab";
 import MeterLogsTab from "./components/MeterLogsTab";
 import PriceSchedulesTab from "./components/PriceSchedulesTab";
 import StockReconciliationTab from "./components/StockReconciliationTab";
+import { TankMarginAnalyticsCard } from "./components/TankMarginAnalyticsCard";
 import LubricantsTab from "./components/LubricantsTab";
 import PurchaseIndentsTab from "./components/PurchaseIndentsTab";
 
@@ -109,7 +110,10 @@ export default function InventoryPage() {
 
       {/* Tab Panels */}
       {activeTab === "dips" && (
-        <StockReconciliationTab isAdminOrManager={isAdminOrManager} />
+        <div className="space-y-6">
+          <StockReconciliationTab isAdminOrManager={isAdminOrManager} />
+          {isAdminOrManager && <TankMarginAnalyticsCard />}
+        </div>
       )}
 
       {activeTab === "indents" && (

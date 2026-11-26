@@ -74,6 +74,8 @@ class TankerDeliveryCreate(BaseModel):
     payment_mode: PaymentMode = PaymentMode.CREDIT
     bank_account_uuid: str | None = None
     ignore_capacity: bool = False
+    dip_before_liters: float | None = None
+    dip_after_liters: float | None = None
 
 
 class TankerDeliveryResponse(BaseModel):

@@ -745,6 +745,12 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               onKeyDown={(e) => handleGridEnter(e, "opening-input", idx)}
                               className="w-32 bg-surface-2 border-hairline outline-none text-xs text-ink py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed"
                             />
+                            {(item as any).yesterday_closing != null &&
+                              Math.abs(Number(stateVals.opening || 0) - Number((item as any).yesterday_closing)) > 0.01 && (
+                                <div className="mt-1 text-[10px] font-semibold text-amber-500">
+                                  ≠ Yest. Close ({(item as any).yesterday_closing})
+                                </div>
+                              )}
                           </TableCell>
                           <TableCell className="py-2.5">
                             {/* 6 AM Interim Reading — expandable */}
@@ -967,6 +973,26 @@ export default function MeterReadingsTab({ isAdminOrManager }: { isAdminOrManage
                               title={isNegative ? "Sales cannot be negative — closing is below opening." : undefined}
                               className={`w-28 text-right bg-surface-2 border-hairline outline-none text-xs py-1 h-8 disabled:opacity-70 disabled:cursor-not-allowed ${isNegative ? "border-red-400/60 text-red-400 font-bold" : "text-ink"}`}
                             />
+                            <div className="mt-1 space-y-0.5 text-[10px] font-mono">
+                              {(item as any).yesterday_sales != null && stateVals.sales !== "" && (
+                                <div
+                                  className={
+                                    Number(stateVals.sales) - Number((item as any).yesterday_sales) >= 0
+                                      ? "text-emerald-500"
+                                      : "text-amber-500"
+                                  }
+                                >
+                                  {Number(stateVals.sales) - Number((item as any).yesterday_sales) >= 0 ? "+" : ""}
+                                  {(Number(stateVals.sales) - Number((item as any).yesterday_sales)).toFixed(1)} L vs yest
+                                </div>
+                              )}
+                              {(item as any).avg_7d_sales > 0 &&
+                                Number(stateVals.sales || 0) > Number((item as any).avg_7d_sales) * 3 && (
+                                  <div className="text-rose-500 font-bold">
+                                    &gt;3× 7d avg ({(item as any).avg_7d_sales} L)
+                                  </div>
+                                )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

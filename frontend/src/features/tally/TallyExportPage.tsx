@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import {
   Settings,
   Download,
@@ -83,6 +85,11 @@ export default function TallyExportPage() {
   }), [fromDate, toDate, exportInventory, mappings, voucherTypes]);
 
   const { data: previewData, isLoading, isError, refetch } = useTallyPreview(request);
+  const { data: preExportAudit } = useQuery({
+    queryKey: ["pre-export-audit", fromDate, toDate],
+    queryFn: () => pipelineService.getPreExportAudit(fromDate, toDate),
+    enabled: Boolean(fromDate && toDate),
+  });
   const exportMutation = useExportTally();
   const markSyncedMutation = useMarkTallySynced();
 
@@ -287,6 +294,36 @@ export default function TallyExportPage() {
       {viewMode === "export" ? (
         <>
           {/* Date Filters & Controls */}
+          {preExportAudit && (
+            <div
+              className={`rounded-lg border p-3.5 text-xs ${
+                preExportAudit.ready
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+              }`}
+            >
+              <div className="font-bold mb-2 flex items-center justify-between">
+                <span>
+                  Pre-Export Data Integrity Audit ({fromDate} → {toDate})
+                </span>
+                <span>{preExportAudit.ready ? "Ready for CA / Tally" : "Attention Recommended"}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {preExportAudit.checks.map((c) => (
+                  <div
+                    key={c.id}
+                    className="rounded border border-current/20 bg-background/50 px-2.5 py-1.5"
+                  >
+                    <div className="font-semibold">{c.title}</div>
+                    <div className="opacity-85">
+                      {c.passed ? "OK (0)" : `${c.count} issue(s)`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">

@@ -5,7 +5,9 @@ import LoadingState from "@/components/common/LoadingState";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { getTodayDateString } from "@/lib/utils";
-import { Plus, Minus, Fuel, Landmark, Pencil, Trash2, Coins } from "lucide-react";
+import { Plus, Minus, Fuel, Landmark, Pencil, Trash2, Coins, Copy } from "lucide-react";
+import { toast } from "sonner";
+import api from "@/api/client";
 import inventoryService from "@/features/inventory/services/inventoryService";
 
 import paymentService from "@/features/payments/services/paymentService";
@@ -291,6 +293,35 @@ export default function IncomePage() {
     effectiveTotalSales + netExtraIncomes + paymentsVal - nonCashTotal - expensesVal - depositsVal
   );
 
+  const handleCopyYesterdayExpenses = async () => {
+    const d = new Date(apiDate);
+    d.setDate(d.getDate() - 1);
+    const yest = d.toISOString().split("T")[0];
+    try {
+      const res = await api.get("/v1/income", { params: { income_date: yest, kind: "EXPENSE" } });
+      const rows: Income[] = res.data?.items || res.data || [];
+      if (rows.length === 0) {
+        toast.info(`No expenses found on ${yest}.`);
+        return;
+      }
+      for (const row of rows) {
+        await api.post("/v1/income", {
+          kind: "EXPENSE",
+          income_date: apiDate,
+          amount: Number(row.amount),
+          category: row.category || "Daily Expense",
+          description: row.description,
+          payment_mode: row.payment_mode,
+        });
+      }
+      toast.success(`Copied ${rows.length} expense(s) from ${yest}.`);
+      queryClient.invalidateQueries({ queryKey: ["income"] });
+      queryClient.invalidateQueries({ queryKey: ["incomeSummary"] });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Could not copy yesterday's expenses.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -325,6 +356,13 @@ export default function IncomePage() {
               className="inline-flex items-center gap-2 rounded-xl border border-hairline bg-surface-2 px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-3 transition cursor-pointer"
             >
               <Landmark size={16} /> Deposit to Bank
+            </button>
+            <button
+              onClick={handleCopyYesterdayExpenses}
+              className="inline-flex items-center gap-2 rounded-xl border border-hairline bg-surface-2 px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-3 transition cursor-pointer"
+              title="Repeat yesterday's recurring/fixed cash expenses"
+            >
+              <Copy size={16} /> Copy Yesterday&apos;s Expenses
             </button>
             <button
               onClick={() => setEntryKind("EXPENSE")}

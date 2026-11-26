@@ -205,6 +205,61 @@ def update_tank(
         )
 
 
+@router.get(
+    "/margin-analytics",
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def get_margin_analytics(db: Session = Depends(get_db)):
+    from app.database.scoping import active_pump_id
+    from app.models.pump import Pump
+    from sqlalchemy import select
+
+    pid = active_pump_id.get()
+    if pid is None:
+        p = db.scalars(select(Pump).where(Pump.is_active.is_(True))).first()
+        pid = p.id if p else 1
+    return service.get_margin_analytics(db, pid)
+
+
+@router.post(
+    "/omc-ocr-autopilot",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER))],
+)
+def omc_ocr_autopilot(
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    from datetime import date as date_cls
+    from app.core.enums import PaymentMode
+    from app.database.scoping import active_pump_id
+    from app.models.pump import Pump
+    from sqlalchemy import select
+
+    pid = active_pump_id.get()
+    if pid is None:
+        p = db.scalars(select(Pump).where(Pump.is_active.is_(True))).first()
+        pid = p.id if p else 1
+    try:
+        return service.omc_invoice_ocr_autopilot(
+            db,
+            pump_id=pid,
+            tank_uuid=payload["tank_uuid"],
+            invoice_number=payload.get("invoice_number", ""),
+            delivery_date=date_cls.fromisoformat(payload.get("delivery_date") or date_cls.today().isoformat()),
+            quantity_liters=float(payload["quantity_liters"]),
+            total_amount=float(payload["total_amount"]),
+            density=float(payload["density"]) if payload.get("density") is not None else None,
+            supplier_name=payload.get("supplier_name"),
+            bank_account_uuid=payload.get("bank_account_uuid"),
+            payment_mode=PaymentMode(payload.get("payment_mode", "BANK")),
+            dip_before_liters=float(payload["dip_before_liters"]) if payload.get("dip_before_liters") is not None else None,
+            dip_after_liters=float(payload["dip_after_liters"]) if payload.get("dip_after_liters") is not None else None,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @router.delete(
     "/{uuid}",
     status_code=status.HTTP_204_NO_CONTENT,

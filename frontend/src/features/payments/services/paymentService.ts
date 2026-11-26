@@ -10,6 +10,7 @@ export interface PaymentSearchParams {
   customer_uuid?: string;
   search?: string;
   payment_date?: string;
+  payment_mode?: string;
   page?: number;
   page_size?: number;
 }
