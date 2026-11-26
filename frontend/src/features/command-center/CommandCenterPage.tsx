@@ -17,6 +17,7 @@ import api from "@/api/client";
 import PageHeader from "@/components/common/PageHeader";
 import LoadingState from "@/components/common/LoadingState";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
+import { CashflowWaterfallCard } from "@/features/pipeline/components/CashflowWaterfallCard";
 
 interface CommandCenterData {
   as_of: string;
@@ -158,6 +159,7 @@ export default function CommandCenterPage() {
       )}
 
       {/* Row 1: Balance Sheet / Net Working Capital */}
+      <CashflowWaterfallCard />
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="rounded-xl border border-hairline bg-card p-4">
           <div className="flex items-center justify-between text-xs text-ink-muted">

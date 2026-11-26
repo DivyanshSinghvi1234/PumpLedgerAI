@@ -63,17 +63,18 @@ The frontend expects the backend at `http://127.0.0.1:8000` (see
 
 ## Key Features & Completed Modules
 
-1. **Authentication & Role-Based Access Control (RBAC):** JWT session auth with granular permission tiers (`ADMIN`, `MANAGER`, `OPERATOR`).
-2. **AI-Powered OCR Pipeline:** Vision model (Google Gemini / OpenRouter / Ollama) extraction from fuel slips/invoices with confidence scoring and a human-in-the-loop review interface.
-3. **Vouchers & Ledger Automation:** Live synchronization between vouchers and credit accounts, supporting search, filtering, and pagination.
-4. **Customer Credit & Debtor Aging:** Comprehensive customer ledgers, automated FIFO payment allocation, live balance calculations, and one-click WhatsApp statement digests.
-5. **Vehicle Fleet Management:** Dedicated vehicle registry and vehicle-scoped fuel consumption ledgers.
-6. **Fuel Inventory & Dispensers:** Tank dip logs, dispenser/nozzle meter readings, and meter rollover handling.
-7. **Cash Sheet & Bank Reconciliation:** Shift management, cash drawer balancing, bank account management, and income/expense tracking.
-8. **Audit Trail & Reports:** Detailed action logging, financial statement generation, and Tally-compatible XML exports.
+1. **Authentication, RBAC & PIN Quick-Switch:** JWT session auth with granular permission tiers (`ADMIN`, `MANAGER`, `OPERATOR`), role-based home redirect, and a 4-digit PIN quick-switch lock screen.
+2. **AI-Powered OCR & OMC Tanker Auto-Pilot:** Vision model (Google Gemini / OpenRouter / Ollama) extraction for fuel slips and IOCL/BPCL/HPCL tanker invoices—matching open Purchase Indents, updating tank stock & `avg_cost_per_liter`, debiting banks, and flagging short-delivery variance.
+3. **Single-Source Daily Pipeline & 5-Point Auto-Audit:** Unified calculation engine connecting Meter Readings, Vouchers, Payments, Expenses, 8 PM Shift Settlement, Daily Register, and Day Closing—with a live 5-Point Auto-Audit banner, 1-click Auto-Balance Unbilled Cash, 4-Checkpoint Pre-Lock Safety Gate, and Books Health Check.
+4. **Idempotent Bank & Cash Ledger:** Deterministic reference keys (`VCH-`, `PAY-`, `DEL-`, `IND-`, `INC-`), two-way Daily Register ↔ Day Closing sync, printable Bank Deposit Slips, passbook running balances, and a live Cash & Bank Flow Timeline.
+5. **Customer Credit, Risk Scoring & Duplicate Merge:** Comprehensive customer ledgers, selective invoice payment, 1-click full-due & round-off settlement, Red/Amber/Green risk scoring, Day 15/30 WhatsApp reminders, and 1-click duplicate customer merge.
+6. **Fuel Inventory, 6 AM Price Split & Margin Analytics:** Tank dip logs, animated liquid tank gauges, nozzle meter readings with yesterday's closing/7-day average sanity guards, 6 AM price-change stock gain/loss alerts, and tank-wise profit cards.
+7. **Forecourt Quick Entry & Offline Mode:** Offline slip queue with auto-sync, Exact Amount vs. Round Liters toggle, large numeric keypad, vehicle plate auto-formatter, `Cmd+Enter` speed mode, and 8-second Undo toast.
+8. **Multilingual & Modern App Experience:** `EN / हिं / Hinglish` language switcher, interactive per-page Guide/Tutorial drawer, `Cmd+K` Spotlight Command Palette, mini icon-rail sidebar with pinned favorites, mobile bottom dock with `+` Quick Slip FAB, Sunlight High-Contrast & Easy-Read modes, and Cashflow Waterfall What-If Simulator.
+9. **Audit Trail, Tally Sync & Reports:** Detailed action logging, Pre-Export Data Integrity Audit, financial statements, and Tally-compatible XML exports.
 
 ## Testing & Quality Assurance
 
-- **Backend:** 63 automated unit and integration tests (`pytest` / `uv run pytest`).
-- **Frontend:** Vitest + Testing Library unit/component tests (`npm test`), strict TypeScript type-checking (`tsc -b`), and optimized production bundling with Vite.
+- **Backend:** 93 automated unit and integration tests (`cd backend && .venv/bin/pytest`).
+- **Frontend:** Strict TypeScript type-checking (`tsc -b`) and PWA production bundling with Vite (`cd frontend && npm run build`).
 

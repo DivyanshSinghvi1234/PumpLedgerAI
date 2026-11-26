@@ -17,6 +17,8 @@ import { useDeletePayment } from "./hooks/useDeletePayment";
 import { useCustomerOptions } from "./hooks/useCustomerOptions";
 
 import type { Payment } from "./types/payment";
+import { PaymentModeBadge } from "@/components/common/PaymentModeBadge";
+import { formatCurrency } from "@/lib/utils";
 
 export default function PaymentListPage() {
   const { hasRole } = useCurrentUser();
@@ -135,6 +137,20 @@ export default function PaymentListPage() {
               {m}
             </button>
           ))}
+          {(search || quickMode || quickToday) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setQuickMode(undefined);
+                setQuickToday(false);
+                setPage(1);
+              }}
+              className="px-3 py-1 rounded-full text-xs font-semibold border border-rose-500/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+            >
+              Clear Filters ×
+            </button>
+          )}
         </div>
 
         {data?.items && data.items.length > 0 && (() => {
@@ -152,11 +168,30 @@ export default function PaymentListPage() {
         })()}
       </div>
 
-      <PaymentTable
-        payments={data?.items ?? []}
-        canManage={canManage}
-        onDelete={handleDelete}
-      />
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-2.5">
+        {(data?.items ?? []).map((p) => (
+          <div key={p.uuid} className="rounded-xl border border-hairline bg-surface-1 p-3.5 space-y-1.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-ink">{p.customer_name}</span>
+              <PaymentModeBadge mode={p.payment_mode} />
+            </div>
+            <div className="flex items-center justify-between text-ink-muted font-mono">
+              <span>{p.payment_date}</span>
+              <span className="font-bold text-sm text-emerald-500">{formatCurrency(p.amount)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block">
+        <PaymentTable
+          payments={data?.items ?? []}
+          canManage={canManage}
+          onDelete={handleDelete}
+        />
+      </div>
 
       <div className="flex items-center justify-end gap-2">
         <button

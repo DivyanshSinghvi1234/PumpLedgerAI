@@ -1243,3 +1243,48 @@ tr.table-row-hover:hover {
     page-break-inside: avoid !important;
   }
 }
+
+/* ── Global Accessibility & Forecourt Modes ── */
+html.easy-read {
+  font-size: 18px;
+}
+
+html.density-compact table td,
+html.density-compact table th {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  font-size: 0.75rem !important;
+}
+
+html.sunlight-mode {
+  --pl-canvas: #ffffff;
+  --pl-surface-1: #ffffff;
+  --pl-surface-2: #f1f5f9;
+  --pl-surface-3: #e2e8f0;
+  --pl-ink: #000000;
+  --pl-ink-muted: #1e293b;
+  --pl-hairline: #94a3b8;
+}
+
+/* Sticky table headers across all data tables */
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--pl-surface-2);
+}
+
+/* High-contrast print override even in dark mode */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  * {
+    color: #000000 !important;
+    border-color: #cbd5e1 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

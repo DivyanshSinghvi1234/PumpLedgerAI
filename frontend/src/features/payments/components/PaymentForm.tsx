@@ -12,6 +12,7 @@ import FormDatePicker from "@/components/forms/FormDatePicker";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
 import VehicleAutocomplete from "@/features/vehicles/components/VehicleAutocomplete";
 import { getTodayDateString } from "@/lib/utils";
+import { numberToIndianWords } from "@/lib/formatters";
 
 import type {
   CreatePaymentRequest,
@@ -260,6 +261,11 @@ export default function PaymentForm({
           error={errors.amount?.message}
           {...register("amount")}
         />
+        {totalAmt > 0 && (
+          <div className="col-span-1 sm:col-span-2 -mt-3 text-[11px] text-ink-muted italic">
+            {numberToIndianWords(totalAmt)}
+          </div>
+        )}
 
         {customerBalance !== null && totalAmt > customerBalance && (
           <div className="col-span-1 sm:col-span-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">

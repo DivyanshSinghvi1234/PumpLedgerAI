@@ -62,11 +62,10 @@ export function InstructorDrawer({ open, onClose }: Props) {
                 setSelectedGuidePath(g.path);
                 setExpandedSectionId(g.sections[0]?.id ?? null);
               }}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border cursor-pointer transition ${
-                activeGuide.path === g.path
-                  ? "bg-fuel-amber text-canvas border-fuel-amber"
-                  : "bg-background text-muted-foreground border-border hover:text-foreground"
-              }`}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap border cursor-pointer transition ${activeGuide.path === g.path
+                ? "bg-fuel-amber text-canvas border-fuel-amber"
+                : "bg-background text-muted-foreground border-border hover:text-foreground"
+                }`}
             >
               {isHi ? g.titleHi : g.title}
             </button>
@@ -134,11 +133,10 @@ export function InstructorDrawer({ open, onClose }: Props) {
                   return (
                     <div
                       key={sec.id}
-                      className={`rounded-xl border transition ${
-                        isOpen
-                          ? "border-fuel-amber/50 bg-fuel-amber/5"
-                          : "border-border bg-muted/20"
-                      }`}
+                      className={`rounded-xl border transition ${isOpen
+                        ? "border-fuel-amber/50 bg-fuel-amber/5"
+                        : "border-border bg-muted/20"
+                        }`}
                     >
                       <button
                         type="button"

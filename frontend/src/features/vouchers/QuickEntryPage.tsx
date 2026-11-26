@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Zap, Camera, Fuel, CheckCircle2, Moon, AlertTriangle } from "lucide-react";
+import { Zap, Camera, Fuel, CheckCircle2, Moon, AlertTriangle, CloudOff, Hand, Calculator } from "lucide-react";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import { usePreferences } from "@/lib/preferences";
+import { evalMathExpression, formatVehiclePlate, numberToIndianWords, playSaveChime } from "@/lib/formatters";
 
 import PageHeader from "@/components/common/PageHeader";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
@@ -55,9 +57,47 @@ export default function QuickEntryPage() {
   const [liters, setLiters] = useState("");
   const [rate, setRate] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
+  const { soundEnabled, leftHanded, setLeftHanded } = usePreferences();
   const [upiUuid, setUpiUuid] = useState("");
   const [bankUuid, setBankUuid] = useState("");
   const [scheduledRate, setScheduledRate] = useState<number | null>(null);
+  const [entryFocus, setEntryFocus] = useState<"AMOUNT" | "LITERS">("AMOUNT");
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [saveFlash, setSaveFlash] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem("pumpledger_offline_slips");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Auto-sync offline slips when back online
+  useEffect(() => {
+    const syncQueue = async () => {
+      const raw = localStorage.getItem("pumpledger_offline_slips");
+      const items: any[] = raw ? JSON.parse(raw) : [];
+      if (items.length === 0 || !navigator.onLine) return;
+      const remaining: any[] = [];
+      for (const item of items) {
+        try {
+          await voucherService.createVoucher(item);
+        } catch {
+          remaining.push(item);
+        }
+      }
+      localStorage.setItem("pumpledger_offline_slips", JSON.stringify(remaining));
+      setOfflineQueue(remaining);
+      if (remaining.length < items.length) {
+        toast.success(`Synced ${items.length - remaining.length} offline slip(s)!`);
+        queryClient.invalidateQueries({ queryKey: ["vouchers"] });
+      }
+    };
+    window.addEventListener("online", syncQueue);
+    syncQueue();
+    return () => window.removeEventListener("online", syncQueue);
+  }, []);
 
   const { data: schedules } = useQuery({
     queryKey: ["priceSchedules"],
@@ -143,13 +183,13 @@ export default function QuickEntryPage() {
   }, [nozzleForm]);
 
   const createMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const qty = parseFloat(liters);
       const r = parseFloat(rate);
-      const tot = parseFloat(totalAmount);
+      const tot = evalMathExpression(totalAmount) ?? parseFloat(totalAmount);
       const stamp = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
       const rand = Math.floor(100 + Math.random() * 900);
-      return voucherService.createVoucher({
+      const payload = {
         invoice_number: `QE-${businessDate.replace(/-/g, "")}-${stamp}${rand}`,
         invoice_date: businessDate,
         fuel_type: fuelType,
@@ -159,28 +199,59 @@ export default function QuickEntryPage() {
         total_amount: tot,
         customer_uuid: customerUuid || undefined,
         customer_name: customerName.trim() || undefined,
-        vehicle_number: vehicleNumber.trim() || undefined,
+        vehicle_number: vehicleNumber.trim() ? formatVehiclePlate(vehicleNumber.trim()) : undefined,
         bank_account_uuid: paymentMode === "UPI" && bankUuid ? bankUuid : undefined,
-      });
+      };
+      if (!navigator.onLine) {
+        const nextQ = [...offlineQueue, payload];
+        localStorage.setItem("pumpledger_offline_slips", JSON.stringify(nextQ));
+        setOfflineQueue(nextQ);
+        return { ...payload, uuid: "", __offline: true } as any;
+      }
+      try {
+        return await voucherService.createVoucher(payload);
+      } catch (err: any) {
+        if (!err?.response) {
+          const nextQ = [...offlineQueue, payload];
+          localStorage.setItem("pumpledger_offline_slips", JSON.stringify(nextQ));
+          setOfflineQueue(nextQ);
+          return { ...payload, uuid: "", __offline: true } as any;
+        }
+        throw err;
+      }
     },
     onSuccess: (created) => {
-      toast.success("Slip saved! Ready for next vehicle.", {
-        duration: 8000,
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            try {
-              await voucherService.deleteVoucher(created.uuid);
-              toast.info("Slip undone and removed.");
-              queryClient.invalidateQueries({ queryKey: ["vouchers"] });
-              queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-              queryClient.invalidateQueries({ queryKey: ["customers"] });
-            } catch {
-              toast.error("Could not undo slip (may require Manager/Admin).");
-            }
+      playSaveChime(soundEnabled);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 700);
+      if (vehicleNumber.trim()) {
+        try {
+          const map = JSON.parse(localStorage.getItem("vehicle_fuel_map") || "{}");
+          map[formatVehiclePlate(vehicleNumber.trim())] = fuelType;
+          localStorage.setItem("vehicle_fuel_map", JSON.stringify(map));
+        } catch { /* ignore */ }
+      }
+      if ((created as any)?.__offline) {
+        toast.info("Offline: Slip queued and will auto-sync when online.");
+      } else {
+        toast.success("Slip saved! Ready for next vehicle.", {
+          duration: 8000,
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              try {
+                await voucherService.deleteVoucher(created.uuid);
+                toast.info("Slip undone and removed.");
+                queryClient.invalidateQueries({ queryKey: ["vouchers"] });
+                queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                queryClient.invalidateQueries({ queryKey: ["customers"] });
+              } catch {
+                toast.error("Could not undo slip (may require Manager/Admin).");
+              }
+            },
           },
-        },
-      });
+        });
+      }
       setLiters("");
       setTotalAmount("");
       setVehicleNumber("");
@@ -231,11 +302,34 @@ export default function QuickEntryPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Quick Slip Form */}
-        <Card className="glass border-hairline lg:col-span-7">
-          <CardHeader className="pb-3 border-b border-hairline">
+        <Card className={`glass border-hairline lg:col-span-7 transition-all ${saveFlash ? "ring-2 ring-emerald-500 bg-emerald-500/5" : ""} ${leftHanded ? "lg:order-2" : ""}`}>
+          <CardHeader className="pb-3 border-b border-hairline flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-bold text-ink flex items-center gap-2">
               <Zap size={16} className="text-fuel-amber" /> New Forecourt Slip
             </CardTitle>
+            <div className="flex items-center gap-1.5">
+              {offlineQueue.length > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-500">
+                  <CloudOff size={10} /> {offlineQueue.length} waiting
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setKeypadOpen((v) => !v)}
+                className={`rounded-md border px-2 py-1 text-[10px] font-semibold cursor-pointer ${keypadOpen ? "bg-fuel-amber text-canvas border-fuel-amber" : "bg-surface-2 text-ink-muted border-hairline"}`}
+                title="Toggle Large Numeric Keypad"
+              >
+                <Calculator size={11} className="inline mr-1" />Keypad
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeftHanded(!leftHanded)}
+                className={`rounded-md border px-2 py-1 text-[10px] font-semibold cursor-pointer ${leftHanded ? "bg-indigo-500/20 text-indigo-300 border-indigo-400" : "bg-surface-2 text-ink-muted border-hairline"}`}
+                title="Flip Left/Right-Handed Layout"
+              >
+                <Hand size={11} className="inline mr-1" />{leftHanded ? "Left" : "Right"}
+              </button>
+            </div>
           </CardHeader>
           <CardContent className="pt-4">
             <form
@@ -359,7 +453,12 @@ export default function QuickEntryPage() {
                 <VehicleAutocomplete
                   value={vehicleNumber}
                   onChange={(num, vehicle) => {
-                    setVehicleNumber(num);
+                    const formatted = formatVehiclePlate(num);
+                    setVehicleNumber(formatted);
+                    try {
+                      const map = JSON.parse(localStorage.getItem("vehicle_fuel_map") || "{}");
+                      if (map[formatted]) setFuelType(map[formatted]);
+                    } catch { /* ignore */ }
                     if (vehicle) {
                       setCustomerName(vehicle.customer_name);
                       setCustomerUuid(vehicle.customer_uuid);
@@ -368,17 +467,55 @@ export default function QuickEntryPage() {
                 />
               </div>
 
+              {/* Exact Amount vs Round Liters Toggle + Preset Chips */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="inline-flex rounded-lg border border-hairline bg-surface-2 p-0.5 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setEntryFocus("AMOUNT")}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer ${entryFocus === "AMOUNT" ? "bg-fuel-amber text-canvas" : "text-ink-muted"}`}
+                  >
+                    Exact Amount (₹)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEntryFocus("LITERS")}
+                    className={`px-2.5 py-1 rounded-md cursor-pointer ${entryFocus === "LITERS" ? "bg-fuel-amber text-canvas" : "text-ink-muted"}`}
+                  >
+                    Round Liters (L)
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["500", "1000", "2000", "5000"].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleAmountChange(preset)}
+                      className="rounded-md border border-hairline bg-surface-2 px-2 py-1 text-[11px] font-mono font-semibold text-ink hover:bg-surface-3 cursor-pointer"
+                    >
+                      ₹{preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Amount / Liters / Rate */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-bold text-ink-muted">Amount (₹)</Label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 2000"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="e.g. 2000 or 500+1200"
                     value={totalAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
-                    className="h-11 text-sm font-mono font-bold"
+                    onBlur={() => {
+                      const evaluated = evalMathExpression(totalAmount);
+                      if (evaluated !== null && evaluated > 0) {
+                        handleAmountChange(String(evaluated));
+                      }
+                    }}
+                    className="h-12 text-sm font-mono font-bold"
                   />
                 </div>
                 <div className="space-y-1">
@@ -389,7 +526,7 @@ export default function QuickEntryPage() {
                     placeholder="e.g. 20.5"
                     value={liters}
                     onChange={(e) => handleLitersChange(e.target.value)}
-                    className="h-11 text-sm font-mono font-bold"
+                    className="h-12 text-sm font-mono font-bold"
                   />
                 </div>
                 <div className="space-y-1">
@@ -400,11 +537,39 @@ export default function QuickEntryPage() {
                     placeholder="Rate"
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
-                    className="h-11 text-sm font-mono"
+                    className="h-12 text-sm font-mono"
                     required
                   />
                 </div>
               </div>
+
+              {Number(totalAmount) > 0 && (
+                <div className="text-[11px] text-ink-muted italic">
+                  {numberToIndianWords(Number(totalAmount))}
+                </div>
+              )}
+
+              {/* Large Thumb-Friendly Numeric Keypad */}
+              {keypadOpen && (
+                <div className="grid grid-cols-4 gap-2 rounded-xl border border-hairline bg-surface-2 p-2.5">
+                  {["7", "8", "9", "⌫", "4", "5", "6", "C", "1", "2", "3", ".", "0", "00"].map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        const setter = entryFocus === "AMOUNT" ? handleAmountChange : handleLitersChange;
+                        const cur = entryFocus === "AMOUNT" ? totalAmount : liters;
+                        if (k === "C") setter("");
+                        else if (k === "⌫") setter(cur.slice(0, -1));
+                        else setter(cur + k);
+                      }}
+                      className="h-11 rounded-lg border border-hairline bg-surface-1 font-mono text-sm font-bold text-ink hover:bg-surface-3 cursor-pointer"
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <Button
                 type="submit"

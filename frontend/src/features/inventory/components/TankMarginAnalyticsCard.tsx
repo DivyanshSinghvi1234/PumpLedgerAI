@@ -305,6 +305,19 @@ export function TankMarginAnalyticsCard() {
                     {t.fuel_type} · {t.fill_percent}%
                   </span>
                 </div>
+                {/* Animated Liquid Tank Level Bar */}
+                <div className="h-2.5 w-full rounded-full bg-surface-3 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      t.fill_percent < 20 || t.fill_percent > 95
+                        ? "bg-rose-500"
+                        : t.fill_percent < 35
+                        ? "bg-amber-500"
+                        : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(4, t.fill_percent))}%` }}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[11px]">
                   <span className="text-ink-muted">Avg Cost/L:</span>
                   <span className="text-right">₹{t.avg_cost_per_liter.toFixed(2)}</span>

@@ -24,8 +24,37 @@ const api = axios.create({
   },
 });
 
+let inFlightCount = 0;
+let slowTimer: ReturnType<typeof setTimeout> | null = null;
+
+function notifySyncStart() {
+  inFlightCount += 1;
+  if (inFlightCount === 1 && !slowTimer) {
+    slowTimer = setTimeout(() => {
+      if (inFlightCount > 0) {
+        window.dispatchEvent(new CustomEvent("pumpledger:slow-server", { detail: true }));
+      }
+    }, 3000);
+  }
+}
+
+function notifySyncEnd(ok: boolean) {
+  inFlightCount = Math.max(0, inFlightCount - 1);
+  if (inFlightCount === 0) {
+    if (slowTimer) {
+      clearTimeout(slowTimer);
+      slowTimer = null;
+    }
+    window.dispatchEvent(new CustomEvent("pumpledger:slow-server", { detail: false }));
+  }
+  window.dispatchEvent(
+    new CustomEvent("pumpledger:sync-status", { detail: { ok, at: Date.now() } })
+  );
+}
+
 // Attach the bearer token (if present) and the active pump UUID to every request.
 api.interceptors.request.use((config) => {
+  notifySyncStart();
   const token = localStorage.getItem("token");
 
   if (token) {
@@ -46,8 +75,12 @@ let isRedirecting = false;
 // On 401, drop the stale token and send the user back to login with return path preserved.
 // On 403, redirect to the access-denied page.
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    notifySyncEnd(true);
+    return response;
+  },
   (error) => {
+    notifySyncEnd(false);
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
 

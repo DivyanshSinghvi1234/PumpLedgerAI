@@ -27,6 +27,7 @@ import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { BooksHealthCard } from "@/features/pipeline/components/BooksHealthModal";
 import { CashBankTimelineCard } from "@/features/pipeline/components/CashBankTimelineCard";
 import { getTodayDateString } from "@/lib/utils";
+import { numberToIndianWords } from "@/lib/formatters";
 
 import PageHeader from "@/components/common/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -690,11 +691,21 @@ export default function BankAccountsPage() {
                     <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Type</TableHead>
                     <TableHead className="text-[10px] font-mono uppercase tracking-wider text-ink-subtle">Ref / Remarks</TableHead>
                     <TableHead className="px-5 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Amount</TableHead>
+                    <TableHead className="px-4 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Net Impact</TableHead>
                     <TableHead className="px-4 text-[10px] font-mono uppercase tracking-wider text-ink-subtle text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.map((t) => (
+                  {(() => {
+                    let running = 0;
+                    const ordered = [...transactions].reverse();
+                    const runningMap = new Map<string, number>();
+                    for (const tx of ordered) {
+                      const isIn = ["DEPOSIT", "INCOME", "TRANSFER_IN", "OPENING_BALANCE"].includes(tx.transaction_type);
+                      running += isIn ? Number(tx.amount) : -Number(tx.amount);
+                      runningMap.set(tx.uuid, running);
+                    }
+                    return transactions.map((t) => (
                     <TableRow key={t.uuid} className="border-b border-hairline hover:bg-surface-3/35">
                       <TableCell className="px-5 text-xs text-ink-muted font-mono">
                         {new Date(t.transaction_date).toLocaleDateString("en-IN", { dateStyle: "medium" })}
@@ -721,6 +732,9 @@ export default function BankAccountsPage() {
                       <TableCell className="px-5 text-right text-xs font-mono font-bold text-ink">
                         {formatCurrency(t.amount)}
                       </TableCell>
+                      <TableCell className="px-4 text-right text-xs font-mono text-ink-muted">
+                        {formatCurrency(runningMap.get(t.uuid) ?? 0)}
+                      </TableCell>
                       <TableCell className="px-4 text-right">
                         <button
                           type="button"
@@ -742,7 +756,8 @@ export default function BankAccountsPage() {
                         </button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ));
+                  })()}
                 </TableBody>
               </Table>
             </div>
@@ -1011,6 +1026,9 @@ export default function BankAccountsPage() {
                   className="bg-surface-2 border-hairline text-xs font-mono font-bold text-emerald-400"
                   required
                 />
+                {Number(depositAmount) > 0 && (
+                  <p className="text-[10px] text-ink-muted italic">{numberToIndianWords(Number(depositAmount))}</p>
+                )}
               </div>
 
               <div className="space-y-1">

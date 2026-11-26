@@ -1,4 +1,36 @@
-export type AppLanguage = "en" | "hi";
+export type AppLanguage = "en" | "hi" | "hinglish";
+
+export const HINGLISH_TRANSLATIONS: Record<string, string> = {
+  "Daily Routine": "Rozana Ka Kaam",
+  "Stock & Customers": "Stock aur Grahak",
+  "Money & Staff": "Paisa aur Staff",
+  "Reports & Admin": "Reports aur Admin",
+  "Dashboard": "Dashboard (Main)",
+  "Quick Entry": "Fatafat Slip",
+  "Upload Invoice": "Bill Photo Upload",
+  "Vouchers": "Vouchers / Bills",
+  "Payments": "Jama / Recovery",
+  "8 PM Settlement": "8 PM Shift Hisab",
+  "Day Closing": "Din Band (Closing)",
+  "Inventory": "Tank & Meter",
+  "Customers": "Udhar Grahak",
+  "Vehicles": "Gaadiyan",
+  "Bank & Cash Accounts": "Bank & Cash Khata",
+  "Revenue / Expenses": "Aamdani / Kharch",
+  "Staff & Payroll": "Staff & Salary",
+  "Daily Register": "Rozana Register",
+  "Tally Sync": "Tally Export",
+  "Quick Entry Mode": "Fatafat Slip Mode",
+  "Save Slip": "Slip Save Karein",
+  "One-Click Day Closing": "1-Click Din Band",
+  "Save & Close Day": "Din Lock Karein",
+  "Check Customer Due...": "Grahak Baki Dekhein...",
+  "Quick Cash Counter": "Note Ginti Calculator",
+  "Total Cash": "Kul Cash",
+  "Today": "Aaj",
+  "Unpaid": "Baki",
+  "Logout": "Bahar Niklein",
+};
 
 export const HI_TRANSLATIONS: Record<string, string> = {
   // Sidebar Sections

@@ -21,11 +21,13 @@ import {
   ChevronDown,
   ChevronRight,
   Zap,
+  Star,
 } from "lucide-react";
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import type { UserRole } from "@/features/auth/services/authService";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { usePreferences } from "@/lib/preferences";
 import PumpSwitcher from "./PumpSwitcher";
 
 interface MenuItem {
@@ -168,11 +170,13 @@ const menuItems: MenuGroup[] = [
 
 interface SidebarProps {
   isOpen: boolean;
+  isMini?: boolean;
   onClose: () => void;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen, isMini = false, onClose }: SidebarProps) {
   const { t } = useLanguage();
+  const { favorites, toggleFavorite } = usePreferences();
   const { hasRole } = useCurrentUser();
   const location = useLocation();
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -215,7 +219,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar container — glassmorphic */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-hairline glass font-sans transition-all duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-hairline glass font-sans transition-all duration-300 ${
+          isMini ? "md:w-[72px]" : "w-[260px]"
+        } ${
           isOpen ? "translate-x-0 md:ml-0" : "-translate-x-full md:-ml-[260px]"
         } md:static md:z-30`}
       >
@@ -247,12 +253,54 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Pump Switcher Section */}
-        <div className="relative z-30 px-5 py-3 border-b border-hairline bg-surface-2/20 backdrop-blur-xs">
-          <PumpSwitcher />
-        </div>
+        {!isMini && (
+          <div className="relative z-30 px-5 py-3 border-b border-hairline bg-surface-2/20 backdrop-blur-xs">
+            <PumpSwitcher />
+          </div>
+        )}
 
         {/* Nav List */}
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
+          {/* Pinned Favorites */}
+          {!isMini && favorites.length > 0 && (() => {
+            const allItems = menuItems.flatMap((g) => g.items).filter((i) => isAllowed(i.allowedRoles));
+            const favItems = allItems.filter((i) => favorites.includes(i.path));
+            if (favItems.length === 0) return null;
+            return (
+              <div>
+                <div className="mb-2 flex items-center gap-1.5 px-3 text-[10px] font-mono font-semibold uppercase tracking-wider text-fuel-amber">
+                  <Star size={10} className="fill-fuel-amber" />
+                  <span>Pinned</span>
+                </div>
+                <div className="space-y-0.5">
+                  {favItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <NavLink
+                        key={`fav-${item.path}`}
+                        to={item.path}
+                        end={item.path === "/dashboard"}
+                        onClick={handleNavClick}
+                        className={({ isActive }) =>
+                          `group flex items-center gap-3 py-1.5 px-3 text-[13px] font-medium rounded-lg transition-all ${
+                            isActive
+                              ? "nav-active-bar bg-gradient-to-r from-fuel-amber/10 to-transparent text-ink font-semibold"
+                              : "text-ink-muted hover:bg-surface-3/60 hover:text-ink"
+                          }`
+                        }
+                      >
+                        <div className="flex h-6 w-6 items-center justify-center rounded-md text-fuel-amber">
+                          <Icon size={14} />
+                        </div>
+                        <span className="truncate">{t(item.title)}</span>
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {menuItems
             .filter((group) => isAllowed(group.allowedRoles))
             .map((group) => {
@@ -296,14 +344,33 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                           >
                             {({ isActive }) => (
                               <>
-                                <div className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
                                   isActive
                                     ? "bg-fuel-amber/15 text-fuel-amber"
                                     : "text-ink-subtle group-hover:text-ink-muted"
                                 }`}>
                                   <Icon size={15} />
                                 </div>
-                                <span>{t(item.title)}</span>
+                                {!isMini && (
+                                  <>
+                                    <span className="flex-1 truncate">{t(item.title)}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleFavorite(item.path);
+                                      }}
+                                      title="Pin / Unpin favorite"
+                                      className="opacity-0 group-hover:opacity-100 text-ink-subtle hover:text-fuel-amber transition cursor-pointer"
+                                    >
+                                      <Star
+                                        size={12}
+                                        className={favorites.includes(item.path) ? "fill-fuel-amber text-fuel-amber" : ""}
+                                      />
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
                           </NavLink>

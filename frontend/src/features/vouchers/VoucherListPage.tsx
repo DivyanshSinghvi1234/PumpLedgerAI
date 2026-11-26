@@ -20,6 +20,8 @@ import { useVoucherList } from "./hooks/useVoucherList";
 import { useDeleteVoucher } from "./hooks/useDeleteVoucher";
 
 import type { Voucher } from "@/types/voucher";
+import { PaymentModeBadge } from "@/components/common/PaymentModeBadge";
+import { formatCurrency } from "@/lib/utils";
 
 export default function VoucherListPage() {
   const { hasRole } = useCurrentUser();
@@ -255,6 +257,24 @@ export default function VoucherListPage() {
                 >
                   UPI
                 </button>
+                {(search || selectedFuelTypes.length > 0 || selectedPaymentModes.length > 0 || selectedStatuses.length > 0 || paymentStatusFilter || fromDate || toDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setSelectedFuelTypes([]);
+                      setSelectedPaymentModes([]);
+                      setSelectedStatuses([]);
+                      setPaymentStatusFilter(undefined);
+                      setFromDate("");
+                      setToDate("");
+                      setPage(1);
+                    }}
+                    className="px-3 py-1 rounded-full text-xs font-semibold border border-rose-500/40 text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                  >
+                    Clear Filters ×
+                  </button>
+                )}
               </>
             );
           })()}
@@ -279,7 +299,35 @@ export default function VoucherListPage() {
         })()}
       </div>
 
-      <div className="rounded-xl border border-hairline bg-surface-1 overflow-hidden shadow-md">
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-2.5">
+        {(data?.items ?? []).map((v) => (
+          <div key={v.uuid} className="rounded-xl border border-hairline bg-surface-1 p-3.5 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-bold text-ink">#{v.invoice_number}</span>
+              <PaymentModeBadge mode={v.payment_mode} />
+            </div>
+            <div className="flex items-center justify-between text-ink-muted">
+              <span>{v.customer_name || v.vehicle_number || "Walk-in"}</span>
+              <span className="font-mono">{v.invoice_date}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-hairline">
+              <span className="font-mono font-bold text-sm text-ink">{formatCurrency(v.total_amount)}</span>
+              <div className="flex items-center gap-1.5">
+                {canManage && v.payment_status !== "PAID" && (
+                  <button type="button" onClick={() => setSettleVoucher(v)} className="px-2 py-1 rounded bg-emerald-500/15 text-emerald-500 font-semibold">Settle</button>
+                )}
+                {canManage && (
+                  <button type="button" onClick={() => handleRepeat(v)} className="px-2 py-1 rounded bg-surface-2 border border-hairline text-ink-muted">Repeat</button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-xl border border-hairline bg-surface-1 overflow-hidden shadow-md">
         <VoucherTable
           vouchers={data?.items ?? []}
           canManage={canManage}

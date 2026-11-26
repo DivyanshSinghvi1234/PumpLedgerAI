@@ -276,6 +276,17 @@ export default function UploadPage() {
               Capture Photo
             </button>
           </div>
+          {loading && (
+            <div className="space-y-1.5 pt-2">
+              <div className="flex justify-between text-xs text-ink-muted font-mono">
+                <span>Scanning {images.length} slip(s) with Gemini AI...</span>
+                <span>Please wait</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-surface-2 overflow-hidden">
+                <div className="h-full w-2/3 bg-fuel-amber animate-pulse rounded-full" />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -360,6 +371,17 @@ export default function UploadPage() {
               )}
             </button>
           </div>
+          {loading && (
+            <div className="space-y-1.5 pt-2">
+              <div className="flex justify-between text-xs text-ink-muted font-mono">
+                <span>Scanning {images.length} slip(s) with Gemini AI...</span>
+                <span>Please wait</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-surface-2 overflow-hidden">
+                <div className="h-full w-2/3 bg-fuel-amber animate-pulse rounded-full" />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

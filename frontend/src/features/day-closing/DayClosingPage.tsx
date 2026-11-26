@@ -24,6 +24,8 @@ import UpiCollectionBreakdown from "@/components/common/UpiCollectionBreakdown";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
+import { TermTooltip } from "@/components/common/TermTooltip";
 import dayClosingService from "./services/dayClosingService";
 import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { FivePointAuditBanner } from "@/features/pipeline/components/FivePointAuditBanner";
@@ -139,6 +141,37 @@ export default function DayClosingPage() {
   }, [draft, openingFloat, cashToNextDay]);
 
   const variance = physicalCash - expectedCash;
+  useUnsavedGuard(!draft?.already_closed && (denomCashTotal > 0 || notes.trim().length > 0));
+
+  // Auto-save & restore Day Closing draft to localStorage
+  useEffect(() => {
+    const key = `day_closing_draft_${closingDate}`;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved && !draft?.already_closed) {
+        const p = JSON.parse(saved);
+        if (p.notes500) setNotes500(p.notes500);
+        if (p.notes200) setNotes200(p.notes200);
+        if (p.notes100) setNotes100(p.notes100);
+        if (p.notes50) setNotes50(p.notes50);
+        if (p.notes20) setNotes20(p.notes20);
+        if (p.notes10) setNotes10(p.notes10);
+        if (p.cashToNextDay) setCashToNextDay(p.cashToNextDay);
+        if (p.notes) setNotes(p.notes);
+      }
+    } catch { /* ignore */ }
+  }, [closingDate, draft?.already_closed]);
+
+  useEffect(() => {
+    if (draft?.already_closed) return;
+    const key = `day_closing_draft_${closingDate}`;
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({ notes500, notes200, notes100, notes50, notes20, notes10, cashToNextDay, notes })
+      );
+    } catch { /* ignore */ }
+  }, [closingDate, draft?.already_closed, notes500, notes200, notes100, notes50, notes20, notes10, cashToNextDay, notes]);
 
   const { data: preLock } = useQuery({
     queryKey: ["pre-lock-check", closingDate, notes, physicalCash, cashToNextDay],
@@ -524,11 +557,30 @@ export default function DayClosingPage() {
                 placeholder="0.00"
                 className="w-full rounded border border-hairline bg-surface-2 px-3 py-2 text-base font-mono font-bold text-ink disabled:opacity-60"
               />
+              {/* Live Denomination Target vs. Actual Helper */}
+              <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-mono font-semibold flex items-center justify-between ${
+                Math.abs(variance) <= 100
+                  ? "bg-emerald-500/10 text-emerald-500"
+                  : variance < 0
+                  ? "bg-rose-500/10 text-rose-500"
+                  : "bg-amber-500/10 text-amber-500"
+              }`}>
+                <span>
+                  {Math.abs(variance) <= 1
+                    ? "Exact Match ✓"
+                    : variance < 0
+                    ? `Still short by ${formatCurrency(Math.abs(variance))}`
+                    : `Excess ${formatCurrency(variance)}`}
+                </span>
+                <span>Target: {formatCurrency(expectedCash)}</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div>
-                <label className="block text-xs text-ink-muted mb-1">Opening Float (₹)</label>
+                <label className="block text-xs text-ink-muted mb-1">
+                  Opening Float (₹) <TermTooltip term="Opening Float" />
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -752,6 +804,26 @@ export default function DayClosingPage() {
               className="w-full rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink"
             />
           </div>
+
+          {/* Why Did Cash Differ? Guided Troubleshooter */}
+          {!draft.already_closed && Math.abs(variance) > 100 && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs space-y-2">
+              <div className="font-bold text-amber-700 dark:text-amber-300">
+                Why Did Cash Differ by {formatCurrency(Math.abs(variance))}? — Quick Troubleshooter
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link to="/dashboard/vouchers" className="rounded-md border border-amber-500/30 bg-surface-1 px-2.5 py-1 font-semibold hover:bg-surface-2">
+                  1. Check unbilled meter sales
+                </Link>
+                <Link to="/dashboard/income" className="rounded-md border border-amber-500/30 bg-surface-1 px-2.5 py-1 font-semibold hover:bg-surface-2">
+                  2. Check cash expenses
+                </Link>
+                <Link to="/dashboard/payments" className="rounded-md border border-amber-500/30 bg-surface-1 px-2.5 py-1 font-semibold hover:bg-surface-2">
+                  3. Check missed customer payment
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* 4-Checkpoint Pre-Lock Safety Gate */}
           {!draft.already_closed && preLock && (
