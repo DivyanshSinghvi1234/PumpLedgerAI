@@ -620,7 +620,7 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
               >
                 {tanks?.map((t) => (
                   <option key={t.uuid} value={t.uuid}>
-                    {t.name} ({t.fuel_type}) — Current Stock: {t.current_stock_liters.toFixed(0)} L / Cap: {t.capacity_liters.toFixed(0)} L
+                    {t.name} ({t.fuel_type}) — Current Stock: {Number(t.current_stock_liters ?? 0).toFixed(0)} L / Cap: {Number(t.capacity_liters ?? 0).toFixed(0)} L
                   </option>
                 ))}
               </select>

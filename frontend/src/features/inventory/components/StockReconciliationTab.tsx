@@ -430,7 +430,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
             <ul className="list-disc pl-5 text-[11px] space-y-0.5 font-bold mt-1.5">
               {forecasts.filter(f => f.days_until_empty !== null && f.days_until_empty <= 3.0).map(f => (
                 <li key={f.tank_uuid}>
-                  {f.tank_name} ({f.fuel_type}): Projected empty in <span className="underline font-black">{f.days_until_empty} days</span> (avg daily sales: {f.avg_daily_sales.toFixed(1)} L/day)
+                  {f.tank_name} ({f.fuel_type}): Projected empty in <span className="underline font-black">{f.days_until_empty} days</span> (avg daily sales: {Number(f.avg_daily_sales ?? 0).toFixed(1)} L/day)
                 </li>
               ))}
             </ul>
@@ -783,16 +783,16 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                               )}
                             </TableCell>
                             <TableCell className="text-xs text-ink-muted pl-numeric">
-                              {dip.opening_dip_liters.toFixed(1)} L → {dip.closing_dip_liters.toFixed(1)} L
+                              {Number(dip.opening_dip_liters ?? 0).toFixed(1)} L → {Number(dip.closing_dip_liters ?? 0).toFixed(1)} L
                             </TableCell>
                             <TableCell className="text-xs text-ink font-semibold text-right pl-numeric">
-                              {actualSales.toFixed(1)} L
+                              {Number(actualSales ?? 0).toFixed(1)} L
                             </TableCell>
                             <TableCell className="text-xs text-ink-muted text-right pl-numeric">
-                              {dip.actual_sales_from_vouchers.toFixed(1)} L
+                              {Number(dip.actual_sales_from_vouchers ?? 0).toFixed(1)} L
                             </TableCell>
                             <TableCell className={`text-xs text-right font-bold pl-numeric ${variance < 0 ? "text-red-500" : "text-blue-500"}`}>
-                              {variance > 0 ? "+" : variance < 0 ? "" : " "}{variance.toFixed(2)} L
+                              {variance > 0 ? "+" : variance < 0 ? "" : " "}{Number(variance ?? 0).toFixed(2)} L
                             </TableCell>
                             <TableCell className="px-5 text-right">
                               {statusBadge}
@@ -1015,7 +1015,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 >
                   {tanks?.map((t) => (
                     <option key={t.uuid} value={t.uuid}>
-                      {t.name} ({t.fuel_type}) — {t.current_stock_liters.toFixed(0)}L available
+                      {t.name} ({t.fuel_type}) — {Number(t.current_stock_liters ?? 0).toFixed(0)}L available
                     </option>
                   ))}
                 </select>
@@ -1030,7 +1030,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 >
                   {tanks?.map((t) => (
                     <option key={t.uuid} value={t.uuid}>
-                      {t.name} ({t.fuel_type}) — Cap: {t.capacity_liters.toFixed(0)}L
+                      {t.name} ({t.fuel_type}) — Cap: {Number(t.capacity_liters ?? 0).toFixed(0)}L
                     </option>
                   ))}
                 </select>
@@ -1096,17 +1096,19 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                   const dstTank = tanks?.find((t) => t.uuid === transferDestUuid);
                   const qty = parseFloat(transferQty) || 0;
                   if (!srcTank || !dstTank) return null;
-                  const newSrc = srcTank.current_stock_liters - qty;
-                  const newDst = dstTank.current_stock_liters + qty;
+                  const srcStock = Number(srcTank.current_stock_liters ?? 0);
+                  const dstStock = Number(dstTank.current_stock_liters ?? 0);
+                  const newSrc = srcStock - qty;
+                  const newDst = dstStock + qty;
                   return (
                     <>
                       <div className="flex justify-between text-ink-muted">
                         <span>{srcTank.name}:</span>
-                        <span>{srcTank.current_stock_liters.toFixed(1)}L → <strong className={newSrc < 0 ? "text-red-500" : "text-ink"}>{newSrc.toFixed(1)}L</strong></span>
+                        <span>{srcStock.toFixed(1)}L → <strong className={newSrc < 0 ? "text-red-500" : "text-ink"}>{newSrc.toFixed(1)}L</strong></span>
                       </div>
                       <div className="flex justify-between text-ink-muted">
                         <span>{dstTank.name}:</span>
-                        <span>{dstTank.current_stock_liters.toFixed(1)}L → <strong className={newDst > dstTank.capacity_liters ? "text-amber-500" : "text-fuel-amber"}>{newDst.toFixed(1)}L</strong></span>
+                        <span>{dstStock.toFixed(1)}L → <strong className={newDst > Number(dstTank.capacity_liters ?? 0) ? "text-amber-500" : "text-fuel-amber"}>{newDst.toFixed(1)}L</strong></span>
                       </div>
                     </>
                   );

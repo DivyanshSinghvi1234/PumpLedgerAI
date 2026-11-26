@@ -79,8 +79,7 @@ export function TankMarginAnalyticsCard() {
     },
     onSuccess: (res) => {
       toast.success(
-        `Tanker Auto-Pilot complete! Stock: ${res.new_tank_stock}L, Avg Cost: ₹${res.new_avg_cost_per_liter}/L${
-          res.matched_indent_number ? ` (Matched ${res.matched_indent_number})` : ""
+        `Tanker Auto-Pilot complete! Stock: ${res.new_tank_stock}L, Avg Cost: ₹${res.new_avg_cost_per_liter}/L${res.matched_indent_number ? ` (Matched ${res.matched_indent_number})` : ""
         }`
       );
       setAutopilotOpen(false);
@@ -308,35 +307,33 @@ export function TankMarginAnalyticsCard() {
                 {/* Animated Liquid Tank Level Bar */}
                 <div className="h-2.5 w-full rounded-full bg-surface-3 overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-700 ${
-                      t.fill_percent < 20 || t.fill_percent > 95
+                    className={`h-full rounded-full transition-all duration-700 ${t.fill_percent < 20 || t.fill_percent > 95
                         ? "bg-rose-500"
                         : t.fill_percent < 35
-                        ? "bg-amber-500"
-                        : "bg-emerald-500"
-                    }`}
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                      }`}
                     style={{ width: `${Math.min(100, Math.max(4, t.fill_percent))}%` }}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[11px]">
                   <span className="text-ink-muted">Avg Cost/L:</span>
-                  <span className="text-right">₹{t.avg_cost_per_liter.toFixed(2)}</span>
+                  <span className="text-right">₹{Number(t.avg_cost_per_liter ?? 0).toFixed(2)}</span>
                   <span className="text-ink-muted">Selling Rate:</span>
-                  <span className="text-right">₹{t.selling_rate.toFixed(2)}</span>
+                  <span className="text-right">₹{Number(t.selling_rate ?? 0).toFixed(2)}</span>
                   <span className="text-ink-muted">Margin/L:</span>
                   <span className="text-right text-emerald-500 font-semibold">
-                    ₹{t.margin_per_liter.toFixed(2)}
+                    ₹{Number(t.margin_per_liter ?? 0).toFixed(2)}
                   </span>
                   <span className="text-ink-muted">Today Net Sales:</span>
-                  <span className="text-right">{t.today_net_sales_liters.toFixed(1)} L</span>
+                  <span className="text-right">{Number(t.today_net_sales_liters ?? 0).toFixed(1)} L</span>
                   <span className="text-ink-muted">Dip Variance:</span>
                   <span
-                    className={`text-right ${
-                      t.today_dip_variance_liters < 0 ? "text-rose-500" : "text-emerald-500"
-                    }`}
+                    className={`text-right ${Number(t.today_dip_variance_liters ?? 0) < 0 ? "text-rose-500" : "text-emerald-500"
+                      }`}
                   >
-                    {t.today_dip_variance_liters >= 0 ? "+" : ""}
-                    {t.today_dip_variance_liters.toFixed(1)} L
+                    {Number(t.today_dip_variance_liters ?? 0) >= 0 ? "+" : ""}
+                    {Number(t.today_dip_variance_liters ?? 0).toFixed(1)} L
                   </span>
                 </div>
                 <div className="border-t border-hairline pt-1.5 flex justify-between font-bold">
@@ -358,7 +355,9 @@ export function TankMarginAnalyticsCard() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 text-[11px] font-mono">
                 {data.procurement_trend.slice(-6).map((pt, idx) => {
-                  const spread = pt.selling_rate - pt.procurement_rate;
+                  const buy = Number(pt.procurement_rate ?? 0);
+                  const sell = Number(pt.selling_rate ?? 0);
+                  const spread = sell - buy;
                   return (
                     <div
                       key={idx}
@@ -366,7 +365,7 @@ export function TankMarginAnalyticsCard() {
                     >
                       <div className="text-ink-muted">{pt.date} · {pt.fuel_type}</div>
                       <div className="font-semibold text-ink">
-                        Buy ₹{pt.procurement_rate.toFixed(2)}
+                        Buy ₹{buy.toFixed(2)}
                       </div>
                       <div className={spread >= 0 ? "text-emerald-500" : "text-rose-500"}>
                         Margin ₹{spread.toFixed(2)}/L

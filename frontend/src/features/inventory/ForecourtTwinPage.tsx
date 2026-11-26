@@ -391,7 +391,7 @@ export default function ForecourtTwinPage() {
                                 Today
                               </p>
                               <p className="text-xs font-bold text-emerald-500 tabular-nums">
-                                {isLogged ? `${(bulk?.sales ?? 0).toFixed(1)} L` : "Pending"}
+                                {isLogged ? `${Number(bulk?.sales ?? 0).toFixed(1)} L` : "Pending"}
                               </p>
                             </div>
                           </div>
@@ -456,7 +456,7 @@ export default function ForecourtTwinPage() {
                           : "bg-surface-2 text-ink-muted"
                       }`}
                     >
-                      ~{forecast.days_until_empty.toFixed(1)}d left
+                      ~{Number(forecast.days_until_empty ?? 0).toFixed(1)}d left
                     </span>
                   )}
                 </div>

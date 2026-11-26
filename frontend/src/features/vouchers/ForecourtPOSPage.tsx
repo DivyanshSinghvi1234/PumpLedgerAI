@@ -100,15 +100,15 @@ export default function ForecourtPOSPage() {
 
   const rates: Record<FuelType, number> = useMemo(
     () => ({
-      PETROL: petrolRateData?.rate ?? 96.5,
-      DIESEL: dieselRateData?.rate ?? 89.2,
-      SPEED: speedRateData?.rate ?? 103.4,
+      PETROL: Number(petrolRateData?.rate ?? 96.5) || 96.5,
+      DIESEL: Number(dieselRateData?.rate ?? 89.2) || 89.2,
+      SPEED: Number(speedRateData?.rate ?? 103.4) || 103.4,
       LUBRICANT: 0,
     }),
     [petrolRateData, dieselRateData, speedRateData]
   );
 
-  const activeRate = rates[fuelType] || 0;
+  const activeRate = Number(rates[fuelType]) || 0;
   const numericAmount = Number(amountStr) || 0;
   const calculatedLiters = activeRate > 0 ? numericAmount / activeRate : 0;
 
@@ -232,7 +232,7 @@ export default function ForecourtPOSPage() {
                   <p className="text-sm font-extrabold">{ft.label}</p>
                   <p className="text-[11px] opacity-75">{ft.sub}</p>
                   <p className="mt-2 text-xs font-mono font-bold tabular-nums">
-                    ₹{rates[ft.value].toFixed(2)} / L
+                    ₹{Number(rates[ft.value] ?? 0).toFixed(2)} / L
                   </p>
                 </button>
               );

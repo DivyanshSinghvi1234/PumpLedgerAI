@@ -24,8 +24,8 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
 const LoginPage = lazyWithRetry(() => import("../features/auth/LoginPage"));
 
 // Core 5-page app
-const UnifiedDailyRegisterPage = lazyWithRetry(
-  () => import("../features/register/UnifiedDailyRegisterPage")
+const RegisterPage = lazyWithRetry(
+  () => import("../features/income/RegisterPage")
 );
 const SlipsHubPage = lazyWithRetry(() => import("../features/slips/SlipsHubPage"));
 const OCRReviewPage = lazyWithRetry(() => import("../features/review/OCRReviewPage"));
@@ -48,7 +48,6 @@ const CustomerStatementPrint = lazyWithRetry(
 const VehicleLedgerPage = lazyWithRetry(
   () => import("../features/vehicles/VehicleLedgerPage")
 );
-const RegisterPage = lazyWithRetry(() => import("../features/income/RegisterPage"));
 
 const AccessDeniedPage = lazyWithRetry(
   () => import("../components/auth/AccessDeniedPage")
@@ -91,7 +90,7 @@ const router = createBrowserRouter([
         index: true,
         element: (
           <SuspenseWrapper>
-            <UnifiedDailyRegisterPage />
+            <RegisterPage />
           </SuspenseWrapper>
         ),
       },
@@ -178,14 +177,7 @@ const router = createBrowserRouter([
               </SuspenseWrapper>
             ),
           },
-          {
-            path: "register-sheet",
-            element: (
-              <SuspenseWrapper>
-                <RegisterPage />
-              </SuspenseWrapper>
-            ),
-          },
+          { path: "register-sheet", element: <Navigate to="/dashboard" replace /> },
 
           /* ─── Legacy overlapping routes redirected cleanly ─── */
           { path: "day-closing", element: <Navigate to="/dashboard" replace /> },
