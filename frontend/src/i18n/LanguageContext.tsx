@@ -17,8 +17,9 @@ const LanguageContext = createContext<LanguageContextValue>({
   t: (text: string) => text,
 });
 
-// Stores original English text for auto-translated DOM text nodes so switching back to EN restores cleanly.
+// Stores original English text and last translated text per DOM node so dynamic React updates translate accurately.
 const originalTextMap = new WeakMap<Text, string>();
+const lastTranslatedMap = new WeakMap<Text, string>();
 
 function translateTextNode(node: Text, lang: AppLanguage) {
   const parent = node.parentElement;
@@ -29,12 +30,20 @@ function translateTextNode(node: Text, lang: AppLanguage) {
   }
   if (parent.closest("[data-no-translate='true']")) return;
 
-  if (!originalTextMap.has(node)) {
-    originalTextMap.set(node, node.nodeValue ?? "");
+  const currentVal = node.nodeValue ?? "";
+  const lastTranslated = lastTranslatedMap.get(node);
+
+  // If React updated this node with fresh content that isn't our own translation, capture the new English original
+  if (!originalTextMap.has(node) || (lastTranslated !== undefined && currentVal !== lastTranslated && currentVal !== originalTextMap.get(node))) {
+    originalTextMap.set(node, currentVal);
   }
-  const orig = originalTextMap.get(node) ?? "";
+
+  const orig = originalTextMap.get(node) ?? currentVal;
   if (lang === "en") {
-    if (node.nodeValue !== orig) node.nodeValue = orig;
+    if (node.nodeValue !== orig) {
+      node.nodeValue = orig;
+    }
+    lastTranslatedMap.delete(node);
     return;
   }
 
@@ -45,6 +54,7 @@ function translateTextNode(node: Text, lang: AppLanguage) {
     const leading = orig.match(/^\s*/)?.[0] ?? "";
     const trailing = orig.match(/\s*$/)?.[0] ?? "";
     const nextVal = `${leading}${translated}${trailing}`;
+    lastTranslatedMap.set(node, nextVal);
     if (node.nodeValue !== nextVal) {
       node.nodeValue = nextVal;
     }

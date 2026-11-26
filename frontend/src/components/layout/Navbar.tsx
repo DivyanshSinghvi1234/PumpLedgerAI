@@ -261,6 +261,17 @@ export default function Navbar({
             )}
           </div>
 
+          {/* Language Switcher Pill on Mobile (always 1-tap accessible) */}
+          <button
+            type="button"
+            data-no-translate="true"
+            onClick={toggleLang}
+            className="sm:hidden rounded-lg border border-hairline bg-surface-2 px-2 py-1.5 text-[11px] font-bold text-ink hover:bg-surface-3 cursor-pointer"
+            title={lang === "en" ? "Switch to Hindi (हिंदी)" : "Switch to English"}
+          >
+            {lang === "en" ? "हिं" : "EN"}
+          </button>
+
           {/* Interactive Instructor / Tutorial Guide */}
           <button
             type="button"

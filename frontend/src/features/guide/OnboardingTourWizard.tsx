@@ -41,11 +41,21 @@ const MANAGER_STEPS: TourStep[] = [
       "तारीख बदलने के लिए आगे/पीछे बटन दबाएं और नोज़ल भरने के बाद 'Save Readings' दबाएं — टैंक स्टॉक अपने-आप अपडेट होगा।",
   },
   {
+    id: "register-fullscreen",
+    selector: '[data-tour="register-fullscreen"]',
+    title: "2. Full Screen & Rotate to Fit Screen",
+    titleHi: "2. फुल स्क्रीन और रोटेट करके पूरा रजिस्टर देखें",
+    description:
+      "On mobile or tablet, tap Full Screen / Rotate & Fit to open the entire 2-page bound register rotated sideways and auto-scaled inside your screen!",
+    descriptionHi:
+      "मोबाइल पर पूरी 2-पेज की कॉपी एक साथ देखने के लिए 'रोटेट और फिट' / 'फुल स्क्रीन' दबाएं — पूरी किताब स्क्रीन में फिट हो जाएगी!",
+  },
+  {
     id: "register-nozzles",
     selector: '[data-tour="register-nozzles"]',
     registerView: "right",
-    title: "2. Enter Opening, Closing or Net Liters",
-    titleHi: "2. ओपनिंग, क्लोज़िंग या नेट लीटर भरें",
+    title: "3. Enter Opening, Closing or Net Liters",
+    titleHi: "3. ओपनिंग, क्लोज़िंग या नेट लीटर भरें",
     description:
       "Type Closing reading below Opening and press Enter to jump straight to the next nozzle. Or type Net Liters directly and Closing fills in automatically!",
     descriptionHi:
@@ -55,8 +65,8 @@ const MANAGER_STEPS: TourStep[] = [
     id: "register-left-entry",
     selector: '[data-tour="register-left-entry"]',
     registerView: "left",
-    title: "3. Log Credit Slips, UPI, Cash Income & Expenses",
-    titleHi: "3. उधार, UPI, कैश आय और खर्च दर्ज करें",
+    title: "4. Log Credit Slips, UPI, Cash Income & Expenses",
+    titleHi: "4. उधार, UPI, कैश आय और खर्च दर्ज करें",
     description:
       "Choose Type (Credit, Cash Slip, Cash Income, UPI handle, Expense or Loan), enter Qty → Particulars → Amount, and press Enter. Cash Income automatically moves to the Right Page!",
     descriptionHi:
@@ -66,18 +76,28 @@ const MANAGER_STEPS: TourStep[] = [
     id: "register-denominations",
     selector: '[data-tour="register-denominations"]',
     registerView: "left",
-    title: "4. Count Drawer Notes & Bank Deposit",
-    titleHi: "4. गल्ले के नोट गिनें और बैंक जमा भरें",
+    title: "5. Count Drawer Notes & Bank Deposit",
+    titleHi: "5. गल्ले के नोट गिनें और बैंक जमा भरें",
     description:
       "Type counts for ₹500/₹200/₹100 notes and Bank Deposit once — PumpLedger checks Short/Excess cash against Expected Drawer Cash automatically.",
     descriptionHi:
       "₹500/₹200/₹100 के नोट और बैंक जमा डालें — सिस्टम गल्ले में कैश कम या ज़्यादा होने की जांच अपने-आप कर लेता है।",
   },
   {
+    id: "register-structured-form",
+    selector: '[data-tour="register-structured-form"]',
+    title: "6. Prefer Typing in a Simple Form Instead?",
+    titleHi: "6. अगर फॉर्म में टाइप करना पसंद हो तो नीचे देखें",
+    description:
+      "Below the bound register is an interlinked Simple Entry Form for Meters, Slips/Expenses & Cash Notes. Everything typed here updates the bound register above live!",
+    descriptionHi:
+      "रजिस्टर के ठीक नीचे आसान एंट्री फॉर्म भी है। आप यहाँ जो भी भरेंगे, वह ऊपर असली रजिस्टर में तुरंत जुड़ जाएगा!",
+  },
+  {
     id: "register-lock-whatsapp",
     selector: '[data-tour="register-lock-whatsapp"]',
-    title: "5. Lock Day & Send 8 PM Owner WhatsApp",
-    titleHi: "5. दिन लॉक करें और 8 PM WhatsApp भेजें",
+    title: "7. Lock Day & Send 8 PM Owner WhatsApp",
+    titleHi: "7. दिन लॉक करें और 8 PM WhatsApp भेजें",
     description:
       "Click 'Save & Lock Day' at closing to update Cash, Bank & Net Profit, then tap 'WhatsApp' to send the complete daily summary to the owner in 1 click.",
     descriptionHi:
@@ -86,8 +106,8 @@ const MANAGER_STEPS: TourStep[] = [
   {
     id: "nav-slips",
     selector: '[data-tour="nav-slips"]',
-    title: "6. Scan Handwritten Slips with AI OCR",
-    titleHi: "6. हाथ की पर्चियाँ AI OCR से स्कैन करें",
+    title: "8. Scan Handwritten Slips with AI OCR",
+    titleHi: "8. हाथ की पर्चियाँ AI OCR से स्कैन करें",
     description:
       "Have a stack of paper credit slips? Tap here to snap photos — AI reads the Customer, Vehicle, Fuel & Amount directly into Customer Ledger & Register.",
     descriptionHi:
@@ -350,7 +370,12 @@ export function OnboardingTourWizard() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] pointer-events-auto no-print" role="dialog" aria-modal="true">
+    <div
+      data-no-translate="true"
+      className="fixed inset-0 z-[100] pointer-events-auto no-print"
+      role="dialog"
+      aria-modal="true"
+    >
       {/* Dark Backdrop when centered welcome or fallback */}
       {!targetRect && (
         <div

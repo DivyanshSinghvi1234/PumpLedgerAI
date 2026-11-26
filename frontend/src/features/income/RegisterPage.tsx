@@ -13,17 +13,23 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Compass,
   Fuel,
   Lock,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   Printer,
   RefreshCw,
+  RotateCw,
   Save,
   Sparkles,
   Trash2,
   TrendingUp,
   Unlock,
+  X,
 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "sonner";
 import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
@@ -82,6 +88,7 @@ interface NozzleDraftItem {
 
 export default function RegisterPage() {
   const { user, activePump, hasRole } = useCurrentUser();
+  const { t } = useLanguage();
   const isAdmin = hasRole("ADMIN");
   const isOperator = user?.role === "OPERATOR";
   const queryClient = useQueryClient();
@@ -92,6 +99,15 @@ export default function RegisterPage() {
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [mobileBookView, setMobileBookView] = useState<"right" | "left" | "book">("book");
+  const [isBookFullscreen, setIsBookFullscreen] = useState(false);
+  const [isRotatedLandscape, setIsRotatedLandscape] = useState(false);
+  const [fitToScreen, setFitToScreen] = useState(true);
+  const [fsViewport, setFsViewport] = useState(() => ({
+    w: typeof window !== "undefined" ? window.innerWidth : 1024,
+    h: typeof window !== "undefined" ? window.innerHeight : 768,
+  }));
+  const [showStructuredForm, setShowStructuredForm] = useState(true);
+  const [structuredTab, setStructuredTab] = useState<"meters" | "entries" | "cash">("meters");
   const [isCompactViewport, setIsCompactViewport] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 1024 : false
   );
@@ -99,10 +115,42 @@ export default function RegisterPage() {
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     const onChange = () => setIsCompactViewport(mq.matches);
+    const onResize = () =>
+      setFsViewport({ w: window.innerWidth, h: window.innerHeight });
     onChange();
     mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      mq.removeEventListener("change", onChange);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
   }, []);
+
+  const toggleFullscreenBook = (rotateOnOpen = false) => {
+    setIsBookFullscreen((prev) => {
+      const next = !prev;
+      if (next) {
+        setFitToScreen(true);
+        const shouldRotate = rotateOnOpen || (window.innerHeight > window.innerWidth);
+        setIsRotatedLandscape(shouldRotate);
+        if (shouldRotate && (screen.orientation as any)?.lock) {
+          (screen.orientation as any).lock("landscape").catch(() => {});
+        }
+      } else {
+        setIsRotatedLandscape(false);
+        if ((screen.orientation as any)?.unlock) {
+          try {
+            (screen.orientation as any).unlock();
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const onTourView = (e: Event) => {
@@ -603,16 +651,16 @@ export default function RegisterPage() {
         leftMode === "UPI"
           ? leftUpiBankUuid || selectedUpi?.bank_account_uuid || settlementBankUuid || undefined
           : leftMode === "CARD"
-          ? settlementBankUuid || undefined
-          : undefined;
+            ? settlementBankUuid || undefined
+            : undefined;
 
       const voucherCustomerName =
         desc ||
         (leftMode === "UPI" && selectedUpi
           ? `${selectedUpi.name} (${selectedUpi.provider})`
           : leftMode === "CARD"
-          ? "Card EDC Sale"
-          : "Cash Sale");
+            ? "Card EDC Sale"
+            : "Cash Sale");
 
       return voucherService.createVoucher({
         invoice_number: `REG-${date.replace(/-/g, "")}-${Date.now().toString().slice(-5)}`,
@@ -970,8 +1018,8 @@ export default function RegisterPage() {
         p.payment_mode === "CASH"
           ? Number(p.amount ?? 0)
           : p.payment_mode === "SPLIT"
-          ? Number(p.cash_amount ?? 0)
-          : 0;
+            ? Number(p.cash_amount ?? 0)
+            : 0;
       return {
         uuid: p.uuid,
         customer_name: p.customer_name,
@@ -1008,24 +1056,24 @@ export default function RegisterPage() {
 
   const activeVouchers = vouchersData?.items?.length
     ? vouchersData.items.map((v) => ({
-        uuid: v.uuid,
-        kind: "VOUCHER" as const,
-        paymentMode: v.payment_mode,
-        typeLabel:
-          v.payment_mode === "CREDIT"
-            ? "Credit"
-            : v.payment_mode === "CARD"
+      uuid: v.uuid,
+      kind: "VOUCHER" as const,
+      paymentMode: v.payment_mode,
+      typeLabel:
+        v.payment_mode === "CREDIT"
+          ? "Credit"
+          : v.payment_mode === "CARD"
             ? "Card"
             : v.payment_mode === "UPI"
-            ? "UPI"
-            : "Cash",
-        quantity_liters: Number(v.quantity_liters ?? 0),
-        customer_name:
-          (v.customer_name || "Cash Customer") +
-          (v.vehicle_number ? ` (${v.vehicle_number})` : ""),
-        amount: Number(v.total_amount ?? 0),
-        isLoan: false,
-      }))
+              ? "UPI"
+              : "Cash",
+      quantity_liters: Number(v.quantity_liters ?? 0),
+      customer_name:
+        (v.customer_name || "Cash Customer") +
+        (v.vehicle_number ? ` (${v.vehicle_number})` : ""),
+      amount: Number(v.total_amount ?? 0),
+      isLoan: false,
+    }))
     : [];
 
   // Auto-grouped per-UPI-account rows (e.g. Paytm = 10,020, PhonePe = 2,000)
@@ -1108,53 +1156,53 @@ export default function RegisterPage() {
   // Map Nozzles using live editable drafts (Opening, Closing, Net)
   const activeNozzles = nozzleData?.items?.length
     ? nozzleData.items.map((item, idx) => {
-        const draftItem = nozzleDrafts[item.nozzle_uuid];
-        const openStr = draftItem?.opening ?? String(Number(item.opening_reading) || 0);
-        const openNum = Number(openStr) || 0;
-        const closeStr =
-          draftItem?.closing ?? (item.closing_reading != null ? String(item.closing_reading) : "");
-        const closeNum =
-          closeStr !== "" && !Number.isNaN(Number(closeStr)) ? Number(closeStr) : null;
-        const testingNum =
-          draftItem?.testing !== undefined
-            ? Number(draftItem.testing) || 0
-            : Number(item.testing) || 0;
-        const interimStr =
-          draftItem?.interim6am ??
-          (item.interim_6am_reading != null ? String(item.interim_6am_reading) : "");
-        const meterCap = Number(item.meter_capacity) || 999999;
+      const draftItem = nozzleDrafts[item.nozzle_uuid];
+      const openStr = draftItem?.opening ?? String(Number(item.opening_reading) || 0);
+      const openNum = Number(openStr) || 0;
+      const closeStr =
+        draftItem?.closing ?? (item.closing_reading != null ? String(item.closing_reading) : "");
+      const closeNum =
+        closeStr !== "" && !Number.isNaN(Number(closeStr)) ? Number(closeStr) : null;
+      const testingNum =
+        draftItem?.testing !== undefined
+          ? Number(draftItem.testing) || 0
+          : Number(item.testing) || 0;
+      const interimStr =
+        draftItem?.interim6am ??
+        (item.interim_6am_reading != null ? String(item.interim_6am_reading) : "");
+      const meterCap = Number(item.meter_capacity) || 999999;
 
-        const rawSales =
-          closeNum != null
-            ? closeNum >= openNum
-              ? closeNum - openNum
-              : meterCap - openNum + closeNum
-            : draftItem?.net !== undefined && draftItem.net !== "" && !Number.isNaN(Number(draftItem.net))
+      const rawSales =
+        closeNum != null
+          ? closeNum >= openNum
+            ? closeNum - openNum
+            : meterCap - openNum + closeNum
+          : draftItem?.net !== undefined && draftItem.net !== "" && !Number.isNaN(Number(draftItem.net))
             ? Math.max(0, Number(draftItem.net)) + testingNum
             : 0;
-        const netVol = Math.max(0, rawSales - testingNum);
-        const netStr =
-          draftItem?.net ?? (closeNum != null ? fmtTrim(netVol) : "");
+      const netVol = Math.max(0, rawSales - testingNum);
+      const netStr =
+        draftItem?.net ?? (closeNum != null ? fmtTrim(netVol) : "");
 
-        return {
-          idx,
-          nozzle_uuid: item.nozzle_uuid,
-          nozzle_name: item.nozzle_name,
-          dispenser_name: item.dispenser_name || (item.fuel_type === "DIESEL" ? "HSD I" : "MS I"),
-          fuel_type: item.fuel_type,
-          opening_reading: openNum,
-          opening_str: openStr,
-          closing_reading: closeNum,
-          closing_str: closeStr,
-          net_str: netStr,
-          interim_str: interimStr,
-          meter_capacity: meterCap,
-          testing: testingNum,
-          hasReading: closeNum != null || netStr !== "",
-          rawSales,
-          netVol,
-        };
-      })
+      return {
+        idx,
+        nozzle_uuid: item.nozzle_uuid,
+        nozzle_name: item.nozzle_name,
+        dispenser_name: item.dispenser_name || (item.fuel_type === "DIESEL" ? "HSD I" : "MS I"),
+        fuel_type: item.fuel_type,
+        opening_reading: openNum,
+        opening_str: openStr,
+        closing_reading: closeNum,
+        closing_str: closeStr,
+        net_str: netStr,
+        interim_str: interimStr,
+        meter_capacity: meterCap,
+        testing: testingNum,
+        hasReading: closeNum != null || netStr !== "",
+        rawSales,
+        netVol,
+      };
+    })
     : [];
 
   const groupedDispensers: Record<string, typeof activeNozzles> = {};
@@ -1250,22 +1298,32 @@ export default function RegisterPage() {
     window.open(getWhatsAppShareUrl(null, lines.join("\n")), "_blank", "noopener,noreferrer");
   };
 
-  const isWideLayout = mobileBookView === "book";
+  const isWideLayout = mobileBookView === "book" || isBookFullscreen;
   const useCompactNozzleCards = isCompactViewport && !isWideLayout;
   const leftGridCols = isWideLayout
     ? "grid-cols-[62px_54px_1fr_92px]"
     : "grid-cols-[54px_40px_1fr_68px] sm:grid-cols-[62px_54px_1fr_92px]";
 
+  const bookBaseW = 1040;
+  const bookBaseH = 840;
+  const availW = Math.max(260, fsViewport.w - 16);
+  const availH = Math.max(260, fsViewport.h - 56);
+  const fsScale = isRotatedLandscape
+    ? Math.min(availH / bookBaseW, availW / bookBaseH, 1.35)
+    : Math.min(availW / bookBaseW, availH / bookBaseH, 1.25);
+
   return (
     <div className="space-y-3 sm:space-y-4 min-w-0 print-container">
-      {/* Action bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 no-print">
+      {/* Compact Top Action Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 no-print">
         <PageHeader
-          title="Daily Register"
-          description="Type directly inside the register: Opening / Closing / Net readings & Slips / UPI / Cash."
+          title={t("Daily Register")}
+          description={t(
+            "Type directly inside the register: Opening / Closing / Net readings & Slips / UPI / Cash."
+          )}
         />
 
-        <div data-tour="register-actions" className="flex flex-wrap items-center gap-2">
+        <div data-tour="register-actions" className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => {
@@ -1295,7 +1353,7 @@ export default function RegisterPage() {
                 setDate(e.target.value);
                 setPageIndex(0);
               }}
-              className="bg-transparent text-xs font-mono font-bold text-ink outline-none px-1.5 text-center border-none focus:ring-0 w-28 sm:w-32 cursor-pointer"
+              className="bg-transparent text-xs font-mono font-bold text-ink outline-none px-1 text-center border-none focus:ring-0 w-28 sm:w-32 cursor-pointer"
             />
             <button
               type="button"
@@ -1312,14 +1370,41 @@ export default function RegisterPage() {
             disabled={isLocked || saveReadingsMutation.isPending || activeNozzles.length === 0}
             onClick={() => saveReadingsMutation.mutate()}
             variant={hasUnsavedReadings ? "default" : "outline"}
-            className="flex-1 sm:flex-initial h-9"
+            className="h-9"
           >
             <Save className="h-3.5 w-3.5 mr-1.5" />
             {saveReadingsMutation.isPending
-              ? "Saving..."
+              ? t("Saving...")
               : hasUnsavedReadings
-              ? "Save Readings *"
-              : "Save Readings"}
+                ? t("Save Readings *")
+                : t("Save Readings")}
+          </Button>
+
+          <Button
+            size="sm"
+            type="button"
+            variant="outline"
+            data-tour="register-fullscreen"
+            onClick={() => toggleFullscreenBook(true)}
+            className="h-9 border-fuel-amber/40 text-fuel-amber hover:bg-fuel-amber/10"
+            title="Open Full Book in Full Screen & Rotate to Fit Screen"
+          >
+            <Maximize2 size={14} className="mr-1.5" />
+            <span className="hidden xs:inline sm:inline">
+              {isCompactViewport ? t("Rotate & Fit") : t("Full Screen")}
+            </span>
+          </Button>
+
+          <Button
+            size="sm"
+            type="button"
+            variant="outline"
+            onClick={() => window.dispatchEvent(new CustomEvent("pumpledger:start-tour"))}
+            className="h-9"
+            title="Start Step-by-Step Arrow Demo Tour"
+          >
+            <Compass size={14} className="sm:mr-1 text-fuel-amber" />
+            <span className="hidden sm:inline">{t("Tour")}</span>
           </Button>
 
           <Button
@@ -1329,329 +1414,201 @@ export default function RegisterPage() {
             className="h-9"
           >
             <Printer size={14} className="sm:mr-1.5" />
-            <span className="hidden sm:inline">Print</span>
+            <span className="hidden sm:inline">{t("Print")}</span>
           </Button>
         </div>
       </div>
 
-      {/* 4 Live Connected KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 no-print">
-        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
-          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
-            <span className="truncate">Fuel Sold (Meters)</span>
-            <Fuel className="h-3.5 w-3.5 text-fuel-amber shrink-0" />
-          </div>
-          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
-            {formatCurrency(totalCalculatedFuelSales)}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
-            {totalLitersLive.toFixed(1)} L (auto-updates tanks)
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
-          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
-            <span className="truncate">Credit + Digital</span>
-            <Link to="/dashboard/slips" className="text-fuel-amber hover:underline font-semibold shrink-0">
-              + OCR
-            </Link>
-          </div>
-          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
-            {formatCurrency(
-              (pipelineSnapshot?.vouchers?.credit_sales ?? 0) +
-                (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
-                (pipelineSnapshot?.vouchers?.card_sales ?? 0)
-            )}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
-            Credit {formatCurrency(pipelineSnapshot?.vouchers?.credit_sales ?? 0)} · Digital{" "}
-            {formatCurrency(
-              (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
-                (pipelineSnapshot?.vouchers?.card_sales ?? 0)
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
-          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
-            <span className="truncate">Drawer Cash</span>
-            {isLocked ? (
-              <span className="text-emerald-500 font-semibold inline-flex items-center gap-1 shrink-0">
-                <Lock className="h-3 w-3" /> Locked
-              </span>
-            ) : (
-              <span className="text-amber-500 font-semibold shrink-0">Open</span>
-            )}
-          </div>
-          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
-            {formatCurrency(totalCashCounted)}
-          </div>
-          <div
-            className={`text-[10px] sm:text-[11px] font-medium truncate ${
-              Math.abs(cashVariance) <= 10
-                ? "text-emerald-500"
-                : cashVariance < 0
-                ? "text-rose-500"
-                : "text-amber-500"
-            }`}
-          >
-            Exp {formatCurrency(expectedCash)} ({cashVariance >= 0 ? "+" : ""}
-            {formatCurrency(cashVariance)})
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
-          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
-            <span className="truncate">Net Profit</span>
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-          </div>
-          <div
-            className={`text-base sm:text-lg font-bold mt-0.5 truncate ${
-              (profit?.net_profit ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500"
-            }`}
-          >
-            {formatCurrency(profit?.net_profit ?? 0)}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
-            {profit?.margin_source === "UNCONFIGURED" ? (
-              <Link to="/dashboard/money?tab=profit" className="text-fuel-amber underline">
-                Set ₹/L commission →
-              </Link>
-            ) : (
-              <>
-                Margin {formatCurrency(profit?.fuel_gross_margin ?? 0)} − Exp{" "}
-                {formatCurrency(profit?.total_expenses ?? totalExpensesAmount)}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Compact Control Bar: 6 AM Toggle, Tank Dip, Sync Shift, Lock Day & WhatsApp + UPI Breakdown */}
-      <div className="rounded-xl border border-hairline bg-surface-1 p-3 space-y-3 no-print">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 cursor-pointer text-xs text-ink-muted hover:text-ink">
-              <input
-                type="checkbox"
-                checked={rateChanged6am}
-                disabled={isLocked}
-                onChange={(e) => setRateChanged6am(e.target.checked)}
-                className="accent-fuel-amber"
-              />
-              6 AM Rate?
-            </label>
-
-            {(closingDraft?.tank_dips?.length ?? 0) > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowDips((p) => !p)}
-                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 text-xs text-ink-muted hover:text-ink cursor-pointer"
-              >
-                {showDips ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                Tank Dip
-              </button>
-            )}
-
+      {/* Mobile Register Page Switcher (< lg, Full Book default) */}
+      {!isBookFullscreen && (
+        <div className="lg:hidden space-y-1.5 no-print">
+          <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-hairline bg-surface-1 p-1 text-xs">
             <button
               type="button"
-              disabled={isLocked}
-              onClick={handleAutoFillFromShift}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-fuel-amber/30 bg-fuel-amber/10 text-xs font-semibold text-fuel-amber hover:bg-fuel-amber/20 cursor-pointer disabled:opacity-40"
+              onClick={() => setMobileBookView("book")}
+              className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${mobileBookView === "book"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+                }`}
             >
-              <Sparkles size={12} /> Sync 8 PM Notes
+              <span>{t("Full Book ↔")}</span>
+              <span className="text-[10px] opacity-85 font-mono">{t("2-Page View")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileBookView("right")}
+              className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${mobileBookView === "right"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+                }`}
+            >
+              <span>{t("Nozzles & Cash")}</span>
+              <span className="text-[10px] opacity-85 font-mono">
+                ₹{Math.round(totalCalculatedFuelSales).toLocaleString("en-IN")}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileBookView("left")}
+              className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${mobileBookView === "left"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+                }`}
+            >
+              <span>{t("Slips & Notes")}</span>
+              <span className="text-[10px] opacity-85 font-mono">
+                ₹{Math.round(totalVouchersAndUpi + totalCashCounted).toLocaleString("en-IN")}
+              </span>
             </button>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-ink-muted">Float:</span>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                disabled={isLocked}
-                value={cashToNextDay}
-                onChange={(e) => setCashToNextDay(e.target.value)}
-                className="h-8 w-20 font-mono text-xs"
-              />
-            </div>
-            <div className="flex-1 min-w-[160px] sm:flex-initial sm:w-44">
-              <BankAccountSelect
-                value={settlementBankUuid}
-                onChange={setSettlementBankUuid}
-                label=""
-                autoSelectDefault
-              />
-            </div>
-            <div data-tour="register-lock-whatsapp" className="flex items-center gap-2 w-full sm:w-auto">
-              {isLocked && isAdmin ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={reopenMutation.isPending}
-                  onClick={() => reopenMutation.mutate()}
-                  className="h-8 flex-1 sm:flex-initial border-amber-500/40 text-amber-500"
-                >
-                  <Unlock className="h-3.5 w-3.5 mr-1" /> Reopen
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  disabled={isLocked || closeDayMutation.isPending}
-                  onClick={() => closeDayMutation.mutate()}
-                  className="h-8 flex-1 sm:flex-initial"
-                >
-                  <Lock className="h-3.5 w-3.5 mr-1.5" />
-                  {isLocked ? "Locked" : closeDayMutation.isPending ? "Locking..." : "Save & Lock Day"}
-                </Button>
-              )}
-              <Button
-                size="sm"
+          {mobileBookView === "book" && (
+            <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted px-1">
+              <span>Swipe left/right inside book, or tap Rotate &amp; Fit to view all on 1 screen.</span>
+              <button
                 type="button"
-                variant={isLocked ? "default" : "outline"}
-                onClick={handleSendWhatsAppSummary}
-                className={`h-8 flex-1 sm:flex-initial ${isLocked ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+                onClick={() => toggleFullscreenBook(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-fuel-amber/40 bg-fuel-amber/10 px-2 py-0.5 text-[10px] font-bold text-fuel-amber shrink-0"
               >
-                <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
-              </Button>
+                <RotateCw size={10} /> {t("Rotate & Fit")}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bound Book Container (Normal at top OR Fullscreen + Rotate-to-Fit Overlay) */}
+      <div
+        className={
+          isBookFullscreen
+            ? "fixed inset-0 z-[95] bg-[#0A0908] flex flex-col overflow-hidden no-print"
+            : ""
+        }
+      >
+        {isBookFullscreen && (
+          <div className="h-12 shrink-0 px-3 flex items-center justify-between gap-2 bg-[#131110] border-b border-white/10 text-white text-xs">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => triggerPageTurn("prev")}
+                className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="font-mono font-bold truncate">{formattedDateHeader}</span>
+              <button
+                type="button"
+                onClick={() => triggerPageTurn("next")}
+                className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                disabled={isLocked || saveReadingsMutation.isPending || activeNozzles.length === 0}
+                onClick={() => saveReadingsMutation.mutate()}
+                className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 font-bold text-white inline-flex items-center gap-1 disabled:opacity-40 cursor-pointer"
+              >
+                <Save size={12} />
+                <span className="hidden sm:inline">{t("Save")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFitToScreen((p) => !p)}
+                className={`h-8 px-2.5 rounded-lg border font-semibold cursor-pointer ${
+                  fitToScreen
+                    ? "border-fuel-amber bg-fuel-amber/20 text-fuel-amber"
+                    : "border-white/20 bg-white/10 text-white"
+                }`}
+              >
+                {fitToScreen ? t("Auto-Fit Screen") : t("100% Zoom")}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const nextRot = !isRotatedLandscape;
+                  setIsRotatedLandscape(nextRot);
+                  setFitToScreen(true);
+                  if (nextRot && (screen.orientation as any)?.lock) {
+                    (screen.orientation as any).lock("landscape").catch(() => {});
+                  } else if (!nextRot && (screen.orientation as any)?.unlock) {
+                    try {
+                      (screen.orientation as any).unlock();
+                    } catch {
+                      // ignore
+                    }
+                  }
+                }}
+                className={`h-8 px-2.5 rounded-lg border inline-flex items-center gap-1 font-semibold cursor-pointer ${
+                  isRotatedLandscape
+                    ? "border-fuel-amber bg-fuel-amber text-black"
+                    : "border-white/20 bg-white/10 text-white"
+                }`}
+                title="Rotate 90° Landscape"
+              >
+                <RotateCw size={13} />
+                <span className="hidden sm:inline">90°</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleFullscreenBook(false)}
+                className="h-8 px-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Minimize2 size={13} />
+                <X size={13} className="sm:hidden" />
+                <span className="hidden sm:inline">{t("Exit Full Screen")}</span>
+              </button>
             </div>
           </div>
-        </div>
-
-        {/* Inline Optional Tank Dip Check */}
-        {showDips && (closingDraft?.tank_dips?.length ?? 0) > 0 && (
-          <div className="pt-2 border-t border-hairline grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-center">
-            {closingDraft!.tank_dips.map((td) => {
-              const dipStr = tankDips[td.tank_uuid] ?? "";
-              const dipNum = Number(dipStr);
-              const hasDip = dipStr !== "" && !Number.isNaN(dipNum);
-              const varL = hasDip
-                ? Math.round((dipNum - Number(td.book_stock ?? 0)) * 10) / 10
-                : td.variance_liters;
-              return (
-                <div
-                  key={td.tank_uuid}
-                  className="flex items-center gap-2 rounded-md border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-ink truncate">{td.tank_name}</div>
-                    <div className="text-[10px] text-ink-muted font-mono">
-                      Book: {Number(td.book_stock ?? 0).toFixed(0)} L
-                      {varL != null && (
-                        <span
-                          className={`ml-1.5 font-bold ${
-                            varL < -50 ? "text-rose-500" : "text-emerald-500"
-                          }`}
-                        >
-                          ({varL >= 0 ? "+" : ""}
-                          {Number(varL).toFixed(0)} L)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <Input
-                    type="number"
-                    disabled={isLocked}
-                    placeholder="Dip L"
-                    value={dipStr}
-                    onChange={(e) => setTankDips((p) => ({ ...p, [td.tank_uuid]: e.target.value }))}
-                    className="h-7 w-20 font-mono text-xs"
-                  />
-                </div>
-              );
-            })}
-            {!isLocked && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={saveDipsMutation.isPending}
-                onClick={() => saveDipsMutation.mutate()}
-                className="h-8 w-fit"
-              >
-                {saveDipsMutation.isPending ? "Saving..." : "Save Dips"}
-              </Button>
-            )}
-          </div>
         )}
 
-        {/* Per-UPI Account Breakdown (Paytm, PhonePe, GPay, etc.) */}
-        <UpiCollectionBreakdown date={date} />
-      </div>
-
-      {/* Mobile Register Page Switcher (< lg) */}
-      <div className="lg:hidden space-y-1.5 no-print">
-        <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-hairline bg-surface-1 p-1 text-xs">
-          <button
-            type="button"
-            onClick={() => setMobileBookView("book")}
-            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
-              mobileBookView === "book"
-                ? "bg-fuel-amber text-canvas shadow-sm"
-                : "text-ink-muted hover:text-ink hover:bg-surface-2"
-            }`}
-          >
-            <span>Full Book ↔</span>
-            <span className="text-[10px] opacity-85 font-mono">2-Page View</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileBookView("right")}
-            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
-              mobileBookView === "right"
-                ? "bg-fuel-amber text-canvas shadow-sm"
-                : "text-ink-muted hover:text-ink hover:bg-surface-2"
-            }`}
-          >
-            <span>Nozzles &amp; Cash</span>
-            <span className="text-[10px] opacity-85 font-mono">
-              ₹{Math.round(totalCalculatedFuelSales).toLocaleString("en-IN")}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileBookView("left")}
-            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
-              mobileBookView === "left"
-                ? "bg-fuel-amber text-canvas shadow-sm"
-                : "text-ink-muted hover:text-ink hover:bg-surface-2"
-            }`}
-          >
-            <span>Slips &amp; Notes</span>
-            <span className="text-[10px] opacity-85 font-mono">
-              ₹{Math.round(totalVouchersAndUpi + totalCashCounted).toLocaleString("en-IN")}
-            </span>
-          </button>
-        </div>
-        {mobileBookView === "book" && (
-          <p className="text-[11px] text-center text-ink-muted">
-            Swipe left or right inside the register below to scroll between Left &amp; Right pages.
-          </p>
-        )}
-      </div>
-
-      {/* Real bound book container */}
-      <div
-        ref={containerRef}
-        onMouseDown={handleMouseDown}
-        style={{ WebkitOverflowScrolling: "touch" }}
-        className={`pl-register-container w-full max-w-full ${
-          isWideLayout ? "overflow-x-auto" : "overflow-x-hidden lg:overflow-x-auto"
-        } ${isGrabbing ? "cursor-grabbing select-none" : "lg:cursor-grab"}`}
-      >
         <div
-          className={`pl-book-shell relative w-full max-w-[1250px] mx-auto rounded-2xl overflow-hidden border border-amber-950/30 ${
-            isWideLayout
-              ? "pl-book-wide min-w-[960px] min-h-[820px]"
-              : "pl-book-mobile-single lg:min-w-[1000px] lg:min-h-[820px]"
-          }`}
+          ref={containerRef}
+          onMouseDown={handleMouseDown}
+          style={{ WebkitOverflowScrolling: "touch" }}
+          className={
+            isBookFullscreen
+              ? fitToScreen
+                ? "relative flex-1 overflow-hidden bg-[#0A0908]"
+                : "flex-1 overflow-auto p-2 sm:p-4 bg-[#0A0908]"
+              : `pl-register-container w-full max-w-full ${
+                  isWideLayout ? "overflow-x-auto" : "overflow-x-hidden lg:overflow-x-auto"
+                } ${isGrabbing ? "cursor-grabbing select-none" : "lg:cursor-grab"}`
+          }
         >
+          <div
+            style={
+              isBookFullscreen && fitToScreen
+                ? {
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    width: `${bookBaseW}px`,
+                    transform: `translate(-50%, -50%) ${
+                      isRotatedLandscape ? "rotate(90deg) " : ""
+                    }scale(${fsScale})`,
+                    transformOrigin: "center center",
+                  }
+                : undefined
+            }
+          >
+            <div
+              className={`pl-book-shell relative w-full max-w-[1250px] mx-auto rounded-2xl overflow-hidden border border-amber-950/30 ${
+                isWideLayout
+                  ? "pl-book-wide min-w-[960px] min-h-[820px]"
+                  : "pl-book-mobile-single lg:min-w-[1000px] lg:min-h-[820px]"
+              }`}
+            >
           {/* Left Stacked Page Edges (Desktop or Wide Book) */}
           <div
             onClick={() => triggerPageTurn("prev")}
-            className={`${
-              isWideLayout ? "flex" : "hidden lg:flex"
-            } absolute left-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 items-center justify-start pl-3 no-print`}
+            className={`${isWideLayout ? "flex" : "hidden lg:flex"
+              } absolute left-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 items-center justify-start pl-3 no-print`}
             title="Click to turn to previous page/day"
           >
             <div className="absolute left-0 inset-y-0 w-[12px] flex pointer-events-none">
@@ -1667,9 +1624,8 @@ export default function RegisterPage() {
           {/* Right Stacked Page Edges (Desktop or Wide Book) */}
           <div
             onClick={() => triggerPageTurn("next")}
-            className={`${
-              isWideLayout ? "flex" : "hidden lg:flex"
-            } absolute right-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 items-center justify-end pr-3 no-print`}
+            className={`${isWideLayout ? "flex" : "hidden lg:flex"
+              } absolute right-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 items-center justify-end pr-3 no-print`}
             title="Click to turn to next page/day"
           >
             <div className="absolute right-0 inset-y-0 w-[12px] flex justify-end pointer-events-none">
@@ -1683,9 +1639,8 @@ export default function RegisterPage() {
           </div>
 
           <div
-            className={`grid relative bg-[#F7F1E3] ${
-              isWideLayout ? "grid-cols-2 min-h-[820px]" : "grid-cols-1 lg:grid-cols-2 lg:min-h-[820px]"
-            }`}
+            className={`grid relative bg-[#F7F1E3] ${isWideLayout ? "grid-cols-2 min-h-[820px]" : "grid-cols-1 lg:grid-cols-2 lg:min-h-[820px]"
+              }`}
           >
             {isFlipping && (
               <div className={`pl-flip-container ${flipDirection === "next" ? "pl-flip-next" : "pl-flip-prev"}`}>
@@ -1696,18 +1651,16 @@ export default function RegisterPage() {
 
             {/* Central spine fold crease */}
             <div
-              className={`${
-                isWideLayout ? "block" : "hidden lg:block"
-              } absolute inset-y-0 left-1/2 -ml-2.5 w-5 bg-gradient-to-r from-black/10 via-black/30 to-black/10 z-30 pointer-events-none border-l border-r border-black/5`}
+              className={`${isWideLayout ? "block" : "hidden lg:block"
+                } absolute inset-y-0 left-1/2 -ml-2.5 w-5 bg-gradient-to-r from-black/10 via-black/30 to-black/10 z-30 pointer-events-none border-l border-r border-black/5`}
             />
 
             {/* ========================================================
                 LEFT PAGE: PARTICULARS (QTY -> PARTICULAR -> MODE/UPI -> AMT) & CASH
                ======================================================== */}
             <div
-              className={`pl-register-page-left flex-col justify-between select-none ${
-                mobileBookView === "right" ? "hidden lg:flex" : "flex"
-              }`}
+              className={`pl-register-page-left flex-col justify-between select-none ${mobileBookView === "right" ? "hidden lg:flex" : "flex"
+                }`}
             >
               <div
                 onClick={() => triggerPageTurn("prev")}
@@ -1888,10 +1841,10 @@ export default function RegisterPage() {
                               leftMode === "LEND_CASH"
                                 ? "Customer (Loan)..."
                                 : leftMode === "INC_CASH"
-                                ? "Cash income..."
-                                : leftMode === "EXP_CASH" || leftMode === "EXP_BANK"
-                                ? "Expense..."
-                                : "Particulars..."
+                                  ? "Cash income..."
+                                  : leftMode === "EXP_CASH" || leftMode === "EXP_BANK"
+                                    ? "Expense..."
+                                    : "Particulars..."
                             }
                             onChange={(e) => setLeftParticulars(e.target.value)}
                             onKeyDown={(e) => {
@@ -1900,11 +1853,10 @@ export default function RegisterPage() {
                                 leftAmtRef.current?.focus();
                               }
                             }}
-                            className={`w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
-                              leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
-                                ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
-                                : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
-                            }`}
+                            className={`w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
+                              ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
+                              : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
+                              }`}
                           />
                         </div>
 
@@ -1923,35 +1875,33 @@ export default function RegisterPage() {
                                 saveLeftBookEntryMutation.mutate();
                               }
                             }}
-                            className={`w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-right font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
-                              leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
-                                ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
-                                : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
-                            }`}
+                            className={`w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-right font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
+                              ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
+                              : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
+                              }`}
                           />
                         </div>
                       </div>
 
                       {/* Sub-row: Fuel + Individual UPI Handle selector + Add button */}
                       <div
-                        className={`${
-                          isWideLayout ? "pl-[66px]" : "pl-0 sm:pl-[66px]"
-                        } pr-1 flex flex-wrap items-center gap-1.5 text-[11px] font-sans`}
+                        className={`${isWideLayout ? "pl-[66px]" : "pl-0 sm:pl-[66px]"
+                          } pr-1 flex flex-wrap items-center gap-1.5 text-[11px] font-sans`}
                       >
                         {(leftMode === "CREDIT" ||
                           leftMode === "CASH" ||
                           leftMode === "UPI" ||
                           leftMode === "CARD") && (
-                          <select
-                            value={leftFuel}
-                            onChange={(e) => setLeftFuel(e.target.value as FuelType)}
-                            className="h-7 sm:h-5 rounded border border-[#103F91]/30 bg-white/80 px-1.5 text-[#103F91] font-semibold outline-none"
-                          >
-                            <option value="DIESEL">Diesel</option>
-                            <option value="PETROL">Petrol</option>
-                            <option value="SPEED">Speed</option>
-                          </select>
-                        )}
+                            <select
+                              value={leftFuel}
+                              onChange={(e) => setLeftFuel(e.target.value as FuelType)}
+                              className="h-7 sm:h-5 rounded border border-[#103F91]/30 bg-white/80 px-1.5 text-[#103F91] font-semibold outline-none"
+                            >
+                              <option value="DIESEL">Diesel</option>
+                              <option value="PETROL">Petrol</option>
+                              <option value="SPEED">Speed</option>
+                            </select>
+                          )}
 
                         {leftMode === "UPI" && upiAccounts && upiAccounts.length > 0 && (
                           <select
@@ -1989,16 +1939,14 @@ export default function RegisterPage() {
               {/* Bottom Cash Denomination Breakdown */}
               <div
                 data-tour="register-denominations"
-                className={`mt-4 sm:mt-2 border-t-2 border-[#A33A32]/50 pt-2 grid gap-4 text-[#2B2621] ${
-                  isWideLayout ? "grid-cols-[1.25fr_1fr]" : "grid-cols-1 sm:grid-cols-[1.25fr_1fr]"
-                }`}
+                className={`mt-4 sm:mt-2 border-t-2 border-[#A33A32]/50 pt-2 grid gap-4 text-[#2B2621] ${isWideLayout ? "grid-cols-[1.25fr_1fr]" : "grid-cols-1 sm:grid-cols-[1.25fr_1fr]"
+                  }`}
               >
                 <div
-                  className={`${
-                    isWideLayout
-                      ? "border-r border-[#A33A32]/25 pr-3"
-                      : "sm:border-r border-[#A33A32]/25 sm:pr-3"
-                  } text-[11px] leading-5`}
+                  className={`${isWideLayout
+                    ? "border-r border-[#A33A32]/25 pr-3"
+                    : "sm:border-r border-[#A33A32]/25 sm:pr-3"
+                    } text-[11px] leading-5`}
                 >
                   <div className="border-b border-[#A33A32]/25 mb-1 text-[12px] pl-handwritten-red font-bold">
                     Cash Collection Counts
@@ -2099,9 +2047,8 @@ export default function RegisterPage() {
                 RIGHT PAGE: EDITABLE OPENING / CLOSING / NET + CASH INCOME / LOAN
                ======================================================== */}
             <div
-              className={`pl-register-page-right flex-col select-none ${
-                mobileBookView === "left" ? "hidden lg:flex" : "flex"
-              }`}
+              className={`pl-register-page-right flex-col select-none ${mobileBookView === "left" ? "hidden lg:flex" : "flex"
+                }`}
             >
               <div
                 onClick={() => triggerPageTurn("next")}
@@ -2485,9 +2432,8 @@ export default function RegisterPage() {
                 ].map(({ label, fuelKey, summary, rate, amt }) => (
                   <div
                     key={label}
-                    className={`flex ${
-                      isWideLayout ? "flex-nowrap h-[20px]" : "flex-wrap sm:flex-nowrap min-h-[24px] sm:h-[20px] py-0.5 sm:py-0"
-                    } items-center gap-x-1 pl-handwritten text-[#103F91] text-[12px] sm:text-[13px]`}
+                    className={`flex ${isWideLayout ? "flex-nowrap h-[20px]" : "flex-wrap sm:flex-nowrap min-h-[24px] sm:h-[20px] py-0.5 sm:py-0"
+                      } items-center gap-x-1 pl-handwritten text-[#103F91] text-[12px] sm:text-[13px]`}
                   >
                     <span className="font-bold text-[#A33A32] w-[44px] sm:w-[50px] shrink-0">{label}</span>
                     <span>= {summary.rawQty.toLocaleString()}</span>
@@ -2560,9 +2506,8 @@ export default function RegisterPage() {
                   {/* Inline Right-Page Cash Income / Money Lended Entry */}
                   {!isLocked && (
                     <div
-                      className={`flex ${
-                        isWideLayout ? "flex-nowrap h-[24px]" : "flex-wrap sm:flex-nowrap min-h-[28px] sm:h-[24px] py-1 sm:py-0"
-                      } items-center gap-1.5 pl-handwritten text-[12px] no-print`}
+                      className={`flex ${isWideLayout ? "flex-nowrap h-[24px]" : "flex-wrap sm:flex-nowrap min-h-[28px] sm:h-[24px] py-1 sm:py-0"
+                        } items-center gap-1.5 pl-handwritten text-[12px] no-print`}
                     >
                       <select
                         value={rightMode}
@@ -2588,11 +2533,10 @@ export default function RegisterPage() {
                             rightAmtRef.current?.focus();
                           }
                         }}
-                        className={`flex-1 min-w-[120px] h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
-                          rightMode === "LEND_CASH"
-                            ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
-                            : "text-[#103F91] pl-handwritten placeholder:text-[#103F91]/45"
-                        }`}
+                        className={`flex-1 min-w-[120px] h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${rightMode === "LEND_CASH"
+                          ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
+                          : "text-[#103F91] pl-handwritten placeholder:text-[#103F91]/45"
+                          }`}
                       />
                       <input
                         ref={rightAmtRef}
@@ -2634,6 +2578,594 @@ export default function RegisterPage() {
             </div>
           </div>
         </div>
+      </div>
+      </div>
+      </div>
+
+      {/* BELOW REGISTER 1: Interlinked Simple Entry Form (Previous Card Style, synced live with Book above) */}
+      <div
+        data-tour="register-structured-form"
+        className="rounded-xl border border-hairline bg-surface-1 p-3 sm:p-4 space-y-3 no-print"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-ink">
+              {t("Simple Entry Form (Linked Live with Register Above)")}
+            </h3>
+            <p className="text-[11px] text-ink-muted">
+              {t("Type here or inside the bound register — both stay synced automatically.")}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowStructuredForm((p) => !p)}
+            className="h-8 text-xs shrink-0"
+          >
+            {showStructuredForm ? (
+              <>
+                <ChevronUp className="h-3.5 w-3.5 mr-1" /> {t("Hide Form")}
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3.5 w-3.5 mr-1" /> {t("Show Simple Form")}
+              </>
+            )}
+          </Button>
+        </div>
+
+        {showStructuredForm && (
+          <div className="space-y-3 pt-1">
+            {/* Sub-header tabs inside Simple Form */}
+            <div className="flex border-b border-hairline gap-2 overflow-x-auto">
+              {(
+                [
+                  { id: "meters", label: t("Meter Readings (Open / Close / Net)") },
+                  { id: "entries", label: t("Add Slip, UPI, Income, Expense or Loan") },
+                  { id: "cash", label: t("Notes & Bank Deposit") },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStructuredTab(tab.id)}
+                  className={`pb-2 px-2.5 text-xs border-b-2 transition whitespace-nowrap cursor-pointer ${
+                    structuredTab === tab.id
+                      ? "border-fuel-amber text-ink font-bold"
+                      : "border-transparent text-ink-muted hover:text-ink font-medium"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {structuredTab === "meters" && (
+              <div className="space-y-3">
+                {activeNozzles.length === 0 ? (
+                  <p className="text-xs text-ink-muted py-2">No nozzles configured.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    {activeNozzles.map((noz) => (
+                      <div
+                        key={`form-${noz.nozzle_uuid}`}
+                        className="rounded-lg border border-hairline bg-surface-2/60 p-2.5 space-y-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between font-bold text-ink">
+                          <span>{noz.nozzle_name}</span>
+                          <span className="text-[10px] font-mono text-fuel-amber">{noz.dispenser_name}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <label className="space-y-0.5">
+                            <span className="text-[10px] text-ink-muted block">{t("Opening")}</span>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              disabled={isLocked}
+                              value={noz.opening_str}
+                              onChange={(e) =>
+                                handleNozzleFieldChange(
+                                  noz.nozzle_uuid,
+                                  "opening",
+                                  e.target.value,
+                                  noz.opening_reading,
+                                  noz.meter_capacity
+                                )
+                              }
+                              className="h-8 font-mono text-xs px-1.5"
+                            />
+                          </label>
+                          <label className="space-y-0.5">
+                            <span className="text-[10px] text-ink-muted block">{t("Closing")}</span>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              disabled={isLocked}
+                              value={noz.closing_str}
+                              onChange={(e) =>
+                                handleNozzleFieldChange(
+                                  noz.nozzle_uuid,
+                                  "closing",
+                                  e.target.value,
+                                  noz.opening_reading,
+                                  noz.meter_capacity
+                                )
+                              }
+                              className="h-8 font-mono text-xs px-1.5"
+                            />
+                          </label>
+                          <label className="space-y-0.5">
+                            <span className="text-[10px] text-emerald-500 block font-semibold">{t("Net L")}</span>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              min={0}
+                              disabled={isLocked}
+                              value={noz.net_str}
+                              onChange={(e) =>
+                                handleNozzleFieldChange(
+                                  noz.nozzle_uuid,
+                                  "net",
+                                  e.target.value,
+                                  noz.opening_reading,
+                                  noz.meter_capacity
+                                )
+                              }
+                              className="h-8 font-mono text-xs px-1.5"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!isLocked && activeNozzles.length > 0 && (
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      disabled={saveReadingsMutation.isPending}
+                      onClick={() => saveReadingsMutation.mutate()}
+                    >
+                      <Save className="h-3.5 w-3.5 mr-1.5" />
+                      {saveReadingsMutation.isPending ? t("Saving...") : t("Save Readings")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {structuredTab === "entries" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 items-end text-xs">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-ink-muted block">{t("Type")}</span>
+                  <select
+                    disabled={isLocked}
+                    value={leftMode}
+                    onChange={(e) => setLeftMode(e.target.value as LeftEntryMode)}
+                    className="h-9 w-full rounded-md border border-hairline bg-surface-2 px-2 text-xs text-ink font-semibold outline-none"
+                  >
+                    <option value="CREDIT">{t("Credit")}</option>
+                    <option value="CASH">{t("Cash Slip")}</option>
+                    <option value="INC_CASH">{t("Inc ₹")}</option>
+                    <option value="UPI">{t("UPI")}</option>
+                    <option value="CARD">Card</option>
+                    <option value="EXP_CASH">{t("Exp ₹")}</option>
+                    <option value="EXP_BANK">{t("Exp Bk")}</option>
+                    <option value="LEND_CASH">{t("Loan")}</option>
+                  </select>
+                </label>
+
+                {(leftMode === "CREDIT" || leftMode === "CASH" || leftMode === "UPI" || leftMode === "CARD") && (
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-medium text-ink-muted block">{t("Fuel Type")}</span>
+                    <select
+                      disabled={isLocked}
+                      value={leftFuel}
+                      onChange={(e) => setLeftFuel(e.target.value as FuelType)}
+                      className="h-9 w-full rounded-md border border-hairline bg-surface-2 px-2 text-xs text-ink outline-none"
+                    >
+                      <option value="DIESEL">{t("Diesel")}</option>
+                      <option value="PETROL">{t("Petrol")}</option>
+                      <option value="SPEED">{t("Speed")}</option>
+                    </select>
+                  </label>
+                )}
+
+                {leftMode === "UPI" && upiAccounts && upiAccounts.length > 0 && (
+                  <label className="space-y-1">
+                    <span className="text-[11px] font-medium text-ink-muted block">UPI Account</span>
+                    <select
+                      disabled={isLocked}
+                      value={leftUpiUuid}
+                      onChange={(e) => {
+                        const uuid = e.target.value;
+                        setLeftUpiUuid(uuid);
+                        const matched = upiAccounts.find((u) => u.uuid === uuid);
+                        setLeftUpiBankUuid(matched?.bank_account_uuid || "");
+                      }}
+                      className="h-9 w-full rounded-md border border-hairline bg-surface-2 px-2 text-xs text-ink outline-none"
+                    >
+                      {upiAccounts.map((u) => (
+                        <option key={`fupi-${u.uuid}`} value={u.uuid}>
+                          {u.name} ({u.provider})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-ink-muted block">{t("Qty")} (L)</span>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    disabled={
+                      isLocked ||
+                      leftMode === "INC_CASH" ||
+                      leftMode === "EXP_CASH" ||
+                      leftMode === "EXP_BANK" ||
+                      leftMode === "LEND_CASH"
+                    }
+                    value={leftQty}
+                    placeholder="0.00"
+                    onChange={(e) => setLeftQty(e.target.value)}
+                    className="h-9 font-mono text-xs"
+                  />
+                </label>
+
+                <label className="space-y-1 lg:col-span-2">
+                  <span className="text-[11px] font-medium text-ink-muted block">
+                    {t("Particulars / Accounts")}
+                  </span>
+                  <Input
+                    type="text"
+                    disabled={isLocked}
+                    value={leftParticulars}
+                    placeholder="Customer / Description..."
+                    onChange={(e) => setLeftParticulars(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </label>
+
+                <div className="flex items-end gap-2">
+                  <label className="space-y-1 flex-1">
+                    <span className="text-[11px] font-medium text-ink-muted block">{t("Amount (₹)")}</span>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      disabled={isLocked}
+                      value={leftAmt}
+                      placeholder="0.00"
+                      onChange={(e) => setLeftAmt(e.target.value)}
+                      className="h-9 font-mono text-xs"
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    disabled={isLocked || saveLeftBookEntryMutation.isPending}
+                    onClick={() => saveLeftBookEntryMutation.mutate()}
+                    className="h-9 shrink-0"
+                  >
+                    {t("+ Add")}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {structuredTab === "cash" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {DENOMINATIONS.map(({ value, key }) => (
+                    <label
+                      key={`fc-${key}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-surface-2/60 px-2.5 py-1.5"
+                    >
+                      <span className="font-mono font-bold text-ink">₹{value}</span>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        disabled={isLocked}
+                        value={notes[key] || ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const updated = { ...notes, [key]: parseInt(e.target.value) || 0 };
+                          setNotes(updated);
+                          saveDenominations(updated);
+                        }}
+                        className="h-7 w-16 font-mono text-xs text-right"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 items-end">
+                  <label className="space-y-1">
+                    <span className="text-[11px] text-ink-muted block">{t("Cash Sent Home:")}</span>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      disabled={isLocked}
+                      value={cashHome || ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setCashHome(val);
+                        saveDenominations(notes, val, prevDeposit, ledgerInterest);
+                      }}
+                      className="h-9 font-mono text-xs"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[11px] text-ink-muted block">{t("Deposited to Bank:")}</span>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      disabled={isLocked}
+                      value={prevDeposit || ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setPrevDeposit(val);
+                        saveDenominations(notes, cashHome, val, ledgerInterest);
+                      }}
+                      className="h-9 font-mono text-xs"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* BELOW REGISTER 2: 4 Live Connected KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 no-print">
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">{t("Fuel Sold (Meters)")}</span>
+            <Fuel className="h-3.5 w-3.5 text-fuel-amber shrink-0" />
+          </div>
+          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
+            {formatCurrency(totalCalculatedFuelSales)}
+          </div>
+          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
+            {totalLitersLive.toFixed(1)} L (auto-updates tanks)
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">{t("Credit + Digital")}</span>
+            <Link to="/dashboard/slips" className="text-fuel-amber hover:underline font-semibold shrink-0">
+              + OCR
+            </Link>
+          </div>
+          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
+            {formatCurrency(
+              (pipelineSnapshot?.vouchers?.credit_sales ?? 0) +
+                (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
+                (pipelineSnapshot?.vouchers?.card_sales ?? 0)
+            )}
+          </div>
+          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
+            {t("Credit")} {formatCurrency(pipelineSnapshot?.vouchers?.credit_sales ?? 0)} · Digital{" "}
+            {formatCurrency(
+              (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
+                (pipelineSnapshot?.vouchers?.card_sales ?? 0)
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">{t("Drawer Cash")}</span>
+            {isLocked ? (
+              <span className="text-emerald-500 font-semibold inline-flex items-center gap-1 shrink-0">
+                <Lock className="h-3 w-3" /> {t("Locked")}
+              </span>
+            ) : (
+              <span className="text-amber-500 font-semibold shrink-0">{t("Open")}</span>
+            )}
+          </div>
+          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
+            {formatCurrency(totalCashCounted)}
+          </div>
+          <div
+            className={`text-[10px] sm:text-[11px] font-medium truncate ${
+              Math.abs(cashVariance) <= 10
+                ? "text-emerald-500"
+                : cashVariance < 0
+                ? "text-rose-500"
+                : "text-amber-500"
+            }`}
+          >
+            Exp {formatCurrency(expectedCash)} ({cashVariance >= 0 ? "+" : ""}
+            {formatCurrency(cashVariance)})
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">{t("Net Profit")}</span>
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          </div>
+          <div
+            className={`text-base sm:text-lg font-bold mt-0.5 truncate ${
+              (profit?.net_profit ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500"
+            }`}
+          >
+            {formatCurrency(profit?.net_profit ?? 0)}
+          </div>
+          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
+            {profit?.margin_source === "UNCONFIGURED" ? (
+              <Link to="/dashboard/money?tab=profit" className="text-fuel-amber underline">
+                Set ₹/L commission →
+              </Link>
+            ) : (
+              <>
+                Margin {formatCurrency(profit?.fuel_gross_margin ?? 0)} − Exp{" "}
+                {formatCurrency(profit?.total_expenses ?? totalExpensesAmount)}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* BELOW REGISTER 3: Day Closing, 6 AM Toggle, Tank Dip, Bank Settlement & 8 PM WhatsApp */}
+      <div className="rounded-xl border border-hairline bg-surface-1 p-3 space-y-3 no-print">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 cursor-pointer text-xs text-ink-muted hover:text-ink">
+              <input
+                type="checkbox"
+                checked={rateChanged6am}
+                disabled={isLocked}
+                onChange={(e) => setRateChanged6am(e.target.checked)}
+                className="accent-fuel-amber"
+              />
+              {t("6 AM Rate?")}
+            </label>
+
+            {(closingDraft?.tank_dips?.length ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowDips((p) => !p)}
+                className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 text-xs text-ink-muted hover:text-ink cursor-pointer"
+              >
+                {showDips ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {t("Tank Dip")}
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={isLocked}
+              onClick={handleAutoFillFromShift}
+              className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-fuel-amber/30 bg-fuel-amber/10 text-xs font-semibold text-fuel-amber hover:bg-fuel-amber/20 cursor-pointer disabled:opacity-40"
+            >
+              <Sparkles size={12} /> {t("Sync 8 PM Shift Notes")}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-ink-muted">{t("Float:")}</span>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                disabled={isLocked}
+                value={cashToNextDay}
+                onChange={(e) => setCashToNextDay(e.target.value)}
+                className="h-8 w-20 font-mono text-xs"
+              />
+            </div>
+            <div className="flex-1 min-w-[160px] sm:flex-initial sm:w-44">
+              <BankAccountSelect
+                value={settlementBankUuid}
+                onChange={setSettlementBankUuid}
+                label=""
+                autoSelectDefault
+              />
+            </div>
+            <div data-tour="register-lock-whatsapp" className="flex items-center gap-2 w-full sm:w-auto">
+              {isLocked && isAdmin ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={reopenMutation.isPending}
+                  onClick={() => reopenMutation.mutate()}
+                  className="h-8 flex-1 sm:flex-initial border-amber-500/40 text-amber-500"
+                >
+                  <Unlock className="h-3.5 w-3.5 mr-1" /> {t("Reopen")}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={isLocked || closeDayMutation.isPending}
+                  onClick={() => closeDayMutation.mutate()}
+                  className="h-8 flex-1 sm:flex-initial"
+                >
+                  <Lock className="h-3.5 w-3.5 mr-1.5" />
+                  {isLocked ? t("Locked") : closeDayMutation.isPending ? t("Saving...") : t("Save & Lock Day")}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                type="button"
+                variant={isLocked ? "default" : "outline"}
+                onClick={handleSendWhatsAppSummary}
+                className={`h-8 flex-1 sm:flex-initial ${isLocked ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+              >
+                <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> {t("WhatsApp")}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Inline Optional Tank Dip Check */}
+        {showDips && (closingDraft?.tank_dips?.length ?? 0) > 0 && (
+          <div className="pt-2 border-t border-hairline grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-center">
+            {closingDraft!.tank_dips.map((td) => {
+              const dipStr = tankDips[td.tank_uuid] ?? "";
+              const dipNum = Number(dipStr);
+              const hasDip = dipStr !== "" && !Number.isNaN(dipNum);
+              const varL = hasDip
+                ? Math.round((dipNum - Number(td.book_stock ?? 0)) * 10) / 10
+                : td.variance_liters;
+              return (
+                <div
+                  key={td.tank_uuid}
+                  className="flex items-center gap-2 rounded-md border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-ink truncate">{td.tank_name}</div>
+                    <div className="text-[10px] text-ink-muted font-mono">
+                      Book: {Number(td.book_stock ?? 0).toFixed(0)} L
+                      {varL != null && (
+                        <span
+                          className={`ml-1.5 font-bold ${
+                            varL < -50 ? "text-rose-500" : "text-emerald-500"
+                          }`}
+                        >
+                          ({varL >= 0 ? "+" : ""}
+                          {Number(varL).toFixed(0)} L)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Input
+                    type="number"
+                    disabled={isLocked}
+                    placeholder="Dip L"
+                    value={dipStr}
+                    onChange={(e) => setTankDips((p) => ({ ...p, [td.tank_uuid]: e.target.value }))}
+                    className="h-7 w-20 font-mono text-xs"
+                  />
+                </div>
+              );
+            })}
+            {!isLocked && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={saveDipsMutation.isPending}
+                onClick={() => saveDipsMutation.mutate()}
+                className="h-8 w-fit"
+              >
+                {saveDipsMutation.isPending ? t("Saving...") : "Save Dips"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Per-UPI Account Breakdown (Paytm, PhonePe, GPay, etc.) */}
+        <UpiCollectionBreakdown date={date} />
       </div>
     </div>
   );
