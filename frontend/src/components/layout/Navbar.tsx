@@ -125,38 +125,38 @@ export default function Navbar({
     .toUpperCase();
 
   return (
-    <header className="relative z-40 shrink-0 flex h-14 items-center justify-between border-b border-hairline bg-canvas/90 backdrop-blur-md px-4 md:px-6 font-sans">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-40 shrink-0 w-full min-w-0 flex h-14 items-center justify-between gap-2 border-b border-hairline bg-canvas/95 backdrop-blur-md px-3 sm:px-4 md:px-6 font-sans">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         {/* Toggle Sidebar Menu Button */}
         <button
           onClick={onMenuClick}
-          className="rounded-md p-1.5 hover:bg-surface-3 text-ink cursor-pointer transition-colors"
+          className="shrink-0 rounded-lg p-2 -ml-1 hover:bg-surface-3 text-ink cursor-pointer transition-colors"
           aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
           title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
         >
-          <Menu size={18} />
+          <Menu size={19} />
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           {/* Brand: PumpLedger with building icon */}
-          <div className="flex items-center gap-1.5">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-fuel-amber/10 text-fuel-amber">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex h-7 w-7 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded-md bg-fuel-amber/10 text-fuel-amber">
               <Building2 size={14} />
             </div>
-            <h2 className="text-sm font-semibold tracking-tight text-ink">
+            <h2 className="text-sm font-bold sm:font-semibold tracking-tight text-ink shrink-0">
               PumpLedger
             </h2>
           </div>
           {activePump && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-fuel-amber/10 border border-fuel-amber/15 px-2 py-0.5 text-[10px] font-semibold text-fuel-amber">
-              <span className="h-1 w-1 rounded-full bg-fuel-amber" />
-              {activePump.name}
+            <span className="hidden min-[380px]:inline-flex items-center gap-1 rounded-full bg-fuel-amber/10 border border-fuel-amber/15 px-2 py-0.5 text-[10px] font-semibold text-fuel-amber max-w-[96px] sm:max-w-[180px] min-w-0">
+              <span className="h-1 w-1 rounded-full bg-fuel-amber shrink-0" />
+              <span className="truncate">{activePump.name}</span>
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Fuel Tank Live Stock Pill */}
           {tanks.length > 0 && (
             <div className="hidden xl:flex items-center gap-1.5 rounded-full border border-hairline bg-surface-2 px-2.5 py-1 text-[10px] font-mono">
@@ -216,14 +216,17 @@ export default function Navbar({
           <div className="relative">
             <button
               type="button"
-              onClick={() => setCashCalcOpen((v) => !v)}
-              className="rounded-lg border border-hairline bg-surface-2 p-1.5 text-ink-muted hover:text-ink hover:bg-surface-3 cursor-pointer"
+              onClick={() => {
+                setPrefsOpen(false);
+                setCashCalcOpen((v) => !v);
+              }}
+              className="rounded-lg border border-hairline bg-surface-2 p-2 sm:p-1.5 text-ink-muted hover:text-ink hover:bg-surface-3 cursor-pointer"
               title="Quick Cash Denomination Counter"
             >
               <Calculator size={15} />
             </button>
             {cashCalcOpen && (
-              <div className="fixed sm:absolute right-4 sm:right-0 top-14 sm:top-auto sm:mt-2 w-64 max-h-[80vh] overflow-y-auto rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
+              <div className="fixed sm:absolute right-3 sm:right-0 top-15 sm:top-auto sm:mt-2 w-[calc(100vw-1.5rem)] max-w-[270px] sm:w-64 max-h-[80vh] overflow-y-auto rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
                 <div className="flex items-center justify-between font-bold text-ink border-b border-hairline pb-1.5">
                   <span>{t("Quick Cash Counter")}</span>
                   <button type="button" onClick={() => setCalcNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 })} className="text-[10px] text-fuel-amber hover:underline cursor-pointer">{t("Reset")}</button>
@@ -241,10 +244,11 @@ export default function Navbar({
                       <span className="w-9 font-mono text-ink-muted">{d.l}</span>
                       <input
                         type="number"
+                        inputMode="numeric"
                         min="0"
                         value={calcNotes[d.k]}
                         onChange={(e) => setCalcNotes((p) => ({ ...p, [d.k]: Number(e.target.value) || 0 }))}
-                        className="w-full rounded border border-hairline bg-surface-2 px-1.5 py-0.5 font-mono text-ink"
+                        className="w-full rounded border border-hairline bg-surface-2 px-1.5 py-1 font-mono text-ink"
                       />
                     </div>
                   ))}
@@ -257,18 +261,29 @@ export default function Navbar({
             )}
           </div>
 
-          {/* Divider */}
-          <div className="h-6 w-px bg-hairline mx-1" />
+          {/* Interactive Instructor / Tutorial Guide */}
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="inline-flex items-center gap-1 rounded-lg border border-fuel-amber/40 bg-fuel-amber/10 p-2 sm:px-2.5 sm:py-1.5 text-xs font-bold text-fuel-amber hover:bg-fuel-amber/20 transition cursor-pointer"
+            title={lang === "hi" ? "इंटरैक्टिव गाइड खोलें" : "Open Interactive Tutorial & Guide"}
+          >
+            <HelpCircle size={15} />
+            <span className="hidden sm:inline">{lang === "hi" ? "गाइड" : "Guide"}</span>
+          </button>
+
+          {/* Divider (desktop+) */}
+          <div className="hidden sm:block h-6 w-px bg-hairline mx-0.5" />
 
           {user && (
-            <div className="flex items-center gap-2.5">
+            <div className="hidden sm:flex items-center gap-2.5">
               {/* Avatar with gradient ring */}
               <div className="rounded-full p-[2px] bg-gradient-to-br from-fuel-amber to-fuel-orange">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold text-ink">
                   {initials}
                 </div>
               </div>
-              <div className="hidden leading-tight sm:block">
+              <div className="hidden leading-tight md:block">
                 <p className="text-xs font-medium text-ink">
                   {user.full_name || user.username}
                 </p>
@@ -308,29 +323,117 @@ export default function Navbar({
             </button>
           )}
 
-          {/* Interactive Instructor / Tutorial Guide */}
-          <button
-            type="button"
-            onClick={() => setGuideOpen(true)}
-            className="inline-flex items-center gap-1 rounded-lg border border-fuel-amber/40 bg-fuel-amber/10 px-2.5 py-1.5 text-xs font-bold text-fuel-amber hover:bg-fuel-amber/20 transition cursor-pointer"
-            title={lang === "hi" ? "इंटरैक्टिव गाइड खोलें" : "Open Interactive Tutorial & Guide"}
-          >
-            <HelpCircle size={14} />
-            <span className="hidden sm:inline">{lang === "hi" ? "गाइड" : "Guide"}</span>
-          </button>
-
-          {/* Display & App Preferences Popover */}
+          {/* Display & App Preferences + Mobile Quick Menu Popover */}
           <div className="relative">
             <button
               type="button"
-              onClick={() => setPrefsOpen((v) => !v)}
-              className="rounded-lg border border-hairline bg-surface-2 p-1.5 text-ink-muted hover:text-ink hover:bg-surface-3 cursor-pointer"
-              title="Display, Font Size, Sunlight Mode & PIN Lock"
+              onClick={() => {
+                setCashCalcOpen(false);
+                setPrefsOpen((v) => !v);
+              }}
+              className="rounded-lg border border-hairline bg-surface-2 p-2 sm:p-1.5 text-ink-muted hover:text-ink hover:bg-surface-3 cursor-pointer flex items-center gap-1.5"
+              title="Display, Font Size, Sunlight Mode & Menu"
             >
               <SlidersHorizontal size={15} />
             </button>
             {prefsOpen && (
-              <div className="fixed sm:absolute right-4 sm:right-0 top-14 sm:top-auto sm:mt-2 w-60 max-h-[80vh] overflow-y-auto rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
+              <div className="fixed sm:absolute right-3 sm:right-0 top-15 sm:top-auto sm:mt-2 w-[calc(100vw-1.5rem)] max-w-[290px] sm:w-64 max-h-[80vh] overflow-y-auto rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2.5 text-xs">
+                {/* Mobile-only Account + Search + Quick Switches */}
+                <div className="sm:hidden space-y-2.5 border-b border-hairline pb-2.5">
+                  {user && (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="rounded-full p-[1.5px] bg-gradient-to-br from-fuel-amber to-fuel-orange shrink-0">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold text-ink">
+                            {initials}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-ink truncate">
+                            {user.full_name || user.username}
+                          </p>
+                          <p className="text-[10px] font-mono uppercase text-fuel-amber truncate">
+                            {t({ ADMIN: "Admin", MANAGER: "Manager", OPERATOR: "Employee" }[user.role] ?? user.role)}
+                            {activePump ? ` · ${activePump.name}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => queryClient.invalidateQueries()}
+                        className="inline-flex items-center gap-1 rounded-full border border-hairline bg-surface-2 px-2 py-0.5 text-[10px] font-mono text-ink-muted shrink-0"
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${syncState.ok ? "bg-emerald-500" : "bg-rose-500"}`} />
+                        {syncState.ok ? "Synced" : "Retry"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Mobile Customer Balance Lookup */}
+                  <div className="relative">
+                    <div className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5">
+                      <Search size={13} className="text-ink-muted shrink-0" />
+                      <input
+                        value={lookupQuery}
+                        onChange={(e) => setLookupQuery(e.target.value)}
+                        placeholder={t("Check Customer Due...")}
+                        className="w-full bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
+                      />
+                      {lookupQuery && (
+                        <button type="button" onClick={() => setLookupQuery("")} className="text-ink-muted">
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    {lookupQuery.trim().length >= 2 && lookupResults.length > 0 && (
+                      <div className="mt-1 rounded-lg border border-hairline bg-surface-2 p-1 space-y-1">
+                        {lookupResults.map((c) => (
+                          <button
+                            key={`mob-${c.uuid}`}
+                            type="button"
+                            onClick={() => {
+                              setLookupQuery("");
+                              setPrefsOpen(false);
+                              navigate(`/dashboard/customers/${c.uuid}/ledger`);
+                            }}
+                            className="w-full flex items-center justify-between rounded px-2 py-1 text-xs hover:bg-surface-3 text-left"
+                          >
+                            <span className="font-medium text-ink truncate">{c.name}</span>
+                            <span className="font-mono font-bold text-fuel-amber shrink-0 ml-2">
+                              {formatCurrency(c.outstanding_balance)}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      data-no-translate="true"
+                      onClick={toggleLang}
+                      className="flex-1 rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ink"
+                    >
+                      {lang === "en" ? "EN / हिं" : "हिं / EN"}
+                    </button>
+                    <ThemeToggle />
+                    {onOpenCmdK && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrefsOpen(false);
+                          onOpenCmdK();
+                        }}
+                        className="rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs font-mono text-ink-muted"
+                      >
+                        <Command size={13} className="inline mr-1" />
+                        Search
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="font-bold text-ink border-b border-hairline pb-1.5">
                   Display &amp; Forecourt Mode
                 </div>
@@ -381,29 +484,39 @@ export default function Navbar({
                     <Lock size={12} /> Lock Screen (PIN)
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="sm:hidden w-full flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 py-1.5 font-semibold text-rose-500 cursor-pointer"
+                >
+                  <LogOut size={12} /> {t("Logout")}
+                </button>
               </div>
             )}
           </div>
 
-          {/* Language Switcher: English / हिन्दी */}
+          {/* Language Switcher: English / हिन्दी (desktop+) */}
           <button
             type="button"
             data-no-translate="true"
             onClick={toggleLang}
-            className="rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ink hover:bg-surface-3 transition cursor-pointer"
+            className="hidden sm:inline-flex rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ink hover:bg-surface-3 transition cursor-pointer"
             title={lang === "en" ? "Switch to Hindi (हिंदी)" : "Switch to English"}
           >
             {lang === "en" ? "EN / हिं" : "हिं / EN"}
           </button>
 
-          <ThemeToggle />
+          <div className="hidden sm:block">
+            <ThemeToggle />
+          </div>
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-3 hover:text-ink transition cursor-pointer ml-1"
+            className="hidden sm:flex items-center gap-2 rounded-lg border border-hairline bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-3 hover:text-ink transition cursor-pointer ml-1"
           >
             <LogOut size={13} />
-            <span className="hidden sm:inline">{t("Logout")}</span>
+            <span className="hidden md:inline">{t("Logout")}</span>
           </button>
         </div>
       <InstructorDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />

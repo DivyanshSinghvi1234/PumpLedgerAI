@@ -11,7 +11,7 @@ export default function OfflineBanner() {
 
   return (
     <div
-      className={`px-4 py-2.5 text-xs font-semibold flex items-center justify-between transition-all duration-300 ${
+      className={`px-3 sm:px-4 py-2 text-xs font-semibold flex flex-wrap items-center justify-between gap-2 transition-all duration-300 ${
         !isOnline
           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-b border-amber-500/20"
           : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-b border-emerald-500/20"

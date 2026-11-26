@@ -30,6 +30,9 @@ export default function AppLayout() {
   const { focusMode, setFocusMode, demoMode, setDemoMode } = usePreferences();
 
   const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return false;
+    }
     try {
       const saved = localStorage.getItem("sidebar_open");
       return saved !== null ? JSON.parse(saved) : true;
@@ -112,7 +115,7 @@ export default function AppLayout() {
   const segments = location.pathname.split("/").filter(Boolean);
 
   return (
-    <div className="flex h-screen bg-canvas overflow-hidden">
+    <div className="flex h-[100dvh] w-full max-w-full bg-canvas overflow-hidden">
       {!focusMode && (
         <Sidebar
           isOpen={sidebarOpen}
@@ -121,7 +124,7 @@ export default function AppLayout() {
         />
       )}
 
-      <div className="flex flex-1 flex-col overflow-hidden transition-all duration-300">
+      <div className="flex flex-1 min-w-0 flex-col overflow-hidden transition-all duration-300">
         {!focusMode && (
           <Navbar
             onMenuClick={handleToggleSidebar}
@@ -135,17 +138,17 @@ export default function AppLayout() {
 
         {/* Render Cold-Start Wake-Up Banner */}
         {slowServer && (
-          <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 text-xs font-semibold text-amber-600 dark:text-amber-300 flex items-center justify-center gap-2 no-print">
-            <Loader2 size={14} className="animate-spin" />
-            <span>Waking up server (takes ~20s on free tier)... Please wait, your data is safe.</span>
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-3 py-2 text-[11px] sm:text-xs font-semibold text-amber-600 dark:text-amber-300 flex items-center justify-center gap-2 text-center no-print">
+            <Loader2 size={14} className="animate-spin shrink-0" />
+            <span>Waking up server (~20s on free tier)... Your data is safe.</span>
           </div>
         )}
 
         {/* Demo / Practice Mode Banner */}
         {demoMode && (
-          <div className="bg-indigo-500/15 border-b border-indigo-500/30 px-4 py-1.5 text-xs font-semibold text-indigo-500 flex items-center justify-between no-print">
+          <div className="bg-indigo-500/15 border-b border-indigo-500/30 px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-indigo-500 flex flex-wrap items-center justify-between gap-2 no-print">
             <span className="flex items-center gap-1.5">
-              <FlaskConical size={13} /> Practice / Demo Mode Active — explore safely!
+              <FlaskConical size={13} className="shrink-0" /> Practice / Demo Mode Active
             </span>
             <button
               type="button"
@@ -159,11 +162,11 @@ export default function AppLayout() {
 
         {/* PWA Install App Banner */}
         {installPrompt && !installDismissed && (
-          <div className="bg-emerald-500/10 border-b border-emerald-500/30 px-4 py-2 text-xs flex items-center justify-between gap-2 no-print">
+          <div className="bg-emerald-500/10 border-b border-emerald-500/30 px-3 py-2 text-[11px] sm:text-xs flex flex-wrap items-center justify-between gap-2 no-print">
             <span className="font-semibold text-emerald-600 dark:text-emerald-300 flex items-center gap-1.5">
-              <Download size={14} /> Install PumpLedgerAI on your phone/tablet for full-screen native speed.
+              <Download size={14} className="shrink-0" /> Install PumpLedgerAI for native speed.
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               <button
                 type="button"
                 onClick={async () => {
@@ -188,7 +191,7 @@ export default function AppLayout() {
           </div>
         )}
 
-        <main className="relative flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <main className="relative flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:p-4 md:p-6 lg:p-8">
           <div className="absolute inset-0 dot-grid pointer-events-none" />
           <div className="absolute top-0 left-0 right-0 h-48 fuel-glow pointer-events-none dark:hidden" />
 
@@ -205,7 +208,7 @@ export default function AppLayout() {
 
           {/* Quick-Jump Breadcrumbs */}
           {segments.length > 1 && !focusMode && (
-            <div className="relative z-10 mb-3 flex items-center gap-1.5 text-[11px] text-ink-muted no-print">
+            <div className="relative z-10 mb-3 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-muted no-print">
               <Link to="/dashboard" className="hover:text-ink font-medium">
                 {t("Dashboard")}
               </Link>
@@ -229,19 +232,22 @@ export default function AppLayout() {
             </div>
           )}
 
-          <div key={location.pathname} className="relative z-10 page-enter pb-20 md:pb-0">
+          <div
+            key={location.pathname}
+            className="relative z-10 page-enter min-w-0 pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:pb-0"
+          >
             <Outlet />
           </div>
         </main>
 
         {/* Mobile Bottom Dock matching the 5-page app */}
         {!focusMode && (
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-hairline bg-canvas/95 backdrop-blur-md py-1.5 px-2 no-print">
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-hairline bg-canvas/95 backdrop-blur-md pt-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] px-1 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] no-print">
             <NavLink
               to="/dashboard"
               end
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
+                `flex flex-col items-center justify-center gap-0.5 min-w-[54px] min-h-[44px] text-[10px] font-semibold px-1.5 py-1 rounded-lg ${
                   isActive ? "text-fuel-amber" : "text-ink-muted"
                 }`
               }
@@ -250,49 +256,55 @@ export default function AppLayout() {
               <span>{t("Register")}</span>
             </NavLink>
 
-            <NavLink
-              to="/dashboard/customers"
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
-                  isActive ? "text-fuel-amber" : "text-ink-muted"
-                }`
-              }
-            >
-              <FileText size={18} />
-              <span>{t("Customers")}</span>
-            </NavLink>
+            {user?.role !== "OPERATOR" && (
+              <NavLink
+                to="/dashboard/customers"
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center gap-0.5 min-w-[54px] min-h-[44px] text-[10px] font-semibold px-1.5 py-1 rounded-lg ${
+                    isActive ? "text-fuel-amber" : "text-ink-muted"
+                  }`
+                }
+              >
+                <FileText size={18} />
+                <span>{t("Customers")}</span>
+              </NavLink>
+            )}
 
             <NavLink
               to="/dashboard/slips"
-              className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-fuel-amber text-canvas shadow-lg shadow-fuel-amber/30 border-4 border-canvas"
+              className="-mt-5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-fuel-amber text-canvas shadow-lg shadow-fuel-amber/30 border-4 border-canvas"
               title="Scan or Add Slip"
             >
               <Plus size={22} strokeWidth={2.5} />
             </NavLink>
 
-            <NavLink
-              to="/dashboard/inventory"
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
-                  isActive ? "text-fuel-amber" : "text-ink-muted"
-                }`
-              }
-            >
-              <Zap size={18} />
-              <span>{t("Inventory")}</span>
-            </NavLink>
+            {user?.role !== "OPERATOR" && (
+              <NavLink
+                to="/dashboard/inventory"
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center gap-0.5 min-w-[54px] min-h-[44px] text-[10px] font-semibold px-1.5 py-1 rounded-lg ${
+                    isActive ? "text-fuel-amber" : "text-ink-muted"
+                  }`
+                }
+              >
+                <Zap size={18} />
+                <span>{t("Inventory")}</span>
+              </NavLink>
+            )}
 
-            <NavLink
-              to="/dashboard/money"
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-semibold px-2 py-1 ${
-                  isActive ? "text-fuel-amber" : "text-ink-muted"
-                }`
-              }
-            >
-              <Moon size={18} />
-              <span>{t("Money")}</span>
-            </NavLink>
+            {user?.role !== "OPERATOR" && (
+              <NavLink
+                to="/dashboard/money"
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center gap-0.5 min-w-[54px] min-h-[44px] text-[10px] font-semibold px-1.5 py-1 rounded-lg ${
+                    isActive ? "text-fuel-amber" : "text-ink-muted"
+                  }`
+                }
+              >
+                <Moon size={18} />
+                <span>{t("Money")}</span>
+              </NavLink>
+            )}
           </nav>
         )}
       </div>

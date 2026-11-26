@@ -91,6 +91,18 @@ export default function RegisterPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
+  const [mobileBookView, setMobileBookView] = useState<"right" | "left" | "book">("right");
+  const [isCompactViewport, setIsCompactViewport] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 1024 : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = () => setIsCompactViewport(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // Nozzle inline editing + Enter navigation across Opening / Closing / Net rows
   const [nozzleDrafts, setNozzleDrafts] = useState<Record<string, NozzleDraftItem>>({});
@@ -838,7 +850,7 @@ export default function RegisterPage() {
   const [isGrabbing, setIsGrabbing] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || window.innerWidth < 1024) return;
     const target = e.target as HTMLElement;
     if (
       target.tagName === "INPUT" ||
@@ -1227,13 +1239,19 @@ export default function RegisterPage() {
     window.open(getWhatsAppShareUrl(null, lines.join("\n")), "_blank", "noopener,noreferrer");
   };
 
+  const isWideLayout = mobileBookView === "book";
+  const useCompactNozzleCards = isCompactViewport && !isWideLayout;
+  const leftGridCols = isWideLayout
+    ? "grid-cols-[62px_54px_1fr_92px]"
+    : "grid-cols-[54px_40px_1fr_68px] sm:grid-cols-[62px_54px_1fr_92px]";
+
   return (
-    <div className="space-y-4 print-container">
+    <div className="space-y-3 sm:space-y-4 min-w-0 print-container">
       {/* Action bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 no-print">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 no-print">
         <PageHeader
           title="Daily Register"
-          description="Type directly inside the register pages: Qty → Particulars → Payment/UPI → Amount, and Opening / Closing / Net readings."
+          description="Type directly inside the register: Opening / Closing / Net readings & Slips / UPI / Cash."
         />
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1244,13 +1262,13 @@ export default function RegisterPage() {
               refetchNozzles();
               refetchSnapshot();
             }}
-            className="flex items-center justify-center h-9 w-9 rounded-xl border border-hairline bg-surface-2 text-ink hover:bg-surface-3 transition cursor-pointer"
+            className="flex items-center justify-center h-9 w-9 shrink-0 rounded-xl border border-hairline bg-surface-2 text-ink hover:bg-surface-3 transition cursor-pointer"
             title="Reload Data"
           >
             <RefreshCw size={14} />
           </button>
 
-          <div className="flex bg-surface-2 border border-hairline p-1 rounded-xl">
+          <div className="flex flex-1 sm:flex-initial items-center justify-between bg-surface-2 border border-hairline p-1 rounded-xl">
             <button
               type="button"
               onClick={() => triggerPageTurn("prev")}
@@ -1266,7 +1284,7 @@ export default function RegisterPage() {
                 setDate(e.target.value);
                 setPageIndex(0);
               }}
-              className="bg-transparent text-xs font-mono font-bold text-ink outline-none px-2 text-center border-none focus:ring-0 w-28 cursor-pointer"
+              className="bg-transparent text-xs font-mono font-bold text-ink outline-none px-1.5 text-center border-none focus:ring-0 w-28 sm:w-32 cursor-pointer"
             />
             <button
               type="button"
@@ -1283,6 +1301,7 @@ export default function RegisterPage() {
             disabled={isLocked || saveReadingsMutation.isPending || activeNozzles.length === 0}
             onClick={() => saveReadingsMutation.mutate()}
             variant={hasUnsavedReadings ? "default" : "outline"}
+            className="flex-1 sm:flex-initial h-9"
           >
             <Save className="h-3.5 w-3.5 mr-1.5" />
             {saveReadingsMutation.isPending
@@ -1292,42 +1311,48 @@ export default function RegisterPage() {
               : "Save Readings"}
           </Button>
 
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
-            <Printer size={14} className="mr-1.5" /> Print
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.print()}
+            className="h-9"
+          >
+            <Printer size={14} className="sm:mr-1.5" />
+            <span className="hidden sm:inline">Print</span>
           </Button>
         </div>
       </div>
 
       {/* 4 Live Connected KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 no-print">
-        <div className="rounded-xl border border-hairline bg-surface-1 p-3.5">
-          <div className="flex items-center justify-between text-xs text-ink-muted">
-            <span>Fuel Sold (Meters)</span>
-            <Fuel className="h-3.5 w-3.5 text-fuel-amber" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 no-print">
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">Fuel Sold (Meters)</span>
+            <Fuel className="h-3.5 w-3.5 text-fuel-amber shrink-0" />
           </div>
-          <div className="text-lg font-bold text-ink mt-0.5">
+          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
             {formatCurrency(totalCalculatedFuelSales)}
           </div>
-          <div className="text-[11px] text-ink-muted">
+          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
             {totalLitersLive.toFixed(1)} L (auto-updates tanks)
           </div>
         </div>
 
-        <div className="rounded-xl border border-hairline bg-surface-1 p-3.5">
-          <div className="flex items-center justify-between text-xs text-ink-muted">
-            <span>Credit + UPI / Card</span>
-            <Link to="/dashboard/slips" className="text-fuel-amber hover:underline font-semibold">
-              + OCR Scan
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">Credit + Digital</span>
+            <Link to="/dashboard/slips" className="text-fuel-amber hover:underline font-semibold shrink-0">
+              + OCR
             </Link>
           </div>
-          <div className="text-lg font-bold text-ink mt-0.5">
+          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
             {formatCurrency(
               (pipelineSnapshot?.vouchers?.credit_sales ?? 0) +
                 (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
                 (pipelineSnapshot?.vouchers?.card_sales ?? 0)
             )}
           </div>
-          <div className="text-[11px] text-ink-muted">
+          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
             Credit {formatCurrency(pipelineSnapshot?.vouchers?.credit_sales ?? 0)} · Digital{" "}
             {formatCurrency(
               (pipelineSnapshot?.vouchers?.upi_sales ?? 0) +
@@ -1336,22 +1361,22 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-hairline bg-surface-1 p-3.5">
-          <div className="flex items-center justify-between text-xs text-ink-muted">
-            <span>Drawer Cash vs Expected</span>
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">Drawer Cash</span>
             {isLocked ? (
-              <span className="text-emerald-500 font-semibold inline-flex items-center gap-1">
+              <span className="text-emerald-500 font-semibold inline-flex items-center gap-1 shrink-0">
                 <Lock className="h-3 w-3" /> Locked
               </span>
             ) : (
-              <span className="text-amber-500 font-semibold">Open Day</span>
+              <span className="text-amber-500 font-semibold shrink-0">Open</span>
             )}
           </div>
-          <div className="text-lg font-bold text-ink mt-0.5">
+          <div className="text-base sm:text-lg font-bold text-ink mt-0.5 truncate">
             {formatCurrency(totalCashCounted)}
           </div>
           <div
-            className={`text-[11px] font-medium ${
+            className={`text-[10px] sm:text-[11px] font-medium truncate ${
               Math.abs(cashVariance) <= 10
                 ? "text-emerald-500"
                 : cashVariance < 0
@@ -1359,24 +1384,24 @@ export default function RegisterPage() {
                 : "text-amber-500"
             }`}
           >
-            Expected {formatCurrency(expectedCash)} ({cashVariance >= 0 ? "+" : ""}
+            Exp {formatCurrency(expectedCash)} ({cashVariance >= 0 ? "+" : ""}
             {formatCurrency(cashVariance)})
           </div>
         </div>
 
-        <div className="rounded-xl border border-hairline bg-surface-1 p-3.5">
-          <div className="flex items-center justify-between text-xs text-ink-muted">
-            <span>Today&apos;s Net Profit</span>
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+        <div className="rounded-xl border border-hairline bg-surface-1 p-2.5 sm:p-3.5 min-w-0">
+          <div className="flex items-center justify-between gap-1 text-[11px] sm:text-xs text-ink-muted">
+            <span className="truncate">Net Profit</span>
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
           </div>
           <div
-            className={`text-lg font-bold mt-0.5 ${
+            className={`text-base sm:text-lg font-bold mt-0.5 truncate ${
               (profit?.net_profit ?? 0) >= 0 ? "text-emerald-500" : "text-rose-500"
             }`}
           >
             {formatCurrency(profit?.net_profit ?? 0)}
           </div>
-          <div className="text-[11px] text-ink-muted">
+          <div className="text-[10px] sm:text-[11px] text-ink-muted truncate">
             {profit?.margin_source === "UNCONFIGURED" ? (
               <Link to="/dashboard/money?tab=profit" className="text-fuel-amber underline">
                 Set ₹/L commission →
@@ -1393,7 +1418,7 @@ export default function RegisterPage() {
 
       {/* Compact Control Bar: 6 AM Toggle, Tank Dip, Sync Shift, Lock Day & WhatsApp + UPI Breakdown */}
       <div className="rounded-xl border border-hairline bg-surface-1 p-3 space-y-3 no-print">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <label className="inline-flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 cursor-pointer text-xs text-ink-muted hover:text-ink">
               <input
@@ -1403,7 +1428,7 @@ export default function RegisterPage() {
                 onChange={(e) => setRateChanged6am(e.target.checked)}
                 className="accent-fuel-amber"
               />
-              6 AM Rate Change?
+              6 AM Rate?
             </label>
 
             {(closingDraft?.tank_dips?.length ?? 0) > 0 && (
@@ -1413,7 +1438,7 @@ export default function RegisterPage() {
                 className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-hairline bg-surface-2 text-xs text-ink-muted hover:text-ink cursor-pointer"
               >
                 {showDips ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                Tank Dip (Optional)
+                Tank Dip
               </button>
             )}
 
@@ -1423,7 +1448,7 @@ export default function RegisterPage() {
               onClick={handleAutoFillFromShift}
               className="inline-flex items-center gap-1 px-2.5 h-8 rounded-md border border-fuel-amber/30 bg-fuel-amber/10 text-xs font-semibold text-fuel-amber hover:bg-fuel-amber/20 cursor-pointer disabled:opacity-40"
             >
-              <Sparkles size={12} /> Sync 8 PM Shift Notes
+              <Sparkles size={12} /> Sync 8 PM Notes
             </button>
           </div>
 
@@ -1432,6 +1457,7 @@ export default function RegisterPage() {
               <span className="text-ink-muted">Float:</span>
               <Input
                 type="number"
+                inputMode="numeric"
                 min={0}
                 disabled={isLocked}
                 value={cashToNextDay}
@@ -1439,7 +1465,7 @@ export default function RegisterPage() {
                 className="h-8 w-20 font-mono text-xs"
               />
             </div>
-            <div className="w-44">
+            <div className="flex-1 min-w-[160px] sm:flex-initial sm:w-44">
               <BankAccountSelect
                 value={settlementBankUuid}
                 onChange={setSettlementBankUuid}
@@ -1447,36 +1473,38 @@ export default function RegisterPage() {
                 autoSelectDefault
               />
             </div>
-            {isLocked && isAdmin ? (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {isLocked && isAdmin ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={reopenMutation.isPending}
+                  onClick={() => reopenMutation.mutate()}
+                  className="h-8 flex-1 sm:flex-initial border-amber-500/40 text-amber-500"
+                >
+                  <Unlock className="h-3.5 w-3.5 mr-1" /> Reopen
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={isLocked || closeDayMutation.isPending}
+                  onClick={() => closeDayMutation.mutate()}
+                  className="h-8 flex-1 sm:flex-initial"
+                >
+                  <Lock className="h-3.5 w-3.5 mr-1.5" />
+                  {isLocked ? "Locked" : closeDayMutation.isPending ? "Locking..." : "Save & Lock Day"}
+                </Button>
+              )}
               <Button
                 size="sm"
-                variant="outline"
-                disabled={reopenMutation.isPending}
-                onClick={() => reopenMutation.mutate()}
-                className="h-8 border-amber-500/40 text-amber-500"
+                type="button"
+                variant={isLocked ? "default" : "outline"}
+                onClick={handleSendWhatsAppSummary}
+                className={`h-8 flex-1 sm:flex-initial ${isLocked ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
               >
-                <Unlock className="h-3.5 w-3.5 mr-1" /> Reopen
+                <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
               </Button>
-            ) : (
-              <Button
-                size="sm"
-                disabled={isLocked || closeDayMutation.isPending}
-                onClick={() => closeDayMutation.mutate()}
-                className="h-8"
-              >
-                <Lock className="h-3.5 w-3.5 mr-1.5" />
-                {isLocked ? "Day Locked" : closeDayMutation.isPending ? "Locking..." : "Save & Lock Day"}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              type="button"
-              variant={isLocked ? "default" : "outline"}
-              onClick={handleSendWhatsAppSummary}
-              className={`h-8 ${isLocked ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
-            >
-              <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> Send 8 PM WhatsApp
-            </Button>
+            </div>
           </div>
         </div>
 
@@ -1540,19 +1568,79 @@ export default function RegisterPage() {
         <UpiCollectionBreakdown date={date} />
       </div>
 
+      {/* Mobile Register Page Switcher (< lg) */}
+      <div className="lg:hidden space-y-1.5 no-print">
+        <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-hairline bg-surface-1 p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setMobileBookView("right")}
+            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
+              mobileBookView === "right"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+            }`}
+          >
+            <span>Nozzles &amp; Cash</span>
+            <span className="text-[10px] opacity-85 font-mono">
+              ₹{Math.round(totalCalculatedFuelSales).toLocaleString("en-IN")}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileBookView("left")}
+            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
+              mobileBookView === "left"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+            }`}
+          >
+            <span>Slips &amp; Notes</span>
+            <span className="text-[10px] opacity-85 font-mono">
+              ₹{Math.round(totalVouchersAndUpi + totalCashCounted).toLocaleString("en-IN")}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileBookView("book")}
+            className={`rounded-lg px-2 py-2 font-semibold transition cursor-pointer flex flex-col items-center leading-tight ${
+              mobileBookView === "book"
+                ? "bg-fuel-amber text-canvas shadow-sm"
+                : "text-ink-muted hover:text-ink hover:bg-surface-2"
+            }`}
+          >
+            <span>Full Book ↔</span>
+            <span className="text-[10px] opacity-85 font-mono">2-Page View</span>
+          </button>
+        </div>
+        {mobileBookView === "book" && (
+          <p className="text-[11px] text-center text-ink-muted">
+            Swipe left or right inside the register below to scroll between Left &amp; Right pages.
+          </p>
+        )}
+      </div>
+
       {/* Real bound book container */}
       <div
         ref={containerRef}
         onMouseDown={handleMouseDown}
-        className={`pl-register-container overflow-x-auto min-w-[768px] ${
-          isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
-        }`}
+        style={{ WebkitOverflowScrolling: "touch" }}
+        className={`pl-register-container w-full max-w-full ${
+          isWideLayout ? "overflow-x-auto" : "overflow-x-hidden lg:overflow-x-auto"
+        } ${isGrabbing ? "cursor-grabbing select-none" : "lg:cursor-grab"}`}
       >
-        <div className="pl-book-shell relative min-w-[1000px] w-full max-w-[1250px] mx-auto min-h-[820px] rounded-2xl overflow-hidden border border-amber-950/30 touch-pan-y">
-          {/* Left Stacked Page Edges */}
+        <div
+          className={`pl-book-shell relative w-full max-w-[1250px] mx-auto rounded-2xl overflow-hidden border border-amber-950/30 ${
+            isWideLayout
+              ? "pl-book-wide min-w-[960px] min-h-[820px]"
+              : "pl-book-mobile-single lg:min-w-[1000px] lg:min-h-[820px]"
+          }`}
+        >
+          {/* Left Stacked Page Edges (Desktop or Wide Book) */}
           <div
             onClick={() => triggerPageTurn("prev")}
-            className="absolute left-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 flex items-center justify-start pl-3 no-print"
+            className={`${
+              isWideLayout ? "flex" : "hidden lg:flex"
+            } absolute left-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 items-center justify-start pl-3 no-print`}
             title="Click to turn to previous page/day"
           >
             <div className="absolute left-0 inset-y-0 w-[12px] flex pointer-events-none">
@@ -1565,10 +1653,12 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Right Stacked Page Edges */}
+          {/* Right Stacked Page Edges (Desktop or Wide Book) */}
           <div
             onClick={() => triggerPageTurn("next")}
-            className="absolute right-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 flex items-center justify-end pr-3 no-print"
+            className={`${
+              isWideLayout ? "flex" : "hidden lg:flex"
+            } absolute right-0 top-0 bottom-0 w-[48px] z-40 cursor-pointer group hover:bg-black/[0.03] transition-all duration-300 items-center justify-end pr-3 no-print`}
             title="Click to turn to next page/day"
           >
             <div className="absolute right-0 inset-y-0 w-[12px] flex justify-end pointer-events-none">
@@ -1581,7 +1671,11 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 relative bg-[#F7F1E3] min-h-[820px]">
+          <div
+            className={`grid relative bg-[#F7F1E3] ${
+              isWideLayout ? "grid-cols-2 min-h-[820px]" : "grid-cols-1 lg:grid-cols-2 lg:min-h-[820px]"
+            }`}
+          >
             {isFlipping && (
               <div className={`pl-flip-container ${flipDirection === "next" ? "pl-flip-next" : "pl-flip-prev"}`}>
                 <div className="pl-flip-page-front" />
@@ -1590,25 +1684,33 @@ export default function RegisterPage() {
             )}
 
             {/* Central spine fold crease */}
-            <div className="absolute inset-y-0 left-1/2 -ml-2.5 w-5 bg-gradient-to-r from-black/10 via-black/30 to-black/10 z-30 pointer-events-none border-l border-r border-black/5" />
+            <div
+              className={`${
+                isWideLayout ? "block" : "hidden lg:block"
+              } absolute inset-y-0 left-1/2 -ml-2.5 w-5 bg-gradient-to-r from-black/10 via-black/30 to-black/10 z-30 pointer-events-none border-l border-r border-black/5`}
+            />
 
             {/* ========================================================
                 LEFT PAGE: PARTICULARS (QTY -> PARTICULAR -> MODE/UPI -> AMT) & CASH
                ======================================================== */}
-            <div className="pl-register-page-left flex flex-col justify-between select-none">
+            <div
+              className={`pl-register-page-left flex-col justify-between select-none ${
+                mobileBookView === "right" ? "hidden lg:flex" : "flex"
+              }`}
+            >
               <div
                 onClick={() => triggerPageTurn("prev")}
-                className="pl-page-corner-left no-print"
+                className={`pl-page-corner-left no-print ${isWideLayout ? "block" : "hidden lg:block"}`}
                 title="Click to turn to previous page/day"
               />
 
               <div className="pl-register-page-header">
-                <div className="text-[10px] leading-3.5 text-neutral-700 rotate-[-0.5deg]" />
-                <div className="text-center flex-1 pr-6 flex flex-col items-center">
-                  <span className="pl-handwritten-header pl-handwritten-red tracking-widest font-bold">
+                <div className="hidden sm:block text-[10px] leading-3.5 text-neutral-700 rotate-[-0.5deg]" />
+                <div className="text-center flex-1 sm:pr-6 flex flex-col items-center min-w-0">
+                  <span className="pl-handwritten-header pl-handwritten-red tracking-wide sm:tracking-widest font-bold truncate max-w-full">
                     {stationName} — Daily Register
                   </span>
-                  <div className="text-[10px] font-mono font-bold inline-flex items-center gap-2 px-4 text-neutral-800">
+                  <div className="text-[10px] font-mono font-bold inline-flex items-center gap-2 px-2 sm:px-4 text-neutral-800">
                     <span>{formattedDateHeader}</span>
                     {totalPages > 1 && (
                       <span className="inline-flex items-center gap-1 no-print">
@@ -1638,60 +1740,60 @@ export default function RegisterPage() {
               </div>
 
               {/* Transactions & Particulars grid (Type before Qty) */}
-              <div className="text-xs space-y-0 flex-1">
-                <div className="grid grid-cols-[62px_54px_1fr_92px] border-b-2 border-[#A33A32] pl-handwritten-red font-bold h-[20px] items-center">
+              <div className="text-xs space-y-0 flex-1 min-w-0">
+                <div className={`grid ${leftGridCols} border-b-2 border-[#A33A32] pl-handwritten-red font-bold min-h-[22px] items-center`}>
                   <div className="text-center pr-1 border-r border-[#A33A32]/25">Type</div>
-                  <div className="text-center pr-1 border-r border-[#A33A32]/25">Qty (L)</div>
-                  <div className="pl-3">Particulars / Customer Accounts</div>
-                  <div className="text-right">Amount (₹)</div>
+                  <div className="text-center pr-1 border-r border-[#A33A32]/25">Qty</div>
+                  <div className="pl-2 sm:pl-3 truncate">Particulars / Accounts</div>
+                  <div className="text-right pr-1">Amt (₹)</div>
                 </div>
 
                 <div className="space-y-[0px]">
                   {visibleLeftRows.map((row) =>
                     row.kind === "VOUCHER" ? (
-                      <div key={row.uuid} className="group grid grid-cols-[62px_54px_1fr_92px] h-[20px] items-center">
+                      <div key={row.uuid} className={`group grid ${leftGridCols} min-h-[24px] sm:h-[20px] items-center`}>
                         <div className="text-center pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[10px] font-mono font-semibold text-[#103F91]">
                           {row.typeLabel}
                         </div>
-                        <div className="text-center pl-handwritten pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px]">
-                          {row.quantity_liters > 0 ? row.quantity_liters.toFixed(2) : "—"}
+                        <div className="text-center pl-handwritten pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[12px] sm:text-[13px]">
+                          {row.quantity_liters > 0 ? row.quantity_liters.toFixed(1) : "—"}
                         </div>
-                        <div className="pl-3 truncate pr-2 h-full flex items-center justify-between">
+                        <div className="pl-2 sm:pl-3 truncate pr-1 sm:pr-2 h-full flex items-center justify-between min-w-0">
                           <span className="pl-handwritten-strong truncate">{row.customer_name}</span>
                           {!isLocked && (
                             <button
                               type="button"
                               onClick={() => deleteVoucherMutation.mutate(row.uuid)}
-                              className="opacity-0 group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 no-print cursor-pointer"
+                              className="opacity-70 lg:opacity-0 lg:group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 shrink-0 no-print cursor-pointer"
                               title="Remove slip"
                             >
-                              <Trash2 size={11} />
+                              <Trash2 size={12} />
                             </button>
                           )}
                         </div>
-                        <div className="text-right font-bold pr-1 pl-handwritten-strong h-full flex items-center justify-end text-[13px]">
+                        <div className="text-right font-bold pr-1 pl-handwritten-strong h-full flex items-center justify-end text-[12px] sm:text-[13px]">
                           {formatLedgerAmount(row.amount)}
                         </div>
                       </div>
                     ) : row.kind === "UPI_SUMMARY" ? (
-                      <div key={row.uuid} className="grid grid-cols-[62px_54px_1fr_92px] h-[20px] items-center">
+                      <div key={row.uuid} className={`grid ${leftGridCols} min-h-[24px] sm:h-[20px] items-center`}>
                         <div className="text-center pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[10px] font-mono font-bold text-emerald-800">
                           UPI
                         </div>
-                        <div className="text-center pl-handwritten pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[13px] text-neutral-500">
+                        <div className="text-center pl-handwritten pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[12px] sm:text-[13px] text-neutral-500">
                           —
                         </div>
-                        <div className="pl-3 truncate pr-2 h-full flex items-center">
+                        <div className="pl-2 sm:pl-3 truncate pr-1 sm:pr-2 h-full flex items-center min-w-0">
                           <span className="pl-handwritten-strong text-emerald-900 truncate">{row.customer_name}</span>
                         </div>
-                        <div className="text-right font-bold pr-1 pl-handwritten-strong text-emerald-900 h-full flex items-center justify-end text-[13px]">
+                        <div className="text-right font-bold pr-1 pl-handwritten-strong text-emerald-900 h-full flex items-center justify-end text-[12px] sm:text-[13px]">
                           {formatLedgerAmount(row.amount)}
                         </div>
                       </div>
                     ) : (
                       <div
                         key={row.uuid}
-                        className="group grid grid-cols-[62px_54px_1fr_92px] h-[20px] items-center rotate-[-0.1deg]"
+                        className={`group grid ${leftGridCols} min-h-[24px] sm:h-[20px] items-center rotate-[-0.1deg]`}
                       >
                         <div className="text-center pr-1 border-r border-[#A33A32]/25 h-full flex items-center justify-center text-[10px] font-mono font-bold text-[#A33A32]">
                           {row.typeLabel}
@@ -1699,20 +1801,20 @@ export default function RegisterPage() {
                         <div className="text-center pr-1 border-r border-[#A33A32]/25 text-neutral-500 h-full flex items-center justify-center text-[11px]">
                           —
                         </div>
-                        <div className="pl-3 truncate h-full flex items-center justify-between pr-1">
+                        <div className="pl-2 sm:pl-3 truncate h-full flex items-center justify-between pr-1 min-w-0">
                           <span className="pl-handwritten-red truncate">{row.customer_name}</span>
                           {!isLocked && (
                             <button
                               type="button"
                               onClick={() => deleteIncomeMutation.mutate(row.uuid)}
-                              className="opacity-0 group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 no-print cursor-pointer"
+                              className="opacity-70 lg:opacity-0 lg:group-hover:opacity-100 text-[#A33A32] hover:text-red-700 ml-1 shrink-0 no-print cursor-pointer"
                               title="Delete entry"
                             >
-                              <Trash2 size={11} />
+                              <Trash2 size={12} />
                             </button>
                           )}
                         </div>
-                        <div className="text-right pr-1 pl-handwritten-red h-full flex items-center justify-end text-[13px]">
+                        <div className="text-right pr-1 pl-handwritten-red h-full flex items-center justify-end text-[12px] sm:text-[13px]">
                           {formatLedgerAmount(row.amount)}
                         </div>
                       </div>
@@ -1721,14 +1823,14 @@ export default function RegisterPage() {
 
                   {/* Unified Inline Entry Row: Type (Income/Expense) -> Qty -> Particulars -> Amount */}
                   {!isLocked && (
-                    <div className="pt-1 space-y-1 no-print">
-                      <div className="grid grid-cols-[62px_54px_1fr_92px] h-[22px] items-center">
+                    <div className="pt-1.5 space-y-1.5 no-print">
+                      <div className={`grid ${leftGridCols} h-8 sm:h-[22px] items-center`}>
                         <div className="pr-1 border-r border-[#A33A32]/25 h-full flex items-center">
                           <select
                             value={leftMode}
                             onChange={(e) => setLeftMode(e.target.value as LeftEntryMode)}
                             title="Select Income / Expense / Credit / UPI / Loan"
-                            className="w-full h-5 rounded border border-[#A33A32]/30 bg-white/80 px-0.5 text-[10px] font-sans font-bold text-neutral-800 outline-none"
+                            className="w-full h-7 sm:h-5 rounded border border-[#A33A32]/30 bg-white/85 px-0.5 text-[10px] font-sans font-bold text-neutral-800 outline-none"
                           >
                             <option value="CREDIT">Credit</option>
                             <option value="CASH">Cash Slip</option>
@@ -1745,6 +1847,7 @@ export default function RegisterPage() {
                           <input
                             ref={leftQtyRef}
                             type="number"
+                            inputMode="decimal"
                             step="0.01"
                             value={leftQty}
                             placeholder="Qty"
@@ -1761,23 +1864,23 @@ export default function RegisterPage() {
                                 leftParticularsRef.current?.focus();
                               }
                             }}
-                            className="w-full h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-center text-[#103F91] placeholder:text-[#103F91]/40 pl-handwritten text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid disabled:opacity-30 select-text"
+                            className="w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-center text-[#103F91] placeholder:text-[#103F91]/40 pl-handwritten text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid disabled:opacity-30 select-text"
                           />
                         </div>
 
-                        <div className="pl-3 pr-1 h-full flex items-center">
+                        <div className="pl-2 sm:pl-3 pr-1 h-full flex items-center min-w-0">
                           <input
                             ref={leftParticularsRef}
                             type="text"
                             value={leftParticulars}
                             placeholder={
                               leftMode === "LEND_CASH"
-                                ? "Customer name (Loan)..."
+                                ? "Customer (Loan)..."
                                 : leftMode === "INC_CASH"
-                                ? "Cash income (Lube, Scrap)..."
+                                ? "Cash income..."
                                 : leftMode === "EXP_CASH" || leftMode === "EXP_BANK"
-                                ? "Expense (Tea, Repair)..."
-                                : "Customer / Particulars..."
+                                ? "Expense..."
+                                : "Particulars..."
                             }
                             onChange={(e) => setLeftParticulars(e.target.value)}
                             onKeyDown={(e) => {
@@ -1786,7 +1889,7 @@ export default function RegisterPage() {
                                 leftAmtRef.current?.focus();
                               }
                             }}
-                            className={`w-full h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
+                            className={`w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
                               leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
                                 ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
                                 : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
@@ -1798,6 +1901,7 @@ export default function RegisterPage() {
                           <input
                             ref={leftAmtRef}
                             type="number"
+                            inputMode="decimal"
                             step="0.01"
                             value={leftAmt}
                             placeholder="₹ Amt"
@@ -1808,7 +1912,7 @@ export default function RegisterPage() {
                                 saveLeftBookEntryMutation.mutate();
                               }
                             }}
-                            className={`w-full h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-right font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
+                            className={`w-full h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-right font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
                               leftMode.startsWith("EXP") || leftMode === "LEND_CASH"
                                 ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
                                 : "text-[#103F91] pl-handwritten-strong placeholder:text-[#103F91]/40"
@@ -1818,7 +1922,11 @@ export default function RegisterPage() {
                       </div>
 
                       {/* Sub-row: Fuel + Individual UPI Handle selector + Add button */}
-                      <div className="pl-[66px] pr-1 flex flex-wrap items-center gap-1.5 text-[10px] font-sans">
+                      <div
+                        className={`${
+                          isWideLayout ? "pl-[66px]" : "pl-0 sm:pl-[66px]"
+                        } pr-1 flex flex-wrap items-center gap-1.5 text-[11px] font-sans`}
+                      >
                         {(leftMode === "CREDIT" ||
                           leftMode === "CASH" ||
                           leftMode === "UPI" ||
@@ -1826,7 +1934,7 @@ export default function RegisterPage() {
                           <select
                             value={leftFuel}
                             onChange={(e) => setLeftFuel(e.target.value as FuelType)}
-                            className="h-5 rounded border border-[#103F91]/30 bg-white/70 px-1 text-[#103F91] font-semibold outline-none"
+                            className="h-7 sm:h-5 rounded border border-[#103F91]/30 bg-white/80 px-1.5 text-[#103F91] font-semibold outline-none"
                           >
                             <option value="DIESEL">Diesel</option>
                             <option value="PETROL">Petrol</option>
@@ -1843,7 +1951,7 @@ export default function RegisterPage() {
                               const matched = upiAccounts.find((u) => u.uuid === uuid);
                               setLeftUpiBankUuid(matched?.bank_account_uuid || "");
                             }}
-                            className="h-5 max-w-[180px] rounded border border-emerald-700/35 bg-white/80 px-1 text-emerald-900 font-semibold outline-none"
+                            className="h-7 sm:h-5 max-w-[180px] rounded border border-emerald-700/35 bg-white/85 px-1.5 text-emerald-900 font-semibold outline-none"
                           >
                             {upiAccounts.map((u) => (
                               <option key={u.uuid} value={u.uuid}>
@@ -1857,7 +1965,7 @@ export default function RegisterPage() {
                           type="button"
                           disabled={saveLeftBookEntryMutation.isPending}
                           onClick={() => saveLeftBookEntryMutation.mutate()}
-                          className="ml-auto h-5 px-2 rounded bg-[#A33A32] text-white font-semibold hover:bg-[#8c2e27] cursor-pointer disabled:opacity-50"
+                          className="ml-auto h-7 sm:h-5 px-3 sm:px-2 rounded bg-[#A33A32] text-white font-semibold hover:bg-[#8c2e27] cursor-pointer disabled:opacity-50"
                         >
                           {saveLeftBookEntryMutation.isPending ? "..." : "+ Add"}
                         </button>
@@ -1868,19 +1976,30 @@ export default function RegisterPage() {
               </div>
 
               {/* Bottom Cash Denomination Breakdown */}
-              <div className="mt-2 border-t-2 border-[#A33A32]/50 pt-2 grid grid-cols-[1.25fr_1fr] gap-4 text-[#2B2621]">
-                <div className="border-r border-[#A33A32]/25 pr-3 text-[11px] leading-5 rotate-[-0.5deg]">
+              <div
+                className={`mt-4 sm:mt-2 border-t-2 border-[#A33A32]/50 pt-2 grid gap-4 text-[#2B2621] ${
+                  isWideLayout ? "grid-cols-[1.25fr_1fr]" : "grid-cols-1 sm:grid-cols-[1.25fr_1fr]"
+                }`}
+              >
+                <div
+                  className={`${
+                    isWideLayout
+                      ? "border-r border-[#A33A32]/25 pr-3"
+                      : "sm:border-r border-[#A33A32]/25 sm:pr-3"
+                  } text-[11px] leading-5`}
+                >
                   <div className="border-b border-[#A33A32]/25 mb-1 text-[12px] pl-handwritten-red font-bold">
                     Cash Collection Counts
                   </div>
 
-                  <div className="space-y-[0px] pl-handwritten">
+                  <div className="space-y-0.5 sm:space-y-[0px] pl-handwritten">
                     {DENOMINATIONS.map(({ value, key }) => (
-                      <div key={key} className="grid grid-cols-[34px_10px_1fr_10px_auto] items-center gap-1 h-[20px]">
+                      <div key={key} className="grid grid-cols-[34px_10px_1fr_10px_auto] items-center gap-1 h-7 sm:h-[20px]">
                         <span className="text-right">{value}</span>
                         <span className="text-center">×</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           disabled={isLocked}
                           value={notes[key] || ""}
                           placeholder="0"
@@ -1889,7 +2008,7 @@ export default function RegisterPage() {
                             setNotes(updated);
                             saveDenominations(updated);
                           }}
-                          className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-center w-full h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
+                          className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-center w-full h-6 sm:h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
                         />
                         <span className="text-center">=</span>
                         <span className="pl-handwritten-strong font-bold text-neutral-800 pr-1 text-[13px] text-right min-w-[64px]">
@@ -1897,7 +2016,7 @@ export default function RegisterPage() {
                         </span>
                       </div>
                     ))}
-                    <div className="grid grid-cols-[34px_10px_1fr_10px_auto] items-center gap-1 h-[20px] border-t border-[#A33A32]/30 font-bold">
+                    <div className="grid grid-cols-[34px_10px_1fr_10px_auto] items-center gap-1 h-7 sm:h-[20px] border-t border-[#A33A32]/30 font-bold">
                       <span className="col-span-4 text-right pr-1 text-[#A33A32]">Total</span>
                       <span className="pl-handwritten-strong text-neutral-900 text-[13px] text-right min-w-[64px]">
                         {totalCashCounted.toLocaleString("en-IN")}
@@ -1906,24 +2025,25 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col justify-end text-[11px] leading-4 select-none pl-1 font-handwritten">
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 h-[20px]">
+                <div className="flex flex-col justify-end text-[11px] leading-4 select-none pl-0 sm:pl-1 font-handwritten">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 h-6 sm:h-[20px]">
                     <span className="truncate">Cash Collection:</span>
                     <span className="pl-handwritten-strong font-bold text-neutral-800 text-[13px] text-right">
                       {totalCashCounted.toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 border-b border-[#A33A32]/25 h-[20px]">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 border-b border-[#A33A32]/25 h-6 sm:h-[20px]">
                     <span className="text-[#A33A32] truncate">Slips &amp; Expenses:</span>
                     <span className="pl-handwritten-strong font-bold text-neutral-800 text-[13px] text-right">
                       {(totalVouchersAndUpi + totalExpensesAmount).toLocaleString("en-IN")}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 h-[20px]">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 h-7 sm:h-[20px]">
                     <span className="truncate">Cash Sent Home:</span>
                     <input
                       type="number"
+                      inputMode="numeric"
                       disabled={isLocked}
                       value={cashHome || ""}
                       placeholder="0"
@@ -1932,14 +2052,15 @@ export default function RegisterPage() {
                         setCashHome(val);
                         saveDenominations(notes, val, prevDeposit, ledgerInterest);
                       }}
-                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
+                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-6 sm:h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
                     />
                   </div>
 
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 border-b border-[#A33A32]/20 h-[20px]">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 border-b border-[#A33A32]/20 h-7 sm:h-[20px]">
                     <span className="truncate">Deposited to Bank:</span>
                     <input
                       type="number"
+                      inputMode="numeric"
                       disabled={isLocked}
                       value={prevDeposit || ""}
                       placeholder="0"
@@ -1948,11 +2069,11 @@ export default function RegisterPage() {
                         setPrevDeposit(val);
                         saveDenominations(notes, cashHome, val, ledgerInterest);
                       }}
-                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
+                      className="bg-transparent border-b border-dashed border-[#1C2B4A]/25 text-black font-bold text-right w-24 h-6 sm:h-4 outline-none hover:bg-yellow-50/50 focus:bg-yellow-50 focus:border-solid pl-handwritten text-[13px] select-text"
                     />
                   </div>
 
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 font-bold text-red-800 border-t-2 border-double border-[#A33A32]/50 h-[20px]">
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-1 font-bold text-red-800 border-t-2 border-double border-[#A33A32]/50 h-7 sm:h-[20px]">
                     <span className="pl-handwritten-red truncate">Grand Total:</span>
                     <span className="pl-handwritten-strong underline decoration-double decoration-[#A33A32] text-neutral-900 text-[13px] text-right">
                       {grandTotalLeft.toLocaleString("en-IN")}
@@ -1965,22 +2086,26 @@ export default function RegisterPage() {
             {/* ========================================================
                 RIGHT PAGE: EDITABLE OPENING / CLOSING / NET + CASH INCOME / LOAN
                ======================================================== */}
-            <div className="pl-register-page-right flex flex-col select-none">
+            <div
+              className={`pl-register-page-right flex-col select-none ${
+                mobileBookView === "left" ? "hidden lg:flex" : "flex"
+              }`}
+            >
               <div
                 onClick={() => triggerPageTurn("next")}
-                className="pl-page-corner-right no-print"
+                className={`pl-page-corner-right no-print ${isWideLayout ? "block" : "hidden lg:block"}`}
                 title="Click to turn to next page/day"
               />
 
               <div className="pl-register-page-header">
-                <div className="text-center flex-1 flex flex-col items-center">
-                  <span className="pl-handwritten-header pl-handwritten-red tracking-widest font-bold">
-                    Nozzle Readings &amp; Fuel Reconciliation
+                <div className="text-center flex-1 flex flex-col items-center min-w-0">
+                  <span className="pl-handwritten-header pl-handwritten-red tracking-wide sm:tracking-widest font-bold truncate max-w-full">
+                    Nozzle Readings &amp; Sales
                   </span>
-                  <div className="text-[10px] font-mono font-bold inline-block px-4 text-neutral-800">
+                  <div className="text-[10px] font-mono font-bold inline-block px-2 sm:px-4 text-neutral-800 truncate max-w-full">
                     {formattedDateHeader}{" "}
-                    <span className="text-[9px] text-neutral-500 font-normal no-print">
-                      (Opening / Closing / Net editable · Enter jumps across row)
+                    <span className="hidden sm:inline text-[9px] text-neutral-500 font-normal no-print">
+                      (Open / Close / Net editable · Enter jumps across row)
                     </span>
                   </div>
                 </div>
@@ -1995,7 +2120,159 @@ export default function RegisterPage() {
                       Add Tanks &amp; Nozzles in Inventory →
                     </Link>
                   </div>
+                ) : useCompactNozzleCards ? (
+                  /* Mobile Single-Page 2-Column Touch-Friendly Nozzle Cards */
+                  <div className="space-y-3 pb-2">
+                    {Object.entries(groupedDispensers).map(([dispName, dispNozzles]) => (
+                      <div key={dispName} className="space-y-1.5 border-b border-[#A33A32]/25 pb-2.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-[#A33A32]">
+                          <span className="pl-handwritten-red font-bold text-[13px]">{dispName}</span>
+                          <span className="text-[9px] font-mono text-neutral-500">Open → Close → Net L</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {dispNozzles.map((noz) => (
+                            <div
+                              key={noz.nozzle_uuid}
+                              className="rounded-lg border border-[#A33A32]/20 bg-white/45 p-2 space-y-1.5"
+                            >
+                              <div className="text-center pl-handwritten-strong text-[#103F91] font-bold text-[13px] border-b border-[#A33A32]/15 pb-0.5 truncate">
+                                {noz.nozzle_name}
+                              </div>
+                              <label className="flex items-center justify-between gap-1 text-[10px] font-mono text-neutral-600">
+                                <span>Open</span>
+                                <input
+                                  ref={(el) => {
+                                    openingInputRefs.current[noz.idx] = el;
+                                  }}
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.01"
+                                  disabled={isLocked}
+                                  value={noz.opening_str}
+                                  placeholder="Opening"
+                                  onChange={(e) =>
+                                    handleNozzleFieldChange(
+                                      noz.nozzle_uuid,
+                                      "opening",
+                                      e.target.value,
+                                      noz.opening_reading,
+                                      noz.meter_capacity
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key !== "Enter") return;
+                                    e.preventDefault();
+                                    const nextEl = openingInputRefs.current[noz.idx + 1];
+                                    if (nextEl) {
+                                      nextEl.focus();
+                                      nextEl.select();
+                                    }
+                                  }}
+                                  className="w-24 h-7 bg-white/80 rounded border border-[#103F91]/25 px-1 text-right text-[#103F91] outline-none focus:border-[#103F91] pl-handwritten text-[13px] select-text"
+                                />
+                              </label>
+                              {rateChanged6am && (
+                                <label className="flex items-center justify-between gap-1 text-[10px] font-mono text-[#A33A32]">
+                                  <span>6 AM</span>
+                                  <input
+                                    type="number"
+                                    inputMode="decimal"
+                                    step="0.01"
+                                    disabled={isLocked}
+                                    value={noz.interim_str}
+                                    placeholder="6 AM"
+                                    onChange={(e) =>
+                                      handleNozzleFieldChange(
+                                        noz.nozzle_uuid,
+                                        "interim6am",
+                                        e.target.value,
+                                        noz.opening_reading,
+                                        noz.meter_capacity
+                                      )
+                                    }
+                                    className="w-24 h-7 bg-white/80 rounded border border-[#A33A32]/30 px-1 text-right text-[#A33A32] outline-none text-[12px] select-text"
+                                  />
+                                </label>
+                              )}
+                              <label className="flex items-center justify-between gap-1 text-[10px] font-mono text-[#103F91] font-bold">
+                                <span>Close</span>
+                                <input
+                                  ref={(el) => {
+                                    closingInputRefs.current[noz.idx] = el;
+                                  }}
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.01"
+                                  disabled={isLocked}
+                                  value={noz.closing_str}
+                                  placeholder="Closing"
+                                  onChange={(e) =>
+                                    handleNozzleFieldChange(
+                                      noz.nozzle_uuid,
+                                      "closing",
+                                      e.target.value,
+                                      noz.opening_reading,
+                                      noz.meter_capacity
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key !== "Enter") return;
+                                    e.preventDefault();
+                                    const nextEl = closingInputRefs.current[noz.idx + 1];
+                                    if (nextEl) {
+                                      nextEl.focus();
+                                      nextEl.select();
+                                    } else if (!isLocked && !saveReadingsMutation.isPending) {
+                                      saveReadingsMutation.mutate();
+                                    }
+                                  }}
+                                  className="w-24 h-7 bg-white/90 rounded border border-[#103F91]/45 px-1 text-right text-[#103F91] font-bold outline-none focus:border-[#103F91] pl-handwritten-strong text-[13px] select-text"
+                                />
+                              </label>
+                              <label className="flex items-center justify-between gap-1 text-[10px] font-mono text-emerald-800 font-bold">
+                                <span>Net L</span>
+                                <input
+                                  ref={(el) => {
+                                    netInputRefs.current[noz.idx] = el;
+                                  }}
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.01"
+                                  min="0"
+                                  disabled={isLocked}
+                                  value={noz.net_str}
+                                  placeholder="Net L"
+                                  onChange={(e) =>
+                                    handleNozzleFieldChange(
+                                      noz.nozzle_uuid,
+                                      "net",
+                                      e.target.value,
+                                      noz.opening_reading,
+                                      noz.meter_capacity
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key !== "Enter") return;
+                                    e.preventDefault();
+                                    const nextEl = netInputRefs.current[noz.idx + 1];
+                                    if (nextEl) {
+                                      nextEl.focus();
+                                      nextEl.select();
+                                    } else if (!isLocked && !saveReadingsMutation.isPending) {
+                                      saveReadingsMutation.mutate();
+                                    }
+                                  }}
+                                  className="w-24 h-7 bg-emerald-50/70 rounded border border-emerald-700/35 px-1 text-right text-emerald-800 font-bold outline-none focus:border-emerald-800 pl-handwritten-strong text-[13px] select-text"
+                                />
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
+                  /* Classic Desktop / Full-Book 4-Column Bound Ledger Nozzles */
                   Object.entries(groupedDispensers).map(([dispName, dispNozzles], dispIdx, arr) => (
                     <React.Fragment key={dispName}>
                       <div className="relative">
@@ -2025,6 +2302,7 @@ export default function RegisterPage() {
                                   openingInputRefs.current[noz.idx] = el;
                                 }}
                                 type="number"
+                                inputMode="decimal"
                                 step="0.01"
                                 disabled={isLocked}
                                 value={noz.opening_str}
@@ -2064,6 +2342,7 @@ export default function RegisterPage() {
                               <div key={noz.nozzle_uuid} className="h-full flex items-center justify-center px-1">
                                 <input
                                   type="number"
+                                  inputMode="decimal"
                                   step="0.01"
                                   disabled={isLocked}
                                   value={noz.interim_str}
@@ -2096,6 +2375,7 @@ export default function RegisterPage() {
                                   closingInputRefs.current[noz.idx] = el;
                                 }}
                                 type="number"
+                                inputMode="decimal"
                                 step="0.01"
                                 disabled={isLocked}
                                 value={noz.closing_str}
@@ -2139,6 +2419,7 @@ export default function RegisterPage() {
                                   netInputRefs.current[noz.idx] = el;
                                 }}
                                 type="number"
+                                inputMode="decimal"
                                 step="0.01"
                                 min="0"
                                 disabled={isLocked}
@@ -2182,8 +2463,8 @@ export default function RegisterPage() {
               </div>
 
               {/* Fuel type calculation equations */}
-              <div className="pr-8">
-                <div className="h-[20px]" />
+              <div className={isWideLayout ? "pr-8" : "pr-1 sm:pr-8"}>
+                <div className="h-2 sm:h-[20px]" />
 
                 {[
                   { label: "H.S.D", fuelKey: "DIESEL" as const, summary: hsdSummary, rate: hsdRate, amt: hsdAmt },
@@ -2192,14 +2473,17 @@ export default function RegisterPage() {
                 ].map(({ label, fuelKey, summary, rate, amt }) => (
                   <div
                     key={label}
-                    className="flex items-center h-[20px] pl-handwritten text-[#103F91] text-[13px]"
+                    className={`flex ${
+                      isWideLayout ? "flex-nowrap h-[20px]" : "flex-wrap sm:flex-nowrap min-h-[24px] sm:h-[20px] py-0.5 sm:py-0"
+                    } items-center gap-x-1 pl-handwritten text-[#103F91] text-[12px] sm:text-[13px]`}
                   >
-                    <span className="font-bold text-[#A33A32] w-[50px] shrink-0">{label}</span>
-                    <span className="pl-1">= {summary.rawQty.toLocaleString()}</span>
-                    <span className="pl-1 inline-flex items-center">
+                    <span className="font-bold text-[#A33A32] w-[44px] sm:w-[50px] shrink-0">{label}</span>
+                    <span>= {summary.rawQty.toLocaleString()}</span>
+                    <span className="inline-flex items-center">
                       -{" "}
                       <input
                         type="number"
+                        inputMode="decimal"
                         min="0"
                         step="0.5"
                         disabled={isLocked}
@@ -2207,25 +2491,25 @@ export default function RegisterPage() {
                         placeholder="0"
                         title="Testing liters (editable)"
                         onChange={(e) => updateFuelTesting(fuelKey, e.target.value)}
-                        className="w-10 h-4 mx-0.5 bg-transparent border-b border-dashed border-[#103F91]/40 text-center text-[#103F91] font-semibold outline-none focus:bg-yellow-50/70 focus:border-solid text-[12px] select-text"
+                        className="w-10 h-5 sm:h-4 mx-0.5 bg-transparent border-b border-dashed border-[#103F91]/40 text-center text-[#103F91] font-semibold outline-none focus:bg-yellow-50/70 focus:border-solid text-[12px] select-text"
                       />
                     </span>
-                    <span className="pl-1">= {summary.netVol.toLocaleString()} L</span>
-                    <span className="text-[#A33A32] pl-1">× {rate}</span>
+                    <span>= {summary.netVol.toLocaleString()} L</span>
+                    <span className="text-[#A33A32]">× {rate}</span>
                     <span className="ml-auto font-bold pl-handwritten-strong text-[13px] pr-1">
                       {formatLedgerAmount(amt)}
                     </span>
                   </div>
                 ))}
 
-                <div className="h-[20px]" />
+                <div className="h-2 sm:h-[20px]" />
 
                 {/* Cash Income, Recoveries & Inline Cash Income / Money Lended */}
                 <div className="border-t border-[#A33A32]/30">
                   {activeVouchers
                     .filter((row) => row.paymentMode === "CASH")
                     .map((row) => (
-                      <div key={row.uuid} className="flex items-center h-[20px] pl-handwritten text-[12px]">
+                      <div key={row.uuid} className="flex items-center min-h-[24px] sm:h-[20px] pl-handwritten text-[12px]">
                         <span className="truncate flex-1 pr-2">{row.customer_name} [CASH]</span>
                         <span className="pl-handwritten-strong font-bold text-[13px] pr-1 shrink-0">
                           {formatLedgerAmount(row.amount)}
@@ -2233,17 +2517,17 @@ export default function RegisterPage() {
                       </div>
                     ))}
                   {realCashOtherIncomes.map((row) => (
-                    <div key={row.uuid} className="group flex items-center h-[20px] pl-handwritten text-[12px]">
+                    <div key={row.uuid} className="group flex items-center min-h-[24px] sm:h-[20px] pl-handwritten text-[12px]">
                       <span className="truncate flex-1 pr-2">
                         {row.customer_name}
                         {!isLocked && (
                           <button
                             type="button"
                             onClick={() => deleteIncomeMutation.mutate(row.uuid)}
-                            className="opacity-0 group-hover:opacity-100 text-rose-600 ml-1 no-print cursor-pointer"
+                            className="opacity-70 lg:opacity-0 lg:group-hover:opacity-100 text-rose-600 ml-1 no-print cursor-pointer"
                             title="Delete income"
                           >
-                            <Trash2 size={11} className="inline" />
+                            <Trash2 size={12} className="inline" />
                           </button>
                         )}
                       </span>
@@ -2253,7 +2537,7 @@ export default function RegisterPage() {
                     </div>
                   ))}
                   {cashPaymentsForDate.map((p) => (
-                    <div key={p.uuid} className="flex items-center h-[20px] pl-handwritten text-[12px]">
+                    <div key={p.uuid} className="flex items-center min-h-[24px] sm:h-[20px] pl-handwritten text-[12px]">
                       <span className="truncate flex-1 pr-2">Jama: {p.customer_name} [CASH]</span>
                       <span className="pl-handwritten-strong font-bold text-[13px] pr-1 shrink-0">
                         {formatLedgerAmount(p.amount)}
@@ -2263,11 +2547,15 @@ export default function RegisterPage() {
 
                   {/* Inline Right-Page Cash Income / Money Lended Entry */}
                   {!isLocked && (
-                    <div className="flex items-center gap-1.5 h-[24px] pl-handwritten text-[12px] no-print">
+                    <div
+                      className={`flex ${
+                        isWideLayout ? "flex-nowrap h-[24px]" : "flex-wrap sm:flex-nowrap min-h-[28px] sm:h-[24px] py-1 sm:py-0"
+                      } items-center gap-1.5 pl-handwritten text-[12px] no-print`}
+                    >
                       <select
                         value={rightMode}
                         onChange={(e) => setRightMode(e.target.value as RightEntryMode)}
-                        className="h-5 rounded border border-[#103F91]/30 bg-white/70 px-1 text-[10px] font-sans font-semibold text-[#103F91] outline-none"
+                        className="h-7 sm:h-5 rounded border border-[#103F91]/30 bg-white/80 px-1 text-[10px] font-sans font-semibold text-[#103F91] outline-none"
                       >
                         <option value="INCOME">+ Cash Income</option>
                         <option value="LEND_CASH">− Money Lended</option>
@@ -2278,8 +2566,8 @@ export default function RegisterPage() {
                         value={rightDesc}
                         placeholder={
                           rightMode === "LEND_CASH"
-                            ? "Customer name (Money lended)..."
-                            : "Lube, Scrap, Misc income..."
+                            ? "Customer (Loan)..."
+                            : "Lube, Scrap..."
                         }
                         onChange={(e) => setRightDesc(e.target.value)}
                         onKeyDown={(e) => {
@@ -2288,7 +2576,7 @@ export default function RegisterPage() {
                             rightAmtRef.current?.focus();
                           }
                         }}
-                        className={`flex-1 h-4 bg-transparent border-b border-dashed border-[#103F91]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
+                        className={`flex-1 min-w-[120px] h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text ${
                           rightMode === "LEND_CASH"
                             ? "text-[#A33A32] pl-handwritten-red placeholder:text-[#A33A32]/45"
                             : "text-[#103F91] pl-handwritten placeholder:text-[#103F91]/45"
@@ -2297,6 +2585,7 @@ export default function RegisterPage() {
                       <input
                         ref={rightAmtRef}
                         type="number"
+                        inputMode="decimal"
                         value={rightAmt}
                         placeholder="₹ Amt"
                         onChange={(e) => setRightAmt(e.target.value)}
@@ -2306,26 +2595,24 @@ export default function RegisterPage() {
                             saveRightBookEntryMutation.mutate();
                           }
                         }}
-                        className="w-20 h-4 bg-transparent border-b border-dashed border-[#103F91]/35 text-right text-[#103F91] placeholder:text-[#103F91]/45 pl-handwritten-strong font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text"
+                        className="w-20 h-7 sm:h-4 bg-transparent border-b border-dashed border-[#1C2B4A]/35 text-right text-[#103F91] placeholder:text-[#103F91]/45 pl-handwritten-strong font-bold text-[12px] outline-none focus:bg-yellow-50/70 focus:border-solid select-text"
                       />
-                      {rightDesc && rightAmt && (
-                        <button
-                          type="button"
-                          disabled={saveRightBookEntryMutation.isPending}
-                          onClick={() => saveRightBookEntryMutation.mutate()}
-                          className="text-[#103F91] font-bold text-xs cursor-pointer"
-                          title="Save"
-                        >
-                          +
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        disabled={saveRightBookEntryMutation.isPending || !rightDesc || !rightAmt}
+                        onClick={() => saveRightBookEntryMutation.mutate()}
+                        className="h-7 sm:h-5 px-2 rounded bg-[#103F91] text-white font-sans font-semibold text-[10px] cursor-pointer disabled:opacity-35"
+                        title="Save"
+                      >
+                        +
+                      </button>
                     </div>
                   )}
                 </div>
 
-                <div className="h-[20px]" />
+                <div className="h-2 sm:h-[20px]" />
 
-                <div className="flex justify-between text-red-800 font-bold text-sm border-t-2 border-double border-[#A33A32]/50 h-[20px] items-center">
+                <div className="flex justify-between text-red-800 font-bold text-sm border-t-2 border-double border-[#A33A32]/50 h-7 sm:h-[20px] items-center">
                   <span className="pl-handwritten-red">Grand Total:</span>
                   <span className="pl-handwritten-strong underline decoration-double decoration-[#A33A32] text-neutral-900 text-[14px] pr-1">
                     {grandTotalRight.toLocaleString("en-IN", { maximumFractionDigits: 2 })}

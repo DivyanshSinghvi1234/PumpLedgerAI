@@ -697,8 +697,17 @@ tr.table-row-hover:hover {
 /* ── Real Bound Ledger Paper Register Styles ── */
 .pl-register-container {
   background: #0A0908; /* Forecourt at night background */
-  padding: 1.5rem;
-  border-radius: 1.5rem;
+  padding: 0.5rem;
+  border-radius: 1rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@media (min-width: 640px) {
+  .pl-register-container {
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+  }
 }
 
 /* Book shell — owns the 3D perspective (must be the cover's direct parent) and
@@ -935,6 +944,36 @@ tr.table-row-hover:hover {
   border-right: 1px solid #A33A32;
   opacity: 0.72;
   z-index: 10;
+}
+
+@media (max-width: 639px) {
+  .pl-book-mobile-single .pl-register-page-left,
+  .pl-book-mobile-single .pl-register-page-right {
+    min-height: auto;
+    padding: 68px 0.75rem 1.25rem 2.65rem;
+    background-image:
+      linear-gradient(to bottom, #F7F1E3 0px, #F7F1E3 68px, transparent 68px),
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 19px,
+        rgba(0, 0, 0, 0.22) 20px
+      );
+  }
+
+  .pl-book-mobile-single .pl-register-page-header {
+    height: 68px;
+    padding: 0.35rem 0.75rem 0.35rem 2.65rem;
+  }
+
+  .pl-book-mobile-single .pl-register-page-left::before,
+  .pl-book-mobile-single .pl-register-page-right::before {
+    left: 30px;
+  }
+
+  .pl-book-mobile-single .pl-handwritten-header {
+    font-size: 15px;
+  }
 }
 
 /* Red section horizontal headers matching reference photo */
