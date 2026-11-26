@@ -385,14 +385,15 @@ export default function Navbar({
             )}
           </div>
 
-          {/* Language Switcher: English / हिन्दी / Hinglish */}
+          {/* Language Switcher: English / हिन्दी */}
           <button
             type="button"
+            data-no-translate="true"
             onClick={toggleLang}
             className="rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ink hover:bg-surface-3 transition cursor-pointer"
-            title="Switch Language: English / हिन्दी / Hinglish"
+            title={lang === "en" ? "Switch to Hindi (हिंदी)" : "Switch to English"}
           >
-            {lang === "en" ? "EN" : lang === "hi" ? "हिं" : "Hinglish"}
+            {lang === "en" ? "EN / हिं" : "हिं / EN"}
           </button>
 
           <ThemeToggle />
