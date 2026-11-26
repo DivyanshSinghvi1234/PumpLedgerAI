@@ -75,7 +75,10 @@ export function CommandPalette({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl p-0 overflow-hidden gap-0">
+      <DialogContent
+        showCloseButton={false}
+        className="w-[min(92vw,620px)] sm:max-w-2xl p-0 overflow-hidden gap-0"
+      >
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
           <Search size={16} className="text-muted-foreground shrink-0" />
           <input

@@ -125,7 +125,7 @@ export default function Navbar({
     .toUpperCase();
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-hairline bg-canvas/80 backdrop-blur-md px-4 md:px-6 font-sans">
+    <header className="relative z-40 shrink-0 flex h-14 items-center justify-between border-b border-hairline bg-canvas/90 backdrop-blur-md px-4 md:px-6 font-sans">
       <div className="flex items-center gap-3">
         {/* Toggle Sidebar Menu Button */}
         <button
@@ -223,7 +223,7 @@ export default function Navbar({
               <Calculator size={15} />
             </button>
             {cashCalcOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
+              <div className="fixed sm:absolute right-4 sm:right-0 top-14 sm:top-auto sm:mt-2 w-64 max-h-[80vh] overflow-y-auto rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
                 <div className="flex items-center justify-between font-bold text-ink border-b border-hairline pb-1.5">
                   <span>{t("Quick Cash Counter")}</span>
                   <button type="button" onClick={() => setCalcNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 })} className="text-[10px] text-fuel-amber hover:underline cursor-pointer">{t("Reset")}</button>
@@ -330,7 +330,7 @@ export default function Navbar({
               <SlidersHorizontal size={15} />
             </button>
             {prefsOpen && (
-              <div className="absolute right-0 mt-2 w-60 rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
+              <div className="fixed sm:absolute right-4 sm:right-0 top-14 sm:top-auto sm:mt-2 w-60 max-h-[80vh] overflow-y-auto rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
                 <div className="font-bold text-ink border-b border-hairline pb-1.5">
                   Display &amp; Forecourt Mode
                 </div>
