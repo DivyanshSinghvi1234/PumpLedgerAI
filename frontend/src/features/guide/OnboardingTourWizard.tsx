@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Sparkles, X, CheckCircle2 } from "lucide-react";
 
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -18,17 +18,17 @@ interface TourStep {
   tipHi?: string;
 }
 
-const MANAGER_STEPS: TourStep[] = [
+const REGISTER_STEPS: TourStep[] = [
   {
     id: "welcome",
-    title: "Welcome to Your Digital Daily Register",
-    titleHi: "आपके डिजिटल दैनिक रजिस्टर में स्वागत है",
+    title: "Daily Register Guide",
+    titleHi: "दैनिक रजिस्टर गाइड",
     description:
-      "Take a 45-second interactive arrow tour to see how Nozzle Readings, Slips, UPI, Cash Denominations, and 8 PM WhatsApp Closing work together.",
+      "Take a quick arrow tour to see how Nozzle Readings, Slips, UPI, Cash Notes, Full Screen Book, and 8 PM WhatsApp Closing work together.",
     descriptionHi:
-      "45 सेकंड के इस टूर में देखें कि नोज़ल रीडिंग, पर्ची, UPI, नोट गिनती और 8 PM WhatsApp रिपोर्ट एक साथ कैसे काम करते हैं।",
-    tip: "Tip: You can replay this arrow guide anytime from the Guide (?) button.",
-    tipHi: "सुझाव: आप ऊपर 'Guide (?)' बटन से यह टूर कभी भी दोबारा देख सकते हैं।",
+      "इस आसान टूर में देखें कि नोज़ल रीडिंग, पर्ची, UPI, नोट गिनती, फुल स्क्रीन कॉपी और 8 PM WhatsApp रिपोर्ट एक साथ कैसे काम करते हैं।",
+    tip: "Tip: Tap the (?) icon in the top bar anytime for a tour of whatever page or tab you are on.",
+    tipHi: "सुझाव: आप जिस भी पेज या टैब पर हों, ऊपर (?) दबाकर उसका गाइड टूर देख सकते हैं।",
   },
   {
     id: "register-actions",
@@ -43,12 +43,12 @@ const MANAGER_STEPS: TourStep[] = [
   {
     id: "register-fullscreen",
     selector: '[data-tour="register-fullscreen"]',
-    title: "2. Full Screen & Rotate to Fit Screen",
-    titleHi: "2. फुल स्क्रीन और रोटेट करके पूरा रजिस्टर देखें",
+    title: "2. Full Screen Auto-Fit View",
+    titleHi: "2. फुल स्क्रीन व्यू (स्क्रीन में फिट)",
     description:
-      "On mobile or tablet, tap Full Screen / Rotate & Fit to open the entire 2-page bound register rotated sideways and auto-scaled inside your screen!",
+      "Tap Full Screen to expand the complete 2-page bound register and fit it cleanly onto your screen without side scrolling.",
     descriptionHi:
-      "मोबाइल पर पूरी 2-पेज की कॉपी एक साथ देखने के लिए 'रोटेट और फिट' / 'फुल स्क्रीन' दबाएं — पूरी किताब स्क्रीन में फिट हो जाएगी!",
+      "पूरी 2-पेज की कॉपी को बिना दाएं-बाएं खिसकाए एक साथ देखने के लिए 'Full Screen' दबाएं।",
   },
   {
     id: "register-nozzles",
@@ -57,9 +57,9 @@ const MANAGER_STEPS: TourStep[] = [
     title: "3. Enter Opening, Closing or Net Liters",
     titleHi: "3. ओपनिंग, क्लोज़िंग या नेट लीटर भरें",
     description:
-      "Type Closing reading below Opening and press Enter to jump straight to the next nozzle. Or type Net Liters directly and Closing fills in automatically!",
+      "Type Closing reading below Opening and press Enter to jump to the next nozzle. Or type Net Liters directly and Closing fills in automatically!",
     descriptionHi:
-      "ओपनिंग के नीचे क्लोज़िंग लिखकर Enter दबाएं और सीधे अगले नोज़ल पर जाएं। अगर सिर्फ Net लीटर लिखेंगे, तो क्लोज़िंग अपने-आप जुड़ जाएगी!",
+      "ओपनिंग के नीचे क्लोज़िंग लिखकर Enter दबाएं और अगले नोज़ल पर जाएं। अगर सिर्फ Net लीटर लिखेंगे, तो क्लोज़िंग अपने-आप जुड़ जाएगी!",
   },
   {
     id: "register-left-entry",
@@ -68,9 +68,9 @@ const MANAGER_STEPS: TourStep[] = [
     title: "4. Log Credit Slips, UPI, Cash Income & Expenses",
     titleHi: "4. उधार, UPI, कैश आय और खर्च दर्ज करें",
     description:
-      "Choose Type (Credit, Cash Slip, Cash Income, UPI handle, Expense or Loan), enter Qty → Particulars → Amount, and press Enter. Cash Income automatically moves to the Right Page!",
+      "Choose Type (Credit, Cash Slip, Inc ₹ Cash Income, UPI handle, Expense or Loan), enter Qty → Particulars → Amount, and press Enter. Cash Income moves to Right Page automatically!",
     descriptionHi:
-      "Type चुनें (Credit, UPI खाता, Cash आय, खर्च या Loan), फिर मात्रा → विवरण → राशि भरकर Enter दबाएं। कैश आय अपने-आप दाएं पेज पर चली जाएगी।",
+      "Type चुनें (Credit, UPI खाता, कैश आय, खर्च या Loan), फिर मात्रा → विवरण → राशि भरकर Enter दबाएं। कैश आय अपने-आप दाएं पेज पर चली जाएगी।",
   },
   {
     id: "register-denominations",
@@ -86,12 +86,12 @@ const MANAGER_STEPS: TourStep[] = [
   {
     id: "register-structured-form",
     selector: '[data-tour="register-structured-form"]',
-    title: "6. Prefer Typing in a Simple Form Instead?",
-    titleHi: "6. अगर फॉर्म में टाइप करना पसंद हो तो नीचे देखें",
+    title: "6. Interlinked Simple Entry Form Below",
+    titleHi: "6. नीचे जुड़ा हुआ आसान फॉर्म",
     description:
-      "Below the bound register is an interlinked Simple Entry Form for Meters, Slips/Expenses & Cash Notes. Everything typed here updates the bound register above live!",
+      "Prefer typing in clean boxes instead of ledger lines? Enter Meters, Slips/Expenses or Notes here — it updates the bound register above live!",
     descriptionHi:
-      "रजिस्टर के ठीक नीचे आसान एंट्री फॉर्म भी है। आप यहाँ जो भी भरेंगे, वह ऊपर असली रजिस्टर में तुरंत जुड़ जाएगा!",
+      "अगर आप रजिस्टर की लाइन की जगह बड़े बॉक्स में टाइप करना चाहते हैं, तो नीचे इस फॉर्म में भरें — ऊपर का रजिस्टर तुरंत अपडेट होगा!",
   },
   {
     id: "register-lock-whatsapp",
@@ -103,59 +103,328 @@ const MANAGER_STEPS: TourStep[] = [
     descriptionHi:
       "शाम को 'Save & Lock Day' दबाएं और 1 क्लिक में 'WhatsApp' से मालिक को पूरी बिक्री, कैश और मुनाफे की रिपोर्ट भेजें।",
   },
-  {
-    id: "nav-slips",
-    selector: '[data-tour="nav-slips"]',
-    title: "8. Scan Handwritten Slips with AI OCR",
-    titleHi: "8. हाथ की पर्चियाँ AI OCR से स्कैन करें",
-    description:
-      "Have a stack of paper credit slips? Tap here to snap photos — AI reads the Customer, Vehicle, Fuel & Amount directly into Customer Ledger & Register.",
-    descriptionHi:
-      "पर्चियों की फोटो खींचें — AI अपने-आप ग्राहक, गाड़ी और राशि पढ़कर खाते और रजिस्टर में जोड़ देगा।",
-  },
-  {
-    id: "navbar-guide",
-    selector: '[data-tour="navbar-guide"]',
-    title: "Need Help Anytime?",
-    titleHi: "कभी भी मदद चाहिए?",
-    description:
-      "Tap Guide (?) anytime for Hindi/English instructions or to replay this interactive arrow walkthrough.",
-    descriptionHi:
-      "हिंदी या अंग्रेजी में किसी भी स्क्रीन की मदद लेने या यह टूर दोबारा चलाने के लिए कभी भी Guide (?) दबाएं।",
-  },
 ];
 
-const OPERATOR_STEPS: TourStep[] = [
-  {
-    id: "op-welcome",
-    title: "Welcome to PumpLedger Forecourt",
-    titleHi: "PumpLedger में आपका स्वागत है",
-    description:
-      "Quick 20-second guide to recording credit slips fast from your phone or counter.",
-    descriptionHi:
-      "मोबाइल या काउंटर से तुरंत उधार पर्ची दर्ज करने का 20 सेकंड का आसान टूर।",
-  },
-  {
-    id: "op-slips",
-    selector: '[data-tour="nav-slips"]',
-    title: "Scan or Add Fuel Slips",
-    titleHi: "पर्ची स्कैन करें या जोड़ें",
-    description:
-      "Tap here to upload handwritten slip photos (AI OCR) or enter a quick manual slip in seconds.",
-    descriptionHi:
-      "पर्ची की फोटो अपलोड करने या फटाफट मैनुअल पर्ची भरने के लिए यहाँ दबाएं।",
-  },
-  {
-    id: "op-guide",
-    selector: '[data-tour="navbar-guide"]',
-    title: "Open Guide Anytime",
-    titleHi: "कभी भी गाइड खोलें",
-    description:
-      "Tap Guide (?) anytime to switch between Hindi/English tutorials or replay this tour.",
-    descriptionHi:
-      "हिंदी/अंग्रेजी मदद या इस टूर को दोबारा देखने के लिए Guide (?) दबाएं।",
-  },
-];
+function getStepsForRoute(pathname: string, search: string, isOperator: boolean): TourStep[] {
+  const params = new URLSearchParams(search);
+  const tab = params.get("tab") || "";
+
+  if (pathname === "/dashboard" && !isOperator) {
+    return REGISTER_STEPS;
+  }
+
+  if (pathname.startsWith("/dashboard/slips")) {
+    const activeLabel =
+      tab === "quick"
+        ? {
+            en: "Quick Manual Slip Tab",
+            hi: "फटाफट मैनुअल स्लिप टैब",
+            descEn:
+              "Enter customer name, fuel, payment mode (Credit, Cash, UPI handle, Card) and exact ₹ or Liters in 5 seconds without taking a photo.",
+            descHi:
+              "बिना फोटो लिए 5 सेकंड में ग्राहक का नाम, ईंधन, पेमेंट मोड (Credit, Cash, UPI, Card) और राशि या लीटर भरकर स्लिप सेव करें।",
+          }
+        : tab === "list"
+          ? {
+              en: "Stored Slips & Invoices Tab",
+              hi: "पुरानी पर्चियाँ व बिल टैब",
+              descEn:
+                "Search or filter every slip by date, customer, vehicle, or payment mode, and inspect original Backblaze slip photos anytime.",
+              descHi:
+                "तारीख, ग्राहक, गाड़ी या पेमेंट मोड से किसी भी पुरानी पर्ची को खोजें और अपलोड की गई असली फोटो देखें।",
+            }
+          : {
+              en: "Scan Invoice (AI OCR) Tab",
+              hi: "बिल स्कैन (AI OCR) टैब",
+              descEn:
+                "Upload or snap up to 30 handwritten credit slip photos. AI extracts Customer, Vehicle, Qty, and Amount for quick review before posting to Register & Ledger.",
+              descHi:
+                "एक साथ 30 तक हाथ की पर्चियों की फोटो अपलोड करें। AI ग्राहक, गाड़ी, लीटर और राशि पढ़कर सीधे खाते व रजिस्टर में जोड़ देगा।",
+            };
+
+    return [
+      {
+        id: "slips-tabs",
+        selector: '[data-tour="slips-tabs"]',
+        title: "Slips & OCR Tabs",
+        titleHi: "पर्ची और OCR टैब",
+        description:
+          "Switch here between AI Photo Scanning, Quick 5-Second Manual Slip entry, and browsing all Stored Slips.",
+        descriptionHi:
+          "यहाँ से AI फोटो स्कैन, तेज़ मैनुअल स्लिप और सभी पुरानी पर्चियों की सूची के बीच बदलें।",
+      },
+      {
+        id: "slips-content",
+        selector: '[data-tour="slips-content"]',
+        title: activeLabel.en,
+        titleHi: activeLabel.hi,
+        description: activeLabel.descEn,
+        descriptionHi: activeLabel.descHi,
+      },
+      {
+        id: "slips-done",
+        selector: '[data-tour="navbar-guide"]',
+        title: "Every Slip Updates the Daily Register",
+        titleHi: "हर पर्ची सीधे रजिस्टर में जुड़ती है",
+        description:
+          "All approved or manual slips appear automatically on today's Daily Register and Customer Dues. Tap (?) anytime when switching tabs!",
+        descriptionHi:
+          "सेव की गई हर पर्ची अपने-आप दैनिक रजिस्टर और ग्राहक बकाया में जुड़ जाती है। किसी भी टैब पर मदद के लिए (?) दबाएं!",
+      },
+    ];
+  }
+
+  if (pathname.startsWith("/dashboard/customers")) {
+    const tabInfo =
+      tab === "vehicles"
+        ? {
+            en: "Vehicles Lifting History",
+            hi: "गाड़ियों का ईंधन रिकॉर्ड",
+            descEn:
+              "Track fuel lifted, slips, and billing totals for every truck, tractor, or fleet vehicle individually.",
+            descHi:
+              "हर ट्रक, ट्रैक्टर या फ्लीट गाड़ी के हिसाब से डीजल/पेट्रोल की पूरी हिस्ट्री और कुल बिल देखें।",
+          }
+        : tab === "payments"
+          ? {
+              en: "Payments Received (Jama)",
+              hi: "मिली पेमेंट (जमा वसूली)",
+              descEn:
+                "Record Cash or Bank/UPI recoveries from customers. Oldest unpaid slips settle automatically (FIFO) and update Cash/Bank balances + Daily Register.",
+              descHi:
+                "ग्राहकों से कैश या बैंक/UPI में आया पैसा दर्ज करें। पुराने बिल अपने-आप चुकता होंगे और कैश/बैंक व रजिस्टर अपडेट होगा।",
+            }
+          : {
+              en: "Customers & Pending Dues",
+              hi: "ग्राहक और बकाया हिसाब",
+              descEn:
+                "See every credit party's live balance, open their full Statement Print, send a WhatsApp payment reminder, or record a payment.",
+              descHi:
+                "हर उधार पार्टी का बकाया बैलेंस देखें, पूरा स्टेटमेंट प्रिंट करें या एक क्लिक में WhatsApp रिमाइंडर भेजें।",
+            };
+
+    return [
+      {
+        id: "cust-tabs",
+        selector: '[data-tour="customers-tabs"]',
+        title: "Customers, Vehicles & Payments",
+        titleHi: "ग्राहक, गाड़ियाँ और पेमेंट टैब",
+        description:
+          "Switch between Party-Wise Dues, Vehicle Ledgers, and Customer Payment Recoveries from this bar.",
+        descriptionHi:
+          "यहाँ से ग्राहक बकाया, गाड़ी-वार हिसाब और आई हुई पेमेंट के टैब बदलें।",
+      },
+      {
+        id: "cust-content",
+        selector: '[data-tour="customers-content"]',
+        title: tabInfo.en,
+        titleHi: tabInfo.hi,
+        description: tabInfo.descEn,
+        descriptionHi: tabInfo.descHi,
+      },
+    ];
+  }
+
+  if (pathname.startsWith("/dashboard/inventory")) {
+    const tabInfo =
+      tab === "deliveries"
+        ? {
+            en: "Tanker Deliveries (OMC Indents)",
+            hi: "टैंकर डिलीवरी",
+            descEn:
+              "Log IOCL/BPCL/HPCL tanker unloading. Recording a delivery automatically adds liters to your underground tank and deducts bank payment if paid.",
+            descHi:
+              "टैंकर खाली होने की एंट्री डालें — टैंक स्टॉक अपने-आप बढ़ जाएगा और बैंक पेमेंट अपडेट हो जाएगा।",
+          }
+        : tab === "setup"
+          ? {
+              en: "Prices & Nozzle Setup",
+              hi: "रेट और नोज़ल सेटअप",
+              descEn:
+                "Update Petrol/Diesel/Speed daily rates (including 6 AM rate changes) and add or link dispensers & nozzles to underground tanks.",
+              descHi:
+                "पेट्रोल/डीज़ल/स्पीड के रोज़ाना के रेट बदलें और अपनी मशीन व नोज़ल को टैंक से जोड़ें।",
+            }
+          : {
+              en: "Underground Tanks & Live Stock",
+              hi: "टैंक और बचा हुआ स्टॉक",
+              descEn:
+                "Monitor remaining liters per tank, compare Book Stock vs Physical Dip variance, track tank margins, and toggle Packaged Lube/DEF stock.",
+              descHi:
+                "हर टैंक में बचा ईंधन देखें, किताब के स्टॉक बनाम डिप अंतर जांचें और ऑयल/DEF स्टॉक देखें।",
+            };
+
+    return [
+      {
+        id: "inv-tabs",
+        selector: '[data-tour="inventory-tabs"]',
+        title: "Inventory Control Tabs",
+        titleHi: "इन्वेंटरी और स्टॉक टैब",
+        description:
+          "Manage Tanks & Stock, Tanker Deliveries, and Selling Prices & Nozzles across these 3 tabs.",
+        descriptionHi:
+          "इन 3 टैब्स में टैंक स्टॉक, टैंकर डिलीवरी और ईंधन रेट व नोज़ल संभालें।",
+      },
+      {
+        id: "inv-content",
+        selector: '[data-tour="inventory-content"]',
+        title: tabInfo.en,
+        titleHi: tabInfo.hi,
+        description: tabInfo.descEn,
+        descriptionHi: tabInfo.descHi,
+      },
+    ];
+  }
+
+  if (pathname.startsWith("/dashboard/money")) {
+    const tabInfo =
+      tab === "profit"
+        ? {
+            en: "Commission & Net Profit",
+            hi: "कमीशन और शुद्ध मुनाफा",
+            descEn:
+              "Set your dealer ₹/L margin for Petrol, Diesel & Speed to see exact daily & monthly profit automatically calculated minus expenses.",
+            descHi:
+              "पेट्रोल/डीज़ल का प्रति लीटर डीलर कमीशन (₹/L) सेट करें ताकि रोज़ाना का सही मुनाफा खर्च घटाकर दिख सके।",
+          }
+        : tab === "reports"
+          ? {
+              en: "All Accounting Reports",
+              hi: "सभी अकाउंटिंग रिपोर्ट्स",
+              descEn:
+                "View and export Daily Sales, Debtor Aging, Cash Flow, Profit & Loss, and GST reports anytime.",
+              descHi:
+                "दैनिक बिक्री, उधार उम्र, कैश फ्लो, मुनाफा और GST रिपोर्ट्स देखें और डाउनलोड करें।",
+            }
+          : {
+              en: "Cash in Hand & Bank Balances",
+              hi: "हाथ में कैश और बैंक बैलेंस",
+              descEn:
+                "Track drawer cash, HDFC/SBI bank balances, UPI handles (Paytm/PhonePe/GPay), and cash deposits between drawer and bank.",
+              descHi:
+                "ड्रॉअर में कैश, हर बैंक खाते का बैलेंस, UPI खाते और बैंक में कैश जमा का पूरा हिसाब रखें।",
+            };
+
+    return [
+      {
+        id: "money-tabs",
+        selector: '[data-tour="money-tabs"]',
+        title: "Money & Profit Tabs",
+        titleHi: "पैसा और मुनाफा टैब",
+        description:
+          "Check Cash & Bank Balances, configure ₹/L Commission Profit, and export All Reports from these tabs.",
+        descriptionHi:
+          "कैश व बैंक बैलेंस, प्रति लीटर कमीशन मुनाफा और सभी रिपोर्ट्स इन टैब्स से देखें।",
+      },
+      {
+        id: "money-content",
+        selector: '[data-tour="money-content"]',
+        title: tabInfo.en,
+        titleHi: tabInfo.hi,
+        description: tabInfo.descEn,
+        descriptionHi: tabInfo.descHi,
+      },
+    ];
+  }
+
+  if (pathname.startsWith("/dashboard/settings")) {
+    const tabInfo =
+      tab === "tally"
+        ? {
+            en: "Tally ERP XML Export",
+            hi: "Tally XML एक्सपोर्ट",
+            descEn:
+              "Generate Sales, Receipt, Payment & Contra XML files ready to import directly into TallyPrime / Tally ERP 9.",
+            descHi:
+              "सीधे TallyPrime या Tally ERP 9 में इम्पोर्ट करने के लिए Sales, Receipt और Payment XML बनाएं।",
+          }
+        : tab === "audit"
+          ? {
+              en: "Activity & Audit Log",
+              hi: "गतिविधि व ऑडिट लॉग",
+              descEn:
+                "Inspect a complete tamper-evident timeline of edited readings, reopened days, deleted slips, and logins.",
+              descHi:
+                "बदली गई रीडिंग, रीओपन दिन और डिलीट की गई एंट्री का पूरा इतिहास यहाँ देखें।",
+            }
+          : tab === "users"
+            ? {
+                en: "Users & Database Backup",
+                hi: "यूज़र और डेटाबेस बैकअप",
+                descEn:
+                  "Create Manager or Operator accounts with role permissions and download a full database backup.",
+                descHi:
+                  "मैनेजर व स्टाफ अकाउंट बनाएं और अपने पंप के डेटा का पूरा बैकअप लें।",
+              }
+            : {
+                en: "Staff & Monthly Payroll",
+                hi: "स्टाफ और सैलरी हिसाब",
+                descEn:
+                  "Track daily staff attendance, cash advances, deductions, and monthly salary payments in Cash or Bank.",
+                descHi:
+                  "कर्मचारियों की रोज़ की हाज़िरी, एडवांस और महीने की सैलरी पेमेंट यहाँ दर्ज करें।",
+              };
+
+    return [
+      {
+        id: "settings-tabs",
+        selector: '[data-tour="settings-tabs"]',
+        title: "Settings & Tools Tabs",
+        titleHi: "सेटिंग्स और टूल्स टैब",
+        description:
+          "Switch between Staff & Payroll, Tally Export, Activity Log, and Users & Backup.",
+        descriptionHi:
+          "स्टाफ सैलरी, Tally एक्सपोर्ट, ऑडिट लॉग और यूज़र बैकअप के बीच यहाँ से बदलें।",
+      },
+      {
+        id: "settings-content",
+        selector: '[data-tour="settings-content"]',
+        title: tabInfo.en,
+        titleHi: tabInfo.hi,
+        description: tabInfo.descEn,
+        descriptionHi: tabInfo.descHi,
+      },
+    ];
+  }
+
+  if (isOperator || pathname.startsWith("/dashboard/quick-entry")) {
+    return [
+      {
+        id: "op-slips",
+        selector: '[data-tour="nav-slips"]',
+        title: "Scan or Add Fuel Slips",
+        titleHi: "पर्ची स्कैन करें या जोड़ें",
+        description:
+          "Tap here to upload handwritten slip photos (AI OCR) or enter a quick manual slip in seconds.",
+        descriptionHi:
+          "पर्ची की फोटो अपलोड करने या फटाफट मैनुअल पर्ची भरने के लिए यहाँ दबाएं।",
+      },
+      {
+        id: "op-guide",
+        selector: '[data-tour="navbar-guide"]',
+        title: "Section Help (?)",
+        titleHi: "किसी भी सेक्शन की मदद (?)",
+        description:
+          "Tap (?) anytime in the top bar for step-by-step guidance on the screen you have open.",
+        descriptionHi:
+          "आप जिस भी स्क्रीन पर हों, उसकी जानकारी के लिए कभी भी ऊपर (?) दबाएं।",
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "page-guide",
+      selector: '[data-tour="navbar-guide"]',
+      title: "Page Tour",
+      titleHi: "पेज टूर",
+      description:
+        "Use the sidebar or bottom bar to open Daily Register, Slips & OCR, Customers, Inventory, or Money & Profit — tap (?) on any screen or tab to see how it works!",
+      descriptionHi:
+        "नीचे या साइड मेनू से दैनिक रजिस्टर, पर्ची व OCR, ग्राहक, स्टॉक या मुनाफा खोलें — किसी भी स्क्रीन या टैब पर (?) दबाकर उसका गाइड देखें!",
+    },
+  ];
+}
 
 interface RectBox {
   top: number;
@@ -178,7 +447,6 @@ function findVisibleElement(selector: string): HTMLElement | null {
 export function OnboardingTourWizard() {
   const { user } = useCurrentUser();
   const location = useLocation();
-  const navigate = useNavigate();
   const { lang, toggleLang } = useLanguage();
   const { focusMode, hasCompletedTour, setHasCompletedTour } = usePreferences();
 
@@ -192,38 +460,55 @@ export function OnboardingTourWizard() {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [cardHeight, setCardHeight] = useState(215);
 
+  const hasAutoLaunchedRef = useRef(false);
+  const isOpenRef = useRef(false);
+  isOpenRef.current = isOpen;
+
   const isHi = lang === "hi";
   const isOperator = user?.role === "OPERATOR";
-  const steps = isOperator ? OPERATOR_STEPS : MANAGER_STEPS;
+  const steps = useMemo(
+    () => getStepsForRoute(location.pathname, location.search, isOperator),
+    [location.pathname, location.search, isOperator]
+  );
   const currentStep = steps[Math.min(stepIndex, steps.length - 1)];
 
-  // Auto-launch once for first-time users on dashboard
+  // Auto-launch strictly ONCE per first-time session on entry route; never reset active steps
   useEffect(() => {
-    if (hasCompletedTour || focusMode || !user) return;
+    if (hasCompletedTour || focusMode || !user || hasAutoLaunchedRef.current || isOpenRef.current) {
+      return;
+    }
     const isEntryRoute =
       location.pathname === "/dashboard" ||
       (isOperator && location.pathname === "/dashboard/quick-entry");
     if (!isEntryRoute) return;
 
+    hasAutoLaunchedRef.current = true;
     const timer = window.setTimeout(() => {
-      setStepIndex(0);
-      setIsOpen(true);
+      if (!isOpenRef.current) {
+        setStepIndex(0);
+        setIsOpen(true);
+      }
     }, 850);
     return () => window.clearTimeout(timer);
   }, [hasCompletedTour, focusMode, user, location.pathname, isOperator]);
 
-  // Manual trigger event from Guide Drawer
+  // Triggered by (?) button in Top Navbar — tours the active section & tab immediately without navigating away
   useEffect(() => {
     const handleStart = () => {
-      if (!isOperator && location.pathname !== "/dashboard") {
-        navigate("/dashboard");
-      }
+      hasAutoLaunchedRef.current = true;
       setStepIndex(0);
       setIsOpen(true);
     };
     window.addEventListener("pumpledger:start-tour", handleStart);
     return () => window.removeEventListener("pumpledger:start-tour", handleStart);
-  }, [isOperator, location.pathname, navigate]);
+  }, []);
+
+  // Clamp stepIndex safely if tab/route switches while tour stays open
+  useEffect(() => {
+    if (stepIndex >= steps.length) {
+      setStepIndex(0);
+    }
+  }, [steps.length, stepIndex]);
 
   const measureTarget = useCallback(
     (shouldScroll: boolean) => {
@@ -259,7 +544,6 @@ export function OnboardingTourWizard() {
     [isOpen, currentStep]
   );
 
-  // Switch mobile register view when step specifies Left vs Right page & re-measure
   useEffect(() => {
     if (!isOpen || !currentStep) return;
     if (currentStep.registerView) {
@@ -282,20 +566,18 @@ export function OnboardingTourWizard() {
     };
   }, [isOpen, currentStep, measureTarget]);
 
-  // Measure rendered card height for clean placement
   useLayoutEffect(() => {
     if (cardRef.current) {
       const h = cardRef.current.getBoundingClientRect().height;
       if (h > 0) setCardHeight(h);
     }
-  }, [isOpen, stepIndex, isHi]);
+  }, [isOpen, stepIndex, isHi, currentStep]);
 
   const finishTour = useCallback(() => {
     setIsOpen(false);
     setHasCompletedTour(true);
   }, [setHasCompletedTour]);
 
-  // Keyboard navigation (Esc / Left / Right)
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -376,7 +658,6 @@ export function OnboardingTourWizard() {
       role="dialog"
       aria-modal="true"
     >
-      {/* Dark Backdrop when centered welcome or fallback */}
       {!targetRect && (
         <div
           className="fixed inset-0 bg-black/75 backdrop-blur-[2px] transition-opacity"
@@ -384,7 +665,6 @@ export function OnboardingTourWizard() {
         />
       )}
 
-      {/* Spotlight Cutout + Pulsing Ring around Target Element */}
       {targetRect && (
         <div
           className="fixed rounded-xl border-2 border-fuel-amber pointer-events-none transition-all duration-300"
@@ -398,7 +678,6 @@ export function OnboardingTourWizard() {
         />
       )}
 
-      {/* Animated Pointing SVG Arrow connecting Card → Spotlight Target */}
       {arrowCoords && (
         <svg
           className="fixed inset-0 w-full h-full pointer-events-none z-[101]"
@@ -431,7 +710,6 @@ export function OnboardingTourWizard() {
         </svg>
       )}
 
-      {/* Wizard Tooltip Card */}
       <div
         ref={cardRef}
         className="fixed z-[102] rounded-2xl border border-fuel-amber/50 bg-surface-1 p-4 shadow-2xl text-ink transition-all duration-300"
@@ -441,7 +719,6 @@ export function OnboardingTourWizard() {
           width: cardWidth,
         }}
       >
-        {/* Top Row: Badge + Lang Toggle + Close */}
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-fuel-amber/15 border border-fuel-amber/30 px-2.5 py-0.5 text-[10px] font-mono font-bold text-fuel-amber">
             <Sparkles size={11} />
@@ -468,7 +745,6 @@ export function OnboardingTourWizard() {
           </div>
         </div>
 
-        {/* Title & Explanation */}
         <h3 className="text-sm font-bold text-ink leading-snug">
           {isHi ? currentStep.titleHi : currentStep.title}
         </h3>
@@ -482,7 +758,6 @@ export function OnboardingTourWizard() {
           </p>
         )}
 
-        {/* Progress Dots + Navigation Buttons */}
         <div className="mt-3.5 pt-2.5 border-t border-hairline flex items-center justify-between gap-2">
           <button
             type="button"

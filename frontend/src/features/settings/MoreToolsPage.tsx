@@ -45,7 +45,7 @@ export default function MoreToolsPage() {
         </div>
       </div>
 
-      <div className="flex border-b border-hairline gap-3 overflow-x-auto">
+      <div data-tour="settings-tabs" className="flex border-b border-hairline gap-3 overflow-x-auto">
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.key;
@@ -67,12 +67,14 @@ export default function MoreToolsPage() {
         })}
       </div>
 
-      <Suspense fallback={<LoadingState />}>
-        {activeTab === "staff" && <StaffPayrollPage />}
-        {activeTab === "tally" && <TallyExportPage />}
-        {activeTab === "audit" && <AuditLogPage />}
-        {activeTab === "users" && isAdmin && <UserManagementPage />}
-      </Suspense>
+      <div data-tour="settings-content">
+        <Suspense fallback={<LoadingState />}>
+          {activeTab === "staff" && <StaffPayrollPage />}
+          {activeTab === "tally" && <TallyExportPage />}
+          {activeTab === "audit" && <AuditLogPage />}
+          {activeTab === "users" && isAdmin && <UserManagementPage />}
+        </Suspense>
+      </div>
     </div>
   );
 }

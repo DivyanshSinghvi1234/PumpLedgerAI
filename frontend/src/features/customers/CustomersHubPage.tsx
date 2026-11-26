@@ -35,7 +35,7 @@ export default function CustomersHubPage() {
         </p>
       </div>
 
-      <div className="flex border-b border-hairline gap-3 overflow-x-auto">
+      <div data-tour="customers-tabs" className="flex border-b border-hairline gap-3 overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.key;
@@ -57,11 +57,13 @@ export default function CustomersHubPage() {
         })}
       </div>
 
-      <Suspense fallback={<LoadingState />}>
-        {activeTab === "customers" && <CustomerListPage />}
-        {activeTab === "vehicles" && <VehicleListPage />}
-        {activeTab === "payments" && <PaymentListPage />}
-      </Suspense>
+      <div data-tour="customers-content">
+        <Suspense fallback={<LoadingState />}>
+          {activeTab === "customers" && <CustomerListPage />}
+          {activeTab === "vehicles" && <VehicleListPage />}
+          {activeTab === "payments" && <PaymentListPage />}
+        </Suspense>
+      </div>
     </div>
   );
 }

@@ -26,7 +26,7 @@ export default function InventoryPage() {
       />
 
       {/* 3 Clear Tabs */}
-      <div className="flex border-b border-hairline gap-4 overflow-x-auto">
+      <div data-tour="inventory-tabs" className="flex border-b border-hairline gap-4 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("tanks")}
@@ -68,6 +68,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Tab Panels */}
+      <div data-tour="inventory-content">
       {activeTab === "tanks" && (
         <div className="space-y-6">
           <StockReconciliationTab isAdminOrManager={isAdminOrManager} />
@@ -101,6 +102,7 @@ export default function InventoryPage() {
           <DispenserTab isAdminOrManager={isAdminOrManager} />
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -35,7 +35,7 @@ export default function SlipsHubPage() {
         </p>
       </div>
 
-      <div className="flex border-b border-hairline gap-3 overflow-x-auto">
+      <div data-tour="slips-tabs" className="flex border-b border-hairline gap-3 overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.key;
@@ -57,11 +57,13 @@ export default function SlipsHubPage() {
         })}
       </div>
 
-      <Suspense fallback={<LoadingState />}>
-        {activeTab === "scan" && <UploadPage />}
-        {activeTab === "quick" && <QuickEntryPage />}
-        {activeTab === "list" && <VoucherListPage />}
-      </Suspense>
+      <div data-tour="slips-content">
+        <Suspense fallback={<LoadingState />}>
+          {activeTab === "scan" && <UploadPage />}
+          {activeTab === "quick" && <QuickEntryPage />}
+          {activeTab === "list" && <VoucherListPage />}
+        </Suspense>
+      </div>
     </div>
   );
 }

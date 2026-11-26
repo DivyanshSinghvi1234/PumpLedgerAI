@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Compass,
   Fuel,
   Lock,
   Maximize2,
@@ -21,7 +20,6 @@ import {
   Minimize2,
   Printer,
   RefreshCw,
-  RotateCw,
   Save,
   Sparkles,
   Trash2,
@@ -100,7 +98,6 @@ export default function RegisterPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [mobileBookView, setMobileBookView] = useState<"right" | "left" | "book">("book");
   const [isBookFullscreen, setIsBookFullscreen] = useState(false);
-  const [isRotatedLandscape, setIsRotatedLandscape] = useState(false);
   const [fitToScreen, setFitToScreen] = useState(true);
   const [fsViewport, setFsViewport] = useState(() => ({
     w: typeof window !== "undefined" ? window.innerWidth : 1024,
@@ -128,25 +125,11 @@ export default function RegisterPage() {
     };
   }, []);
 
-  const toggleFullscreenBook = (rotateOnOpen = false) => {
+  const toggleFullscreenBook = () => {
     setIsBookFullscreen((prev) => {
       const next = !prev;
       if (next) {
         setFitToScreen(true);
-        const shouldRotate = rotateOnOpen || (window.innerHeight > window.innerWidth);
-        setIsRotatedLandscape(shouldRotate);
-        if (shouldRotate && (screen.orientation as any)?.lock) {
-          (screen.orientation as any).lock("landscape").catch(() => {});
-        }
-      } else {
-        setIsRotatedLandscape(false);
-        if ((screen.orientation as any)?.unlock) {
-          try {
-            (screen.orientation as any).unlock();
-          } catch {
-            // ignore
-          }
-        }
       }
       return next;
     });
@@ -1308,9 +1291,7 @@ export default function RegisterPage() {
   const bookBaseH = 840;
   const availW = Math.max(260, fsViewport.w - 16);
   const availH = Math.max(260, fsViewport.h - 56);
-  const fsScale = isRotatedLandscape
-    ? Math.min(availH / bookBaseW, availW / bookBaseH, 1.35)
-    : Math.min(availW / bookBaseW, availH / bookBaseH, 1.25);
+  const fsScale = Math.min(availW / bookBaseW, availH / bookBaseH, 1.25);
 
   return (
     <div className="space-y-3 sm:space-y-4 min-w-0 print-container">
@@ -1385,26 +1366,12 @@ export default function RegisterPage() {
             type="button"
             variant="outline"
             data-tour="register-fullscreen"
-            onClick={() => toggleFullscreenBook(true)}
+            onClick={() => toggleFullscreenBook()}
             className="h-9 border-fuel-amber/40 text-fuel-amber hover:bg-fuel-amber/10"
-            title="Open Full Book in Full Screen & Rotate to Fit Screen"
+            title="Open Full Book in Full Screen"
           >
             <Maximize2 size={14} className="mr-1.5" />
-            <span className="hidden xs:inline sm:inline">
-              {isCompactViewport ? t("Rotate & Fit") : t("Full Screen")}
-            </span>
-          </Button>
-
-          <Button
-            size="sm"
-            type="button"
-            variant="outline"
-            onClick={() => window.dispatchEvent(new CustomEvent("pumpledger:start-tour"))}
-            className="h-9"
-            title="Start Step-by-Step Arrow Demo Tour"
-          >
-            <Compass size={14} className="sm:mr-1 text-fuel-amber" />
-            <span className="hidden sm:inline">{t("Tour")}</span>
+            <span>{t("Full Screen")}</span>
           </Button>
 
           <Button
@@ -1463,13 +1430,13 @@ export default function RegisterPage() {
           </div>
           {mobileBookView === "book" && (
             <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted px-1">
-              <span>Swipe left/right inside book, or tap Rotate &amp; Fit to view all on 1 screen.</span>
+              <span>Swipe left/right inside book, or open Full Screen to fit cleanly.</span>
               <button
                 type="button"
-                onClick={() => toggleFullscreenBook(true)}
+                onClick={() => toggleFullscreenBook()}
                 className="inline-flex items-center gap-1 rounded-md border border-fuel-amber/40 bg-fuel-amber/10 px-2 py-0.5 text-[10px] font-bold text-fuel-amber shrink-0"
               >
-                <RotateCw size={10} /> {t("Rotate & Fit")}
+                <Maximize2 size={10} /> {t("Full Screen")}
               </button>
             </div>
           )}
@@ -1529,34 +1496,7 @@ export default function RegisterPage() {
 
               <button
                 type="button"
-                onClick={() => {
-                  const nextRot = !isRotatedLandscape;
-                  setIsRotatedLandscape(nextRot);
-                  setFitToScreen(true);
-                  if (nextRot && (screen.orientation as any)?.lock) {
-                    (screen.orientation as any).lock("landscape").catch(() => {});
-                  } else if (!nextRot && (screen.orientation as any)?.unlock) {
-                    try {
-                      (screen.orientation as any).unlock();
-                    } catch {
-                      // ignore
-                    }
-                  }
-                }}
-                className={`h-8 px-2.5 rounded-lg border inline-flex items-center gap-1 font-semibold cursor-pointer ${
-                  isRotatedLandscape
-                    ? "border-fuel-amber bg-fuel-amber text-black"
-                    : "border-white/20 bg-white/10 text-white"
-                }`}
-                title="Rotate 90° Landscape"
-              >
-                <RotateCw size={13} />
-                <span className="hidden sm:inline">90°</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => toggleFullscreenBook(false)}
+                onClick={() => toggleFullscreenBook()}
                 className="h-8 px-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold inline-flex items-center gap-1 cursor-pointer"
               >
                 <Minimize2 size={13} />
@@ -1589,9 +1529,7 @@ export default function RegisterPage() {
                     top: "50%",
                     left: "50%",
                     width: `${bookBaseW}px`,
-                    transform: `translate(-50%, -50%) ${
-                      isRotatedLandscape ? "rotate(90deg) " : ""
-                    }scale(${fsScale})`,
+                    transform: `translate(-50%, -50%) scale(${fsScale})`,
                     transformOrigin: "center center",
                   }
                 : undefined

@@ -92,7 +92,7 @@ export default function MoneyProfitHubPage() {
         </p>
       </div>
 
-      <div className="flex border-b border-hairline gap-3 overflow-x-auto">
+      <div data-tour="money-tabs" className="flex border-b border-hairline gap-3 overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = activeTab === t.key;
@@ -114,7 +114,8 @@ export default function MoneyProfitHubPage() {
         })}
       </div>
 
-      <Suspense fallback={<LoadingState />}>
+      <div data-tour="money-content">
+        <Suspense fallback={<LoadingState />}>
         {activeTab === "bank" && <BankAccountsPage />}
 
         {activeTab === "profit" && (
@@ -163,7 +164,8 @@ export default function MoneyProfitHubPage() {
         )}
 
         {activeTab === "reports" && <ReportsPage />}
-      </Suspense>
+        </Suspense>
+      </div>
     </div>
   );
 }

@@ -6,9 +6,7 @@ import {
   Menu,
   Building2,
   Calculator,
-  Search,
   Fuel,
-  X,
   HelpCircle,
   Command,
   SlidersHorizontal,
@@ -21,7 +19,6 @@ import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { usePreferences } from "@/lib/preferences";
-import { InstructorDrawer } from "@/features/guide/InstructorDrawer";
 import api from "@/api/client";
 import { formatCurrency } from "@/lib/utils";
 
@@ -57,9 +54,7 @@ export default function Navbar({
     setSoundEnabled,
   } = usePreferences();
 
-  const [lookupQuery, setLookupQuery] = useState("");
   const [cashCalcOpen, setCashCalcOpen] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [calcNotes, setCalcNotes] = useState({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
   const [syncState, setSyncState] = useState<{ ok: boolean; at: number }>({
@@ -91,17 +86,6 @@ export default function Navbar({
       return res.data as Array<{ uuid: string; name: string; fuel_type: string; current_stock_liters: number; capacity_liters: number }>;
     },
     staleTime: 60_000,
-  });
-
-  const { data: lookupResults = [] } = useQuery({
-    queryKey: ["navbar-balance-lookup", lookupQuery],
-    queryFn: async () => {
-      const res = await api.get("/v1/customers/search/autocomplete", {
-        params: { q: lookupQuery.trim(), limit: 5 },
-      });
-      return res.data as Array<{ uuid: string; name: string; outstanding_balance: number; mobile?: string }>;
-    },
-    enabled: lookupQuery.trim().length >= 2,
   });
 
   const calcTotal =
@@ -174,44 +158,6 @@ export default function Navbar({
             </div>
           )}
 
-          {/* Top-Bar Instant Balance Lookup */}
-          <div className="relative hidden md:block">
-            <div className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-2 px-2.5 py-1">
-              <Search size={12} className="text-ink-muted" />
-              <input
-                value={lookupQuery}
-                onChange={(e) => setLookupQuery(e.target.value)}
-                placeholder={t("Check Customer Due...")}
-                className="w-36 bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
-              />
-              {lookupQuery && (
-                <button type="button" onClick={() => setLookupQuery("")} className="text-ink-muted hover:text-ink cursor-pointer">
-                  <X size={11} />
-                </button>
-              )}
-            </div>
-            {lookupQuery.trim().length >= 2 && lookupResults.length > 0 && (
-              <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-hairline bg-surface-1 shadow-xl p-1.5 z-50 space-y-1">
-                {lookupResults.map((c) => (
-                  <button
-                    key={c.uuid}
-                    type="button"
-                    onClick={() => {
-                      setLookupQuery("");
-                      navigate(`/dashboard/customers/${c.uuid}/ledger`);
-                    }}
-                    className="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs hover:bg-surface-2 cursor-pointer text-left"
-                  >
-                    <span className="font-medium text-ink truncate">{c.name}</span>
-                    <span className="font-mono font-bold text-fuel-amber shrink-0 ml-2">
-                      {formatCurrency(c.outstanding_balance)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Quick Cash Counter Widget */}
           <div className="relative">
             <button
@@ -272,16 +218,16 @@ export default function Navbar({
             {lang === "en" ? "हिं" : "EN"}
           </button>
 
-          {/* Interactive Instructor / Tutorial Guide */}
+          {/* Interactive Section Tour Trigger (?) */}
           <button
             type="button"
             data-tour="navbar-guide"
-            onClick={() => setGuideOpen(true)}
-            className="inline-flex items-center gap-1 rounded-lg border border-fuel-amber/40 bg-fuel-amber/10 p-2 sm:px-2.5 sm:py-1.5 text-xs font-bold text-fuel-amber hover:bg-fuel-amber/20 transition cursor-pointer"
-            title={lang === "hi" ? "इंटरैक्टिव गाइड खोलें" : "Open Interactive Tutorial & Guide"}
+            onClick={() => window.dispatchEvent(new CustomEvent("pumpledger:start-tour"))}
+            className="inline-flex items-center justify-center rounded-lg border border-fuel-amber/40 bg-fuel-amber/10 p-2 sm:p-1.5 text-xs font-bold text-fuel-amber hover:bg-fuel-amber/20 transition cursor-pointer"
+            title={lang === "hi" ? "इस सेक्शन का टूर देखें (?)" : "Interactive Section Tour (?)"}
+            aria-label={lang === "hi" ? "टूर देखें" : "Start section tour"}
           >
-            <HelpCircle size={15} />
-            <span className="hidden sm:inline">{lang === "hi" ? "गाइड" : "Guide"}</span>
+            <HelpCircle size={16} />
           </button>
 
           {/* Divider (desktop+) */}
@@ -380,45 +326,6 @@ export default function Navbar({
                       </button>
                     </div>
                   )}
-
-                  {/* Mobile Customer Balance Lookup */}
-                  <div className="relative">
-                    <div className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5">
-                      <Search size={13} className="text-ink-muted shrink-0" />
-                      <input
-                        value={lookupQuery}
-                        onChange={(e) => setLookupQuery(e.target.value)}
-                        placeholder={t("Check Customer Due...")}
-                        className="w-full bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
-                      />
-                      {lookupQuery && (
-                        <button type="button" onClick={() => setLookupQuery("")} className="text-ink-muted">
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                    {lookupQuery.trim().length >= 2 && lookupResults.length > 0 && (
-                      <div className="mt-1 rounded-lg border border-hairline bg-surface-2 p-1 space-y-1">
-                        {lookupResults.map((c) => (
-                          <button
-                            key={`mob-${c.uuid}`}
-                            type="button"
-                            onClick={() => {
-                              setLookupQuery("");
-                              setPrefsOpen(false);
-                              navigate(`/dashboard/customers/${c.uuid}/ledger`);
-                            }}
-                            className="w-full flex items-center justify-between rounded px-2 py-1 text-xs hover:bg-surface-3 text-left"
-                          >
-                            <span className="font-medium text-ink truncate">{c.name}</span>
-                            <span className="font-mono font-bold text-fuel-amber shrink-0 ml-2">
-                              {formatCurrency(c.outstanding_balance)}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
 
                   <div className="flex items-center justify-between gap-2">
                     <button
@@ -531,7 +438,6 @@ export default function Navbar({
             <span className="hidden md:inline">{t("Logout")}</span>
           </button>
         </div>
-      <InstructorDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
     </header>
   );
 }
