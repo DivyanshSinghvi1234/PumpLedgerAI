@@ -136,7 +136,7 @@ export default function PurchaseIndentsTab({ isAdminOrManager }: { isAdminOrMana
     <div className="space-y-6">
       {/* Top Header & New Indent Button */}
       {isAdminOrManager && (
-        <div className="flex justify-end items-center gap-2 -mt-12 mb-6">
+        <div className="flex flex-wrap justify-end items-center gap-2">
           <Button
             onClick={() => setCreateDialogOpen(true)}
             className="bg-fuel-amber hover:bg-fuel-amber/90 text-canvas font-medium shadow-md shadow-fuel-amber/15 cursor-pointer text-xs h-9"

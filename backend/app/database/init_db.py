@@ -179,6 +179,8 @@ def check_and_update_schema() -> None:
             # columns are loaded), including the meter-readings bulk-form query.
             ("nozzle_readings", "testing_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("nozzle_readings", "return_testing_to_storage", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("nozzle_readings", "is_rollover", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("nozzle_readings", "is_meter_replaced", "BOOLEAN NOT NULL DEFAULT FALSE"),
             ("dip_readings", "deliveries_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "nozzle_sales_liters", "FLOAT NOT NULL DEFAULT 0"),
             ("dip_readings", "unbilled_cash_variance", "FLOAT NOT NULL DEFAULT 0"),

@@ -368,7 +368,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
     <div className="space-y-6">
       {/* Header Add Button & Transfer Button */}
       {isAdminOrManager && (
-        <div className="flex justify-end items-center gap-2 -mt-12 mb-6">
+        <div className="flex flex-wrap justify-end items-center gap-2">
           <Button
             onClick={() => {
               if (!tanks || tanks.length < 2) {
