@@ -14,6 +14,7 @@ import {
   Pencil,
   Trash2,
   FileSpreadsheet,
+  Smartphone,
 } from "lucide-react";
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
@@ -28,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import bankAccountService from "./services/bankAccountService";
+import bankAccountService, { type UpiAccount } from "./services/bankAccountService";
 import type { BankAccountCreate, CashDepositRequest } from "./types/bankAccount";
 import { formatCurrency } from "@/lib/utils";
 
@@ -66,6 +67,58 @@ export default function BankAccountsPage() {
   const [reconcilePayRowIdx, setReconcilePayRowIdx] = useState<number | null>(null);
   const [reconcileCustName, setReconcileCustName] = useState("");
   const [reconcileCustUuid, setReconcileCustUuid] = useState("");
+
+  // UPI Accounts State
+  const [upiDialogOpen, setUpiDialogOpen] = useState(false);
+  const [editingUpi, setEditingUpi] = useState<UpiAccount | null>(null);
+  const [upiName, setUpiName] = useState("");
+  const [upiProvider, setUpiProvider] = useState("PHONEPE");
+  const [upiId, setUpiId] = useState("");
+  const [upiBankUuid, setUpiBankUuid] = useState("");
+
+  const { data: upiAccounts } = useQuery({
+    queryKey: ["upi-accounts"],
+    queryFn: () => bankAccountService.getUpiAccounts(),
+  });
+
+  const saveUpiMutation = useMutation({
+    mutationFn: () => {
+      if (editingUpi) {
+        return bankAccountService.updateUpiAccount(editingUpi.uuid, {
+          name: upiName.trim(),
+          provider: upiProvider,
+          upi_id: upiId.trim() || null,
+          bank_account_uuid: upiBankUuid,
+        });
+      }
+      return bankAccountService.createUpiAccount({
+        name: upiName.trim(),
+        provider: upiProvider,
+        upi_id: upiId.trim() || null,
+        bank_account_uuid: upiBankUuid,
+      });
+    },
+    onSuccess: () => {
+      toast.success(editingUpi ? "UPI account updated!" : "UPI account added!");
+      queryClient.invalidateQueries({ queryKey: ["upi-accounts"] });
+      setUpiDialogOpen(false);
+      setEditingUpi(null);
+      setUpiName("");
+      setUpiProvider("PHONEPE");
+      setUpiId("");
+      setUpiBankUuid("");
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to save UPI account."),
+  });
+
+  const deleteUpiMutation = useMutation({
+    mutationFn: (uuid: string) => bankAccountService.deleteUpiAccount(uuid),
+    onSuccess: () => {
+      toast.success("UPI account removed.");
+      queryClient.invalidateQueries({ queryKey: ["upi-accounts"] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete UPI account."),
+  });
 
   // New Bank Form State
   const [accountName, setAccountName] = useState("Main Current Account");
@@ -448,6 +501,86 @@ export default function BankAccountsPage() {
                       Deposit Cash
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* UPI Accounts & QR Handles Section */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+            <Smartphone size={16} className="text-emerald-400" /> UPI Accounts &amp; QR Handles (Linked to Banks)
+          </h3>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setEditingUpi(null);
+              setUpiName("");
+              setUpiProvider("PHONEPE");
+              setUpiId("");
+              setUpiBankUuid(summary?.accounts?.[0]?.uuid || "");
+              setUpiDialogOpen(true);
+            }}
+            className="h-8 text-xs border-hairline text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+          >
+            <Plus size={14} className="mr-1" /> Add UPI Account
+          </Button>
+        </div>
+
+        {!upiAccounts || upiAccounts.length === 0 ? (
+          <Card className="glass p-6 text-center text-xs text-ink-subtle italic">
+            No UPI accounts added yet. Add PhonePe, Paytm, or GPay handles and link each to HDFC, SBI, etc.
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upiAccounts.map((u) => (
+              <Card key={u.uuid} className="glass border-hairline hover:border-emerald-500/40 transition-colors">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border-transparent font-bold text-[10px]">
+                      {u.provider}
+                    </Badge>
+                    <span className="text-[10px] font-mono text-ink-subtle">
+                      → {u.bank_name}
+                    </span>
+                  </div>
+                  <CardTitle className="text-sm font-bold text-ink mt-1.5">{u.name}</CardTitle>
+                  <CardDescription className="text-xs font-mono text-ink-subtle">
+                    {u.upi_id ? `UPI ID: ${u.upi_id}` : "No VPA set"} · Linked: {u.bank_account_name}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-2 border-t border-hairline flex items-center justify-end gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingUpi(u);
+                      setUpiName(u.name);
+                      setUpiProvider(u.provider);
+                      setUpiId(u.upi_id || "");
+                      setUpiBankUuid(u.bank_account_uuid);
+                      setUpiDialogOpen(true);
+                    }}
+                    className="h-8 text-xs border-hairline text-ink hover:bg-surface-3 cursor-pointer"
+                  >
+                    <Pencil size={13} className="mr-1" /> Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (window.confirm(`Delete UPI account "${u.name}"?`)) {
+                        deleteUpiMutation.mutate(u.uuid);
+                      }
+                    }}
+                    className="h-8 text-xs border-hairline text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                  >
+                    <Trash2 size={13} className="mr-1" /> Delete
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -1035,6 +1168,81 @@ export default function BankAccountsPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add / Edit UPI Account Dialog */}
+      <Dialog open={upiDialogOpen} onOpenChange={setUpiDialogOpen}>
+        <DialogContent className="glass border border-hairline sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+              <Smartphone size={16} className="text-emerald-400" />
+              {editingUpi ? "Edit UPI Account" : "Add UPI Account"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ink-subtle">
+              Name your PhonePe, Paytm, or GPay handle and link it to a bank account so UPI receipts credit that bank automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!upiName.trim() || !upiBankUuid) {
+                toast.error("Please enter a name and select a linked bank account.");
+                return;
+              }
+              saveUpiMutation.mutate();
+            }}
+            className="space-y-3 py-2"
+          >
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-ink-muted">Display Name *</Label>
+              <Input
+                placeholder="e.g. Forecourt PhonePe QR / Office Paytm"
+                value={upiName}
+                onChange={(e) => setUpiName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-ink-muted">Provider *</Label>
+                <select
+                  value={upiProvider}
+                  onChange={(e) => setUpiProvider(e.target.value)}
+                  className="w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-xs text-ink"
+                >
+                  <option value="PHONEPE">PhonePe</option>
+                  <option value="PAYTM">Paytm</option>
+                  <option value="GPAY">Google Pay (GPay)</option>
+                  <option value="BHARATPE">BharatPe</option>
+                  <option value="RAZORPAY">Razorpay QR</option>
+                  <option value="OTHER">Other UPI</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-ink-muted">UPI ID / VPA (optional)</Label>
+                <Input
+                  placeholder="e.g. pump@ybl"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                />
+              </div>
+            </div>
+            <BankAccountSelect
+              value={upiBankUuid}
+              onChange={setUpiBankUuid}
+              label="Linked Bank Account *"
+              required
+            />
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setUpiDialogOpen(false)} className="text-xs h-9">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saveUpiMutation.isPending} className="bg-emerald-600 text-white text-xs h-9">
+                {saveUpiMutation.isPending ? "Saving..." : editingUpi ? "Save Changes" : "Add UPI Account"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

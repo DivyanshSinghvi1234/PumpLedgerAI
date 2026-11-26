@@ -64,3 +64,31 @@ class LiquidFundsSummaryResponse(BaseModel):
     total_bank_balance: Decimal
     total_liquid_funds: Decimal
     accounts: list[BankAccountResponse]
+
+
+class UpiAccountCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    provider: str = Field("PHONEPE", max_length=40)
+    upi_id: Optional[str] = Field(None, max_length=120)
+    bank_account_uuid: str
+
+
+class UpiAccountUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    provider: Optional[str] = Field(None, max_length=40)
+    upi_id: Optional[str] = Field(None, max_length=120)
+    bank_account_uuid: Optional[str] = None
+
+
+class UpiAccountResponse(BaseModel):
+    uuid: str
+    name: str
+    provider: str
+    upi_id: Optional[str] = None
+    bank_account_uuid: str
+    bank_name: str
+    bank_account_name: str
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

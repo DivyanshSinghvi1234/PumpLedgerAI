@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +23,7 @@ interface CustomerOption {
 }
 
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiAccountSelect from "@/components/common/UpiAccountSelect";
 
 // Enum values mirror the backend (app/core/enums.py).
 const PAYMENT_OPTIONS: { label: string; value: PaymentMode }[] = [
@@ -130,6 +132,7 @@ export default function PaymentForm({
   const customerUuid = watch("customer_uuid") ?? "";
   const vehicleNumber = watch("vehicle_number") ?? "";
   const paymentMode = watch("payment_mode");
+  const [selectedUpiUuid, setSelectedUpiUuid] = useState("");
 
   function submitForm(
     data: PaymentFormData
@@ -236,6 +239,23 @@ export default function PaymentForm({
               {...register("bank_amount")}
             />
           </>
+        )}
+
+        {(paymentMode === "UPI" || paymentMode === "SPLIT") && (
+          <div className="col-span-1 sm:col-span-2">
+            <UpiAccountSelect
+              value={selectedUpiUuid}
+              onChange={(upiUuid, linkedBankUuid, acc) => {
+                setSelectedUpiUuid(upiUuid);
+                if (linkedBankUuid) {
+                  setValue("bank_account_uuid", linkedBankUuid, { shouldValidate: true });
+                }
+                if (acc && !watch("reference_number")) {
+                  setValue("reference_number", `${acc.provider}:${acc.name}`);
+                }
+              }}
+            />
+          </div>
         )}
 
         {(paymentMode === "UPI" || paymentMode === "CARD" || paymentMode === "BANK" || paymentMode === "SPLIT") && (

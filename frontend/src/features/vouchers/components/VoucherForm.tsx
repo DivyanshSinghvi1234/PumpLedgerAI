@@ -13,6 +13,7 @@ import FormSelect from "@/components/forms/FormSelect";
 import FormTextarea from "@/components/forms/FormTextarea";
 import FormDatePicker from "@/components/forms/FormDatePicker";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiAccountSelect from "@/components/common/UpiAccountSelect";
 import CustomerAutocomplete from "@/features/customers/components/CustomerAutocomplete";
 import VehicleAutocomplete from "@/features/vehicles/components/VehicleAutocomplete";
 import { getTodayDateString } from "@/lib/utils";
@@ -183,6 +184,7 @@ export default function VoucherForm({
   const fuelType = watch("fuel_type");
 
   const paymentMode = watch("payment_mode");
+  const [selectedUpiUuid, setSelectedUpiUuid] = useState("");
   const qty = watch("quantity_liters") ?? 0;
   const rate = watch("rate_per_liter") ?? 0;
   const totalAmount = watch("total_amount") ?? 0;
@@ -484,7 +486,21 @@ export default function VoucherForm({
           {...register("payment_mode")}
         />
 
-        {paymentMode === "BANK" && (
+        {(paymentMode === "UPI" || paymentMode === "SPLIT") && (
+          <div className="sm:col-span-2">
+            <UpiAccountSelect
+              value={selectedUpiUuid}
+              onChange={(upiUuid, linkedBankUuid) => {
+                setSelectedUpiUuid(upiUuid);
+                if (linkedBankUuid) {
+                  setValue("bank_account_uuid", linkedBankUuid);
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {(paymentMode === "BANK" || paymentMode === "UPI" || paymentMode === "CARD" || paymentMode === "SPLIT") && (
           <div className="sm:col-span-2">
             <BankAccountSelect
               value={watch("bank_account_uuid")}

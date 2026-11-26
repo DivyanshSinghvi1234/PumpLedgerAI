@@ -13,6 +13,7 @@ import inventoryService from "../services/inventoryService";
 import api from "@/api/client";
 import type { FuelType, FuelTankCreate, DipReadingCreate, TankTransferCreate } from "../types";
 import BankAccountSelect from "@/components/common/BankAccountSelect";
+import UpiAccountSelect from "@/components/common/UpiAccountSelect";
 import TankVisualization from "./TankVisualization";
 
 
@@ -54,6 +55,7 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
   const [stockProcurementRate, setStockProcurementRate] = useState("");
   const [stockPaymentMode, setStockPaymentMode] = useState<string>("CREDIT");
   const [stockBankUuid, setStockBankUuid] = useState<string>("");
+  const [stockUpiUuid, setStockUpiUuid] = useState<string>("");
   const [stockIgnoreCapacity, setStockIgnoreCapacity] = useState(false);
 
   // Inter-Tank Transfer states
@@ -1329,6 +1331,18 @@ export default function StockReconciliationTab({ isAdminOrManager }: { isAdminOr
                 <option value="CASH">CASH</option>
               </select>
             </div>
+
+            {stockPaymentMode === "UPI" && (
+              <UpiAccountSelect
+                value={stockUpiUuid}
+                onChange={(upiUuid, linkedBankUuid) => {
+                  setStockUpiUuid(upiUuid);
+                  if (linkedBankUuid) {
+                    setStockBankUuid(linkedBankUuid);
+                  }
+                }}
+              />
+            )}
 
             <BankAccountSelect
               value={stockBankUuid}

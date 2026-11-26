@@ -96,6 +96,51 @@ class BankAccountService {
   async reverseTransaction(txnUuid: string): Promise<void> {
     await api.delete(`/v1/bank-accounts/transactions/${txnUuid}`);
   }
+
+  async getUpiAccounts(): Promise<UpiAccount[]> {
+    const res = await api.get<UpiAccount[]>("/v1/bank-accounts/upi");
+    return res.data;
+  }
+
+  async createUpiAccount(data: UpiAccountCreate): Promise<UpiAccount> {
+    const res = await api.post<UpiAccount>("/v1/bank-accounts/upi", data);
+    return res.data;
+  }
+
+  async updateUpiAccount(uuid: string, data: UpiAccountUpdate): Promise<UpiAccount> {
+    const res = await api.patch<UpiAccount>(`/v1/bank-accounts/upi/${uuid}`, data);
+    return res.data;
+  }
+
+  async deleteUpiAccount(uuid: string): Promise<void> {
+    await api.delete(`/v1/bank-accounts/upi/${uuid}`);
+  }
+}
+
+export interface UpiAccount {
+  uuid: string;
+  name: string;
+  provider: string;
+  upi_id?: string | null;
+  bank_account_uuid: string;
+  bank_name: string;
+  bank_account_name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface UpiAccountCreate {
+  name: string;
+  provider: string;
+  upi_id?: string | null;
+  bank_account_uuid: string;
+}
+
+export interface UpiAccountUpdate {
+  name?: string;
+  provider?: string;
+  upi_id?: string | null;
+  bank_account_uuid?: string;
 }
 
 const bankAccountService = new BankAccountService();

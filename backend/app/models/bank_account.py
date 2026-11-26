@@ -122,3 +122,39 @@ class BankTransaction(
         String(500),
         nullable=True,
     )
+
+
+class UpiAccount(
+    Base,
+    IDMixin,
+    UUIDMixin,
+    TimestampMixin,
+    ActiveMixin,
+    PumpScopedMixin,
+):
+    __tablename__ = "upi_accounts"
+
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        index=True,
+    )
+
+    provider: Mapped[str] = mapped_column(
+        String(40),
+        default="PHONEPE",
+        nullable=False,
+    )
+
+    upi_id: Mapped[Optional[str]] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
+    bank_account_id: Mapped[int] = mapped_column(
+        ForeignKey("bank_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    bank_account = relationship("BankAccount")

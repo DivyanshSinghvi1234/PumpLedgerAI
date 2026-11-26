@@ -7,7 +7,7 @@ from typing import Sequence
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.models.bank_account import BankAccount, BankTransaction
+from app.models.bank_account import BankAccount, BankTransaction, UpiAccount
 from app.models.voucher import Voucher
 from app.models.payment import Payment
 from app.models.income import Income
@@ -15,6 +15,8 @@ from app.schemas.bank_account import (
     BankAccountCreate,
     BankAccountUpdate,
     CashDepositRequest,
+    UpiAccountCreate,
+    UpiAccountUpdate,
 )
 from app.services.audit_log_service import AuditLogService
 from app.core.enums import IncomeKind, PaymentMode
@@ -593,3 +595,123 @@ class BankAccountService:
                 "created_at": t.created_at,
             })
         return res
+
+    # -----------------------------------
+    # UPI Accounts (linked to BankAccount)
+    # -----------------------------------
+
+    @staticmethod
+    def _serialize_upi(upi: UpiAccount) -> dict:
+        return {
+            "uuid": upi.uuid,
+            "name": upi.name,
+            "provider": upi.provider,
+            "upi_id": upi.upi_id,
+            "bank_account_uuid": upi.bank_account.uuid if upi.bank_account else "",
+            "bank_name": upi.bank_account.bank_name if upi.bank_account else "",
+            "bank_account_name": upi.bank_account.account_name if upi.bank_account else "",
+            "is_active": upi.is_active,
+            "created_at": upi.created_at,
+        }
+
+    def list_upi_accounts(self, db: Session, pump_id: int) -> list[dict]:
+        items = db.scalars(
+            select(UpiAccount)
+            .where(UpiAccount.pump_id == pump_id, UpiAccount.is_active.is_(True))
+            .order_by(UpiAccount.id.asc())
+        ).all()
+        return [self._serialize_upi(u) for u in items]
+
+    def create_upi_account(
+        self,
+        db: Session,
+        data: UpiAccountCreate,
+        pump_id: int,
+        actor_id: int | None = None,
+    ) -> dict:
+        bank = self.get_by_uuid(db, data.bank_account_uuid)
+        upi = UpiAccount(
+            name=data.name.strip(),
+            provider=(data.provider or "PHONEPE").strip().upper(),
+            upi_id=data.upi_id.strip() if data.upi_id else None,
+            bank_account_id=bank.id,
+            pump_id=pump_id,
+        )
+        db.add(upi)
+        db.flush()
+        db.refresh(upi)
+        self.audit_service.log_action(
+            db,
+            action="Created UPI Account",
+            target_table="upi_accounts",
+            target_id=str(upi.id),
+            actor_id=actor_id,
+            new_values={
+                "name": upi.name,
+                "provider": upi.provider,
+                "upi_id": upi.upi_id,
+                "bank_account_uuid": bank.uuid,
+            },
+        )
+        return self._serialize_upi(upi)
+
+    def update_upi_account(
+        self,
+        db: Session,
+        upi_uuid: str,
+        data: UpiAccountUpdate,
+        actor_id: int | None = None,
+    ) -> dict:
+        upi = db.scalars(
+            select(UpiAccount).where(UpiAccount.uuid == upi_uuid, UpiAccount.is_active.is_(True))
+        ).first()
+        if upi is None:
+            raise BankAccountNotFoundError(f"UPI account {upi_uuid} not found")
+
+        if data.name is not None:
+            upi.name = data.name.strip()
+        if data.provider is not None:
+            upi.provider = data.provider.strip().upper()
+        if data.upi_id is not None:
+            upi.upi_id = data.upi_id.strip() or None
+        if data.bank_account_uuid is not None:
+            bank = self.get_by_uuid(db, data.bank_account_uuid)
+            upi.bank_account_id = bank.id
+
+        db.flush()
+        db.refresh(upi)
+        self.audit_service.log_action(
+            db,
+            action="Updated UPI Account",
+            target_table="upi_accounts",
+            target_id=str(upi.id),
+            actor_id=actor_id,
+            new_values={
+                "name": upi.name,
+                "provider": upi.provider,
+                "upi_id": upi.upi_id,
+            },
+        )
+        return self._serialize_upi(upi)
+
+    def delete_upi_account(
+        self,
+        db: Session,
+        upi_uuid: str,
+        actor_id: int | None = None,
+    ) -> None:
+        upi = db.scalars(
+            select(UpiAccount).where(UpiAccount.uuid == upi_uuid, UpiAccount.is_active.is_(True))
+        ).first()
+        if upi is None:
+            raise BankAccountNotFoundError(f"UPI account {upi_uuid} not found")
+        upi.is_active = False
+        db.flush()
+        self.audit_service.log_action(
+            db,
+            action="Deleted UPI Account",
+            target_table="upi_accounts",
+            target_id=str(upi.id),
+            actor_id=actor_id,
+            old_values={"name": upi.name, "provider": upi.provider},
+        )

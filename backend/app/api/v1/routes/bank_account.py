@@ -18,6 +18,9 @@ from app.schemas.bank_account import (
     CashDepositRequest,
     BankTransactionResponse,
     LiquidFundsSummaryResponse,
+    UpiAccountCreate,
+    UpiAccountUpdate,
+    UpiAccountResponse,
 )
 from app.services.bank_account_service import (
     BankAccountService,
@@ -249,6 +252,69 @@ def reverse_bank_transaction(
     except BankAccountNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+
+
+@router.get(
+    "/upi",
+    response_model=Sequence[UpiAccountResponse],
+)
+def list_upi_accounts(
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    pump_id = _get_active_pump_id(db)
+    return service.list_upi_accounts(db, pump_id)
+
+
+@router.post(
+    "/upi",
+    response_model=UpiAccountResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=manager_required,
+)
+def create_upi_account(
+    data: UpiAccountCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    pump_id = _get_active_pump_id(db)
+    try:
+        return service.create_upi_account(db, data, pump_id, actor_id=current_user.id)
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.patch(
+    "/upi/{upi_uuid}",
+    response_model=UpiAccountResponse,
+    dependencies=manager_required,
+)
+def update_upi_account(
+    upi_uuid: str,
+    data: UpiAccountUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return service.update_upi_account(db, upi_uuid, data, actor_id=current_user.id)
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/upi/{upi_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=manager_required,
+)
+def delete_upi_account(
+    upi_uuid: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        service.delete_upi_account(db, upi_uuid, actor_id=current_user.id)
+    except BankAccountNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.delete(

@@ -21,7 +21,7 @@ from app.models.income import Income
 from app.models.nps_rating import NPSRating
 from app.models.daily_cash_sheet import DailyCashSheet
 from app.models.pump_setting import PumpSetting
-from app.models.bank_account import BankAccount, BankTransaction
+from app.models.bank_account import BankAccount, BankTransaction, UpiAccount
 from app.models.staff_ledger_entry import StaffLedgerEntry
 from app.models.shift_settlement import ShiftSettlement
 from app.models.day_closing import DayClosing
@@ -58,6 +58,7 @@ __all__ = [
     "PumpSetting",
     "BankAccount",
     "BankTransaction",
+    "UpiAccount",
     "StaffLedgerEntry",
     "ShiftSettlement",
     "DayClosing",
