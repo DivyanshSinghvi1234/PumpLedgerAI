@@ -6,8 +6,10 @@ import Sidebar from "../components/layout/Sidebar";
 import Navbar from "../components/layout/Navbar";
 import OfflineBanner from "../components/layout/OfflineBanner";
 import { isAuthenticated } from "../features/auth/services/authService";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function AppLayout() {
+  const { t } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
       const saved = localStorage.getItem("sidebar_open");
@@ -69,7 +71,7 @@ export default function AppLayout() {
                 }
               >
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span>{t(item.label)}</span>
               </NavLink>
             );
           })}

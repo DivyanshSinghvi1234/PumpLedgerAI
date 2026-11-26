@@ -25,6 +25,7 @@ import {
 
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import type { UserRole } from "@/features/auth/services/authService";
+import { useLanguage } from "@/i18n/LanguageContext";
 import PumpSwitcher from "./PumpSwitcher";
 
 interface MenuItem {
@@ -171,6 +172,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { t } = useLanguage();
   const { hasRole } = useCurrentUser();
   const location = useLocation();
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -269,7 +271,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     onClick={() => toggleSection(group.section)}
                     className="mb-2 flex w-full items-center justify-between px-3 text-[10px] font-mono font-semibold uppercase tracking-wider text-ink-tertiary hover:text-ink-muted cursor-pointer transition"
                   >
-                    <span>{group.section}</span>
+                    <span>{t(group.section)}</span>
                     {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                   </button>
 
@@ -301,7 +303,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                 }`}>
                                   <Icon size={15} />
                                 </div>
-                                <span>{item.title}</span>
+                                <span>{t(item.title)}</span>
                               </>
                             )}
                           </NavLink>

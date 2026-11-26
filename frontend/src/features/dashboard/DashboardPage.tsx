@@ -7,6 +7,7 @@ import EmptyState from "@/components/common/EmptyState";
 
 import { useDashboard } from "./hooks/useDashboard";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { FivePointAuditBanner } from "@/features/pipeline/components/FivePointAuditBanner";
 import { getTodayDateString } from "@/lib/utils";
@@ -25,6 +26,7 @@ const ANALYTICS_OPEN_KEY = "pumpledger_show_detailed_analytics";
 
 export default function DashboardPage() {
   const { user, hasRole } = useCurrentUser();
+  const { t } = useLanguage();
   const isAdminOrManager = hasRole("ADMIN", "MANAGER");
   const isOperator = user?.role === "OPERATOR";
   const todayStr = getTodayDateString();
@@ -84,10 +86,10 @@ export default function DashboardPage() {
       {/* Welcome banner */}
       <div className="rounded-xl border border-hairline bg-gradient-to-r from-surface-1 to-surface-2 p-5">
         <h1 className="text-lg font-bold tracking-tight text-ink">
-          {greeting} 👋
+          {t(greeting)} 👋
         </h1>
         <p className="text-sm text-ink-muted mt-0.5">
-          Here's an overview of your pump activity today.
+          {t("Here's an overview of your pump activity today.")}
         </p>
       </div>
 

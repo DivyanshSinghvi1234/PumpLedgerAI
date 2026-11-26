@@ -18,6 +18,7 @@ import voucherService from "@/features/vouchers/services/voucherService";
 import inventoryService from "@/features/inventory/services/inventoryService";
 import { useVoucherList } from "@/features/vouchers/hooks/useVoucherList";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
+import { useLanguage } from "@/i18n/LanguageContext";
 import type { FuelType, PaymentMode } from "@/types/voucher";
 
 const FUEL_BUTTONS: { label: string; value: FuelType }[] = [
@@ -33,6 +34,7 @@ const MODE_BUTTONS: { label: string; value: PaymentMode }[] = [
 ];
 
 export default function QuickEntryPage() {
+  const { t } = useLanguage();
   const today = getTodayDateString();
   const yesterday = useMemo(() => {
     const d = new Date();
@@ -215,13 +217,13 @@ export default function QuickEntryPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Quick Entry Mode"
-        description="Fast forecourt screen for attendants: create a credit/cash/UPI slip and check today's nozzle totals."
+        title={t("Quick Entry Mode")}
+        description={t("Fast forecourt screen for attendants: create a credit/cash/UPI slip and check today's nozzle totals.")}
         helpText="Pick Fuel Type, Customer/Vehicle, enter Amount or Liters, and tap Save Slip. Designed for mobile & tablet use at the island."
         action={
           <Link to="/dashboard/upload">
             <Button variant="outline" className="text-xs h-9 border-hairline cursor-pointer">
-              <Camera size={14} className="mr-1.5 text-fuel-amber" /> Snap Bill Photo
+              <Camera size={14} className="mr-1.5 text-fuel-amber" /> {t("Snap Bill Photo")}
             </Button>
           </Link>
         }

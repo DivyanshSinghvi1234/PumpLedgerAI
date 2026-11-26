@@ -6,6 +6,7 @@ import { LogOut, Menu, Building2, Calculator, Search, Fuel, X } from "lucide-rea
 import { logout } from "../../features/auth/services/authService";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { useLanguage } from "@/i18n/LanguageContext";
 import api from "@/api/client";
 import { formatCurrency } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ interface NavbarProps {
 export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
   const navigate = useNavigate();
   const { user, activePump } = useCurrentUser();
+  const { lang, toggleLang, t } = useLanguage();
   const [lookupQuery, setLookupQuery] = useState("");
   const [cashCalcOpen, setCashCalcOpen] = useState(false);
   const [calcNotes, setCalcNotes] = useState({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 });
@@ -118,7 +120,7 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
               <input
                 value={lookupQuery}
                 onChange={(e) => setLookupQuery(e.target.value)}
-                placeholder="Check Customer Due..."
+                placeholder={t("Check Customer Due...")}
                 className="w-36 bg-transparent text-xs text-ink outline-none placeholder:text-ink-subtle"
               />
               {lookupQuery && (
@@ -162,8 +164,8 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
             {cashCalcOpen && (
               <div className="absolute right-0 mt-2 w-64 rounded-xl border border-hairline bg-surface-1 shadow-2xl p-3 z-50 space-y-2 text-xs">
                 <div className="flex items-center justify-between font-bold text-ink border-b border-hairline pb-1.5">
-                  <span>Quick Cash Counter</span>
-                  <button type="button" onClick={() => setCalcNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 })} className="text-[10px] text-fuel-amber hover:underline cursor-pointer">Reset</button>
+                  <span>{t("Quick Cash Counter")}</span>
+                  <button type="button" onClick={() => setCalcNotes({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0 })} className="text-[10px] text-fuel-amber hover:underline cursor-pointer">{t("Reset")}</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {([
@@ -187,7 +189,7 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
                   ))}
                 </div>
                 <div className="border-t border-hairline pt-1.5 flex items-center justify-between font-mono font-bold text-emerald-500">
-                  <span>Total Cash</span>
+                  <span>{t("Total Cash")}</span>
                   <span>{formatCurrency(calcTotal)}</span>
                 </div>
               </div>
@@ -210,11 +212,21 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
                   {user.full_name || user.username}
                 </p>
                 <p className="text-[9px] font-mono uppercase tracking-wider text-fuel-amber">
-                  {{ ADMIN: "Admin", MANAGER: "Manager", OPERATOR: "Employee" }[user.role] ?? user.role}
+                  {t({ ADMIN: "Admin", MANAGER: "Manager", OPERATOR: "Employee" }[user.role] ?? user.role)}
                 </p>
               </div>
             </div>
           )}
+
+          {/* Language Switcher: English / हिन्दी */}
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="rounded-lg border border-hairline bg-surface-2 px-2.5 py-1.5 text-xs font-bold text-ink hover:bg-surface-3 transition cursor-pointer"
+            title={lang === "en" ? "Switch to Hindi (हिन्दी)" : "Switch to English"}
+          >
+            {lang === "en" ? "EN / हिं" : "हिं / EN"}
+          </button>
 
           <ThemeToggle />
 
@@ -223,7 +235,7 @@ export default function Navbar({ onMenuClick, isSidebarOpen }: NavbarProps) {
             className="flex items-center gap-2 rounded-lg border border-hairline bg-surface-2 px-3 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-3 hover:text-ink transition cursor-pointer ml-1"
           >
             <LogOut size={13} />
-            <span className="hidden sm:inline">Logout</span>
+            <span className="hidden sm:inline">{t("Logout")}</span>
           </button>
         </div>
     </header>

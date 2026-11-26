@@ -23,12 +23,14 @@ import BankAccountSelect from "@/components/common/BankAccountSelect";
 import UpiCollectionBreakdown from "@/components/common/UpiCollectionBreakdown";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { formatCurrency, getTodayDateString } from "@/lib/utils";
+import { useLanguage } from "@/i18n/LanguageContext";
 import dayClosingService from "./services/dayClosingService";
 import { pipelineService } from "@/features/pipeline/services/pipelineService";
 import { FivePointAuditBanner } from "@/features/pipeline/components/FivePointAuditBanner";
 
 export default function DayClosingPage() {
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
   const { hasRole } = useCurrentUser();
   const isAdmin = hasRole("ADMIN");
 
@@ -237,8 +239,8 @@ export default function DayClosingPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <PageHeader
-          title="One-Click Day Closing"
-          description="Auto-computes meter sales, cash/UPI/card/credit totals, expenses, and tank stock variance."
+          title={t("One-Click Day Closing")}
+          description={t("Auto-computes meter sales, cash/UPI/card/credit totals, expenses, and tank stock variance.")}
         />
         <div className="flex items-center gap-3">
           <input

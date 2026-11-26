@@ -1,0 +1,103 @@
+export type AppLanguage = "en" | "hi";
+
+export const HI_TRANSLATIONS: Record<string, string> = {
+  // Sidebar Sections
+  "Daily Routine": "दैनिक कार्य",
+  "Stock & Customers": "स्टॉक और ग्राहक",
+  "Money & Staff": "धन और स्टाफ",
+  "Reports & Admin": "रिपोर्ट और एडमिन",
+
+  // Sidebar Items
+  "Dashboard": "डैशबोर्ड",
+  "Quick Entry": "त्वरित एंट्री",
+  "Upload Invoice": "बिल अपलोड",
+  "Vouchers": "वाउचर",
+  "Payments": "भुगतान",
+  "8 PM Settlement": "शाम 8 बजे हिसाब",
+  "Day Closing": "दिन बंद (Day Close)",
+  "Inventory": "इन्वेंटरी और मीटर",
+  "Customers": "ग्राहक",
+  "Vehicles": "वाहन",
+  "Bank & Cash Accounts": "बैंक और कैश खाते",
+  "Revenue / Expenses": "आय / खर्च",
+  "Staff & Payroll": "स्टाफ और वेतन",
+  "Command Center": "कमांड सेंटर",
+  "Daily Register": "दैनिक रजिस्टर",
+  "Reports": "रिपोर्ट",
+  "Tally Sync": "टैली सिंक",
+  "Audit Trail": "ऑडिट लॉग",
+  "User Management": "यूज़र प्रबंधन",
+
+  // Mobile Bottom Nav
+  "Home": "होम",
+  "Day Close": "दिन बंद",
+
+  // Navbar
+  "Check Customer Due...": "ग्राहक बकाया देखें...",
+  "Quick Cash Counter": "कैश नोट गिनती",
+  "Total Cash": "कुल नकद",
+  "Reset": "रीसेट",
+  "Logout": "लॉगआउट",
+  "Admin": "एडमिन",
+  "Manager": "मैनेजर",
+  "Employee": "कर्मचारी",
+
+  // Dashboard
+  "Good morning": "सुप्रभात",
+  "Good afternoon": "नमस्कार",
+  "Good evening": "शुभ संध्या",
+  "Here's an overview of your pump activity today.": "आज आपके पेट्रोल पंप की गतिविधि का पूरा विवरण।",
+  "Pending Today:": "आज के लंबित कार्य:",
+  "Day Closing Open": "दिन बंद करना बाकी है",
+  "Payroll Due — Pay Salaries (Cash / Bank)": "वेतन भुगतान बाकी — वेतन दें (नकद / बैंक)",
+  "Fast forecourt credit / cash / UPI slip": "तेज़ उधार / नकद / UPI पर्ची बनाएं",
+  "Upload Bill": "बिल अपलोड करें",
+  "Snap & scan handwritten slip": "हस्तलिखित पर्ची की फोटो स्कैन करें",
+  "Today's Slips": "आज की पर्चियाँ",
+  "View all entries recorded today": "आज की सभी पर्चियाँ देखें",
+  "Show Detailed Analytics": "विस्तृत विश्लेषण देखें",
+  "Hide Detailed Analytics": "विस्तृत विश्लेषण छिपाएं",
+
+  // Quick Entry
+  "Quick Entry Mode": "त्वरित एंट्री मोड",
+  "Fast forecourt screen for attendants: create a credit/cash/UPI slip and check today's nozzle totals.": "पंप कर्मचारियों के लिए तेज़ स्क्रीन: उधार/नकद/UPI पर्ची बनाएं और नोज़ल टोटल देखें।",
+  "Snap Bill Photo": "बिल फोटो खींचें",
+  "New Forecourt Slip": "नई पंप पर्ची",
+  "1. Fuel Type": "1. ईंधन का प्रकार",
+  "2. Payment Mode": "2. भुगतान का तरीका",
+  "Diesel": "डीज़ल",
+  "Petrol": "पेट्रोल",
+  "Speed": "स्पीड",
+  "Credit": "उधार",
+  "Cash": "नकद",
+  "UPI": "UPI",
+  "Save Slip": "पर्ची सेव करें",
+  "Saving...": "सेव हो रहा है...",
+
+  // Day Closing
+  "One-Click Day Closing": "वन-क्लिक दिन बंद (Day Closing)",
+  "Auto-computes meter sales, cash/UPI/card/credit totals, expenses, and tank stock variance.": "मीटर बिक्री, नकद/UPI/कार्ड/उधार, खर्च और टैंक स्टॉक अंतर की स्वतः गणना।",
+  "Locked": "लॉक है",
+  "Open Day": "दिन खुला है",
+  "Save & Close Day": "दिन सेव और लॉक करें",
+  "Closing Day...": "दिन बंद हो रहा है...",
+  "Post Summary Cash Sale": "अघोषित नकद बिक्री दर्ज करें",
+  "4-Checkpoint Day Closing Gate": "4-चेकपॉइंट दिन बंद सुरक्षा जांच",
+  "All Checks Passed": "सभी जांच सफल",
+  "Action Required": "कार्रवाई आवश्यक",
+
+  // Vouchers & Payments
+  "Manage all fuel vouchers.": "सभी ईंधन वाउचर और पर्चियाँ प्रबंधित करें।",
+  "Receive and track customer payments.": "ग्राहक भुगतान प्राप्त करें और ट्रैक करें।",
+  "Today": "आज",
+  "Unpaid": "बकाया",
+  "Repeat": "दोहराएं",
+  "Settle": "निपटान",
+
+  // Login
+  "Sign in to PumpLedger": "पंपलेजर में लॉगिन करें",
+  "Username": "यूज़रनेम",
+  "Password": "पासवर्ड",
+  "Sign In": "लॉगिन करें",
+  "Signing in...": "लॉगिन हो रहा है...",
+};
