@@ -27,6 +27,15 @@ export function InstructorDrawer({ open, onClose }: Props) {
     setExpandedSectionId(matched.sections[0]?.id ?? null);
   }, [location.pathname, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const activeGuide =
@@ -35,15 +44,16 @@ export function InstructorDrawer({ open, onClose }: Props) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs"
+      className="fixed inset-0 flex justify-end bg-black/50 backdrop-blur-xs"
+      style={{ zIndex: 9999 }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md h-full bg-surface-1 border-l border-hairline shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+        className="w-full max-w-md h-full bg-surface-1 border-l border-hairline shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-surface-2">
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-hairline bg-surface-2">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-fuel-amber/15 text-fuel-amber flex items-center justify-center">
               <Compass size={18} />
@@ -69,7 +79,7 @@ export function InstructorDrawer({ open, onClose }: Props) {
         </div>
 
         {/* Page Switcher Pills */}
-        <div className="px-4 py-2.5 border-b border-hairline bg-surface-2/50 flex gap-1.5 overflow-x-auto">
+        <div className="shrink-0 px-4 py-2.5 border-b border-hairline bg-surface-2/50 flex gap-1.5 overflow-x-auto">
           {PAGE_GUIDES.map((g) => (
             <button
               key={g.path}

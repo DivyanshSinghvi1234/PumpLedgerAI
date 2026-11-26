@@ -417,6 +417,148 @@ export const PAGE_GUIDES: PageGuide[] = [
     ],
     sections: [],
   },
+  {
+    path: "/dashboard/payments",
+    title: "Payments",
+    titleHi: "भुगतान",
+    overview:
+      "Record customer credit recoveries via Cash, UPI, Bank, Card, or Split mode with overpayment & duplicate UTR guards.",
+    overviewHi:
+      "नकद, UPI, बैंक, कार्ड या स्प्लिट मोड में ग्राहक भुगतान दर्ज करें — ओवरपेमेंट और डुप्लिकेट UTR जांच के साथ।",
+    steps: [
+      "Click 'Receive Payment', pick the Customer or Vehicle, and enter the amount.",
+      "In SPLIT mode, enter Cash and the Bank/UPI remainder auto-fills.",
+      "Use 1-tap filter pills (Today, CASH, UPI, BANK, SPLIT) to view totals above the table.",
+    ],
+    stepsHi: [
+      "'Receive Payment' दबाएं, ग्राहक या वाहन चुनें और राशि भरें।",
+      "SPLIT मोड में नकद भरें और बैंक/UPI हिस्सा अपने-आप भर जाएगा।",
+      "ऊपर फ़िल्टर पिल्स से तुरंत टोटल देखें।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/shift-settlement",
+    title: "8 PM Settlement",
+    titleHi: "शाम 8 बजे हिसाब",
+    overview:
+      "Reconcile attendant shift cash, note counts, UPI/Card totals, and cash handed to the next shift.",
+    overviewHi:
+      "शिफ्ट के अंत में कैश, नोट गिनती, UPI/कार्ड और अगली शिफ्ट को दिया कैश मिलाएं।",
+    steps: [
+      "Select the shift date and verify auto-populated meter & voucher totals.",
+      "Enter note counts; they automatically sync to Daily Register and Day Closing.",
+    ],
+    stepsHi: [
+      "शिफ्ट की तारीख चुनें और मीटर/वाउचर टोटल जांचें।",
+      "नोटों की गिनती भरें; यह दैनिक रजिस्टर और दिन बंद से सिंक होती है।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/income",
+    title: "Revenue / Expenses",
+    titleHi: "आय / खर्च",
+    overview:
+      "Log daily pump expenses (tea, generator diesel, maintenance), non-fuel income, bank deposits, and repeat yesterday's fixed expenses.",
+    overviewHi:
+      "दैनिक पंप खर्च, अन्य आय और बैंक जमा दर्ज करें, या कल के खर्च 1 क्लिक में दोहराएं।",
+    steps: [
+      "Click 'Add Expense' or 'Copy Yesterday's Expenses' to repeat daily fixed costs.",
+      "Select Cash or a specific Bank Account (HDFC/SBI) so balances stay accurate.",
+    ],
+    stepsHi: [
+      "'Add Expense' या 'Copy Yesterday's Expenses' से दैनिक खर्च दर्ज करें।",
+      "सही बैलेंस के लिए नकद या बैंक खाता (HDFC/SBI) चुनें।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/register",
+    title: "Daily Register",
+    titleHi: "दैनिक रजिस्टर",
+    overview:
+      "Digital replica of your physical pump register book with 5-Line Cash-in-Hand Proof and Meter vs. Vouchers live gap check.",
+    overviewHi:
+      "भौतिक रजिस्टर बुक का डिजिटल रूप — 5-लाइन कैश प्रूफ और मीटर बनाम वाउचर अंतर जांच के साथ।",
+    steps: [
+      "Click 'Auto-Fill From 8 PM Shift' to pull note counts without re-typing.",
+      "Check the 5-Line Cash-in-Hand Proof box and Meter vs. Vouchers live gap.",
+    ],
+    stepsHi: [
+      "नोट गिनती भरने के लिए 'Auto-Fill From 8 PM Shift' दबाएं।",
+      "5-लाइन कैश प्रूफ और मीटर बनाम वाउचर अंतर जांचें।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/staff",
+    title: "Staff & Payroll",
+    titleHi: "स्टाफ और वेतन",
+    overview:
+      "Track employee attendance, advances, commissions, and pay monthly salaries via Cash or Bank (HDFC/SBI).",
+    overviewHi:
+      "कर्मचारी उपस्थिति, एडवांस, कमीशन ट्रैक करें और नकद या बैंक से मासिक वेतन भुगतान करें।",
+    steps: [
+      "Record staff advances or attendance anytime during the month.",
+      "Select Cash or Bank payout mode and click Pay Salary at month-end.",
+    ],
+    stepsHi: [
+      "महीने के दौरान एडवांस और उपस्थिति दर्ज करें।",
+      "महीने के अंत में नकद या बैंक चुनकर वेतन भुगतान करें।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/tally",
+    title: "Tally Sync",
+    titleHi: "टैली सिंक",
+    overview:
+      "Run a 5-second Pre-Export Data Integrity Audit and export clean XML packages for Tally / CA.",
+    overviewHi:
+      "टैली/CA एक्सपोर्ट से पहले 5-सेकंड डेटा जांच चलाएं और XML डाउनलोड करें।",
+    steps: [
+      "Review the Pre-Export Data Integrity Audit banner (unlinked banks, pending OCR, unlocked days).",
+      "Download Tally XML or sync directly to Tally on port 9000.",
+    ],
+    stepsHi: [
+      "ऊपर Pre-Export Data Integrity Audit बैनर जांचें।",
+      "Tally XML डाउनलोड करें या सीधे पोर्ट 9000 पर सिंक करें।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/reports",
+    title: "Reports",
+    titleHi: "रिपोर्ट",
+    overview:
+      "View Daily Sales, Debtor Aging, Cash Flow, P&L, and Monthly GST Invoice reports with CSV export.",
+    overviewHi:
+      "दैनिक बिक्री, बकाया उम्र, कैश फ्लो, लाभ-हानि और मासिक GST रिपोर्ट देखें और CSV डाउनलोड करें।",
+    steps: [
+      "Pick a report tab and date range, then export CSV for your accountant.",
+    ],
+    stepsHi: [
+      "रिपोर्ट टैब और तारीख चुनें, और अकाउंटेंट के लिए CSV डाउनलोड करें।",
+    ],
+    sections: [],
+  },
+  {
+    path: "/dashboard/upload",
+    title: "Upload Invoice",
+    titleHi: "बिल अपलोड",
+    overview:
+      "Upload handwritten credit slips or fuel bills for Gemini AI OCR extraction and review.",
+    overviewHi:
+      "AI OCR द्वारा पढ़ने के लिए हस्तलिखित उधार पर्ची या बिल अपलोड करें।",
+    steps: [
+      "Snap or upload bill photos, then review extracted fields and pick Bank/UPI if digital.",
+    ],
+    stepsHi: [
+      "बिल की फोटो अपलोड करें, विवरण जांचें और डिजिटल होने पर बैंक/UPI चुनें।",
+    ],
+    sections: [],
+  },
 ];
 
 export function findGuideForPath(pathname: string): PageGuide {
