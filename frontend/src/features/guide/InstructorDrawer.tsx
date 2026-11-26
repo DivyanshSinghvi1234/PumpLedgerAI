@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, ChevronDown, ChevronRight, Compass, X } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -32,9 +33,15 @@ export function InstructorDrawer({ open, onClose }: Props) {
     PAGE_GUIDES.find((g) => g.path === selectedGuidePath) || currentGuide;
   const isHi = lang === "hi";
 
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
-      <div className="w-full max-w-md h-full bg-surface-1 border-l border-hairline shadow-2xl flex flex-col overflow-hidden animate-fade-in">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md h-full bg-surface-1 border-l border-hairline shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-hairline bg-surface-2">
           <div className="flex items-center gap-2">
@@ -189,6 +196,7 @@ export function InstructorDrawer({ open, onClose }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
